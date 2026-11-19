@@ -5,6 +5,7 @@
  *   <adapter>:swaps      the swap-history backfill (MI_SWAP_BACKFILL_DAYS > 0): past swaps of the registered pools of chains in MI_SWAP_SCAN
  *   <adapter>:backfill   the creation backfill, only when MI_BACKFILL_DAYS > 0; default adapters: the V2/V3 adapters of BNB Chain
  *   <solana adapter>:discover / :refresh   discovery of existing Solana pools and their liquidity refresher, only when MI_SOLANA_DISCOVERY is set
+ *   solana:listen       new Solana pools heard as they are created (websocket), only when MI_SOLANA_LISTEN names venues (solana/listener.ts)
  *   <chain>:supply       the token supply refresher (for the Markets list's fully diluted value), one per chain, on unless MI_SUPPLY=0
  */
 import { chainConfig, type MiChainConfig } from '../chains.js';
@@ -20,9 +21,11 @@ import { makeRead, type Read } from '../rpc.js';
 import { enabledSolana, enabledSpecs, rulesFrom, runAll, type RunnerEnv } from '../runner.js';
 import { SOLANA_SPECS } from '../dexes.js';
 import { discoverVenue, discoveryAdapters } from '../solana/discovery.js';
-import { solUsdReader } from '../solana/engine.js';
 import { refreshSolanaReserves } from '../solana/refresher.js';
 import { followWatchedPools } from '../solana/engine.js';
+import { gateFor } from '../solana/gate.js';
+import { listenableVenues, registerHeard, startListener, type Heard, type Listener, type Socket } from '../solana/listener.js';
+import { emptyReport, solUsdReader, type TokenFacts } from '../solana/engine.js';
 import { postgrestReader } from '../marketList.js';
 import { MI_CHAINS } from '../chains.js';
 import { buildSnapshot, rowOf } from '../../market/intel/snapshot.js';
@@ -46,6 +49,8 @@ export interface TaskDeps {
   watched?: (() => Promise<string[]>) | null;
   /** The data service the market intelligence snapshot task reads pools from and writes snapshots to (the worker's own database address and key). */
   intel?: { url: string; key: string } | null;
+  /** Test hook: opens the websocket the creation listener uses. */
+  listenOpen?: (url: string) => Socket;
   /** Where the watched-pools task says what it did (at most one line a minute, and only while somebody is watching). */
   log?: (line: string) => void;
 }
@@ -94,7 +99,7 @@ export function buildTasks(d: TaskDeps): WorkerTask[] {
     idleMs: d.watched && chain !== 'solana' ? () => (watch.byAdapter.has(id) ? watchEvery : undefined) : undefined,
     run: async (budgetMs) => {
       await refreshWatch();
-      const report = await runAll({ env: { ...d.env, MI_ADAPTERS: id }, store: d.store, fetchImpl: d.fetchImpl, now: d.now, budgetMs, launch: d.launch ?? null, extraPools: d.watched && chain !== 'solana' ? async (aid) => watch.byAdapter.get(aid) ?? [] : undefined });
+      const report = await runAll({ env: { ...d.env, MI_ADAPTERS: id, MI_SOLANA_GATE: d.env.MI_SOLANA_GATE === '0' ? '0' : '1' }, store: d.store, fetchImpl: d.fetchImpl, now: d.now, budgetMs, launch: d.launch ?? null, extraPools: d.watched && chain !== 'solana' ? async (aid) => watch.byAdapter.get(aid) ?? [] : undefined });
       const a = report.adapters[0];
       if (!a) return { ok: true, caughtUp: true };
       const maxRange = chain === 'solana' ? 0 : chainConfig(chain, d.env).maxRange;
@@ -114,6 +119,7 @@ export function buildTasks(d: TaskDeps): WorkerTask[] {
     // vanishingly rare, and this reading only adds trades the normal reading would add a few seconds later.
     const commitment = d.env.MI_WATCH_COMMITMENT === 'finalized' ? 'finalized' : 'confirmed';
     const lastPolled = new Map<string, number>();
+    const gate = d.env.MI_SOLANA_GATE === '0' ? undefined : gateFor('watched');
     const sum = { passes: 0, watched: 0, eligible: 0, polled: 0, traded: 0 };
     let loggedAt = 0;
     tasks.push({
@@ -136,7 +142,7 @@ export function buildTasks(d: TaskDeps): WorkerTask[] {
         for (const { spec, pools } of groups) {
           if (off.has(spec.id)) continue;
           try {
-            const got = await followWatchedPools({ spec, chain, rpc, store: d.store, rules, now: d.now, launch: d.launch ?? null, nativeUsd, commitment }, pools, { budgetMs: Math.min(budgetMs, 20_000), maxPools, fastMs: watchEvery, lastPolled });
+            const got = await followWatchedPools({ spec, chain, rpc, store: d.store, rules, now: d.now, launch: d.launch ?? null, nativeUsd, commitment, ...(gate ? { gate } : {}) }, pools, { budgetMs: Math.min(budgetMs, 20_000), maxPools, fastMs: watchEvery, lastPolled });
             sum.eligible += got.eligible;
             sum.polled += got.polled;
             sum.traded += got.traded;
@@ -146,10 +152,58 @@ export function buildTasks(d: TaskDeps): WorkerTask[] {
         }
         if (d.log && d.now() - loggedAt >= 60_000) {
           loggedAt = d.now();
-          d.log(`watched: ${sum.passes} pass(es) this minute, ${sum.watched} Solana pool(s) on screen (in the index), ${sum.eligible} followable, ${sum.polled} read, ${sum.traded} with new trades`);
+          d.log(`watched: ${sum.passes} pass(es) this minute, ${sum.watched} Solana pool(s) on screen (in the index), ${sum.eligible} followable, ${sum.polled} read, ${sum.traded} with new trades${gate ? `; balance check left ${gate.stats.skipped} of ${gate.stats.asked} alone` : ''}`);
           Object.assign(sum, { passes: 0, watched: 0, eligible: 0, polled: 0, traded: 0 });
         }
         return { ok: failed === null, error: failed, caughtUp: true };
+      },
+    });
+  }
+
+  // New Solana pools heard as they are created, not looked for: a websocket on each listed venue's program, one transaction read per creation.
+  const listen = listenableVenues(d.env.MI_SOLANA_LISTEN);
+  if (listen.length > 0) {
+    const chain = chainConfig('solana', d.env);
+    const rpc = d.readFor ? d.readFor(chain) : makeRead(chain.rpcUrls, { fetchImpl: d.fetchImpl, concurrency: 3 });
+    const nativeUsd = solUsdReader(rpc, d.now);
+    const wsUrl = /^wss:\/\/[^\s]+$/.test((d.env.MI_SOLANA_WS_URL ?? '').trim()) ? d.env.MI_SOLANA_WS_URL!.trim() : 'wss://api.mainnet-beta.solana.com';
+    const queue: { h: Heard; tries: number }[] = [];
+    const cache = new Map<string, TokenFacts | null>();
+    const sum = { registered: 0, retried: 0, failed: 0 };
+    let listener: Listener | null = null;
+    let loggedAt = 0;
+    tasks.push({
+      id: 'solana:listen',
+      chain: 'solana',
+      lane: 'solana-listen',
+      idleMs: 3_000,
+      run: async (budgetMs) => {
+        listener ??= startListener({ url: wsUrl, venues: listen, now: d.now, ...(d.log ? { log: d.log } : {}), ...(d.listenOpen ? { open: d.listenOpen } : {}), onHeard: (h) => { if (queue.length < 500) queue.push({ h, tries: 0 }); } });
+        const deadline = d.now() + Math.min(budgetMs, 20_000);
+        const later: { h: Heard; tries: number }[] = [];
+        let error: string | null = null;
+        while (queue.length > 0 && d.now() < deadline) {
+          const item = queue.shift()!;
+          try {
+            const r = await registerHeard({ chain, rpc, store: d.store, rules, now: d.now, launch: d.launch ?? null, nativeUsd }, item.h, cache, emptyReport(item.h.adapterId));
+            sum.registered += r.pools;
+            if (r.retry && item.tries < 5) {
+              later.push({ h: item.h, tries: item.tries + 1 });
+              sum.retried++;
+            }
+          } catch (e) {
+            error = e instanceof Error ? e.message : 'a new pool could not be registered';
+            if (item.tries < 3) later.push({ h: item.h, tries: item.tries + 1 });
+            else sum.failed++;
+          }
+        }
+        queue.push(...later);
+        if (d.log && d.now() - loggedAt >= 60_000) {
+          loggedAt = d.now();
+          const s = listener.stats;
+          d.log(`listen: ${s.connected ? 'connected' : 'not connected'}, ${s.heard} creation(s) heard, ${sum.registered} pool(s) registered, ${sum.retried} retried, ${sum.failed} given up, ${Math.round(s.bytes / 1024)} KB received`);
+        }
+        return { ok: error === null, error, caughtUp: true };
       },
     });
   }

@@ -253,6 +253,34 @@ describe('watched pools on EVM chains', () => {
   });
 });
 
+describe('the new-pool listener task', () => {
+  const mk = (env: Record<string, string>, sockets: unknown[] = []) =>
+    buildTasks({
+      env,
+      store: new InMemoryMiStore(),
+      now: Date.now,
+      readFor: () => (async () => null) as unknown as Read,
+      listenOpen: () => {
+        const s = { sent: [] as string[], onopen: null, onmessage: null, onclose: null, onerror: null, send(x: string) { this.sent.push(x); }, close() { /* nothing */ } };
+        sockets.push(s);
+        return s as never;
+      },
+    });
+  it('exists only when MI_SOLANA_LISTEN names venues, on a lane of its own', () => {
+    expect(mk({}).some((x) => x.id === 'solana:listen')).toBe(false);
+    expect(mk({ MI_SOLANA_LISTEN: '0' }).some((x) => x.id === 'solana:listen')).toBe(false);
+    const task = mk({ MI_SOLANA_LISTEN: 'meteora-dlmm-solana' }).find((x) => x.id === 'solana:listen')!;
+    expect(task.lane).toBe('solana-listen');
+  });
+  it('opens one websocket the first time it runs and not again, and asks no node while nothing is heard', async () => {
+    const sockets: unknown[] = [];
+    const task = mk({ MI_SOLANA_LISTEN: '*' }, sockets).find((x) => x.id === 'solana:listen')!;
+    expect(await task.run(10_000)).toMatchObject({ ok: true });
+    await task.run(10_000);
+    expect(sockets).toHaveLength(1);
+  });
+});
+
 describe('worker loop', () => {
   it('runs a task with its own lane beside the others of its chain', async () => {
     let t = 0;

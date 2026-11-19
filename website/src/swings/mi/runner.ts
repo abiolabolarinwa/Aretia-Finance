@@ -5,6 +5,7 @@
 import { chainConfig, type EvmMiChain } from './chains.js';
 import { allSpecs, SOLANA_SPECS, type DexAdapterSpec, type SolanaAdapterSpec } from './dexes.js';
 import { runSolanaAdapter, solUsdReader } from './solana/engine.js';
+import { gateFor } from './solana/gate.js';
 import { deepenSolanaHistory } from './solana/track.js';
 import { deepenHistory, DEFAULT_RETENTION_DAYS as TRACK_RETENTION_DAYS } from './track.js';
 import { runAdapter, type EngineDeps, type LaunchLookup, type RunReport } from './engine.js';
@@ -30,6 +31,8 @@ export interface RunnerEnv {
   /** Solana venues whose existing pools are discovered and refreshed (`*` for all, or a comma list of adapter ids). Off by default (solana/discovery.ts). */
   MI_SOLANA_DISCOVERY?: string;
   MI_SOLANA_DISCOVERY_MAX?: string;
+  /** `1` in the long-lived worker: a followed Solana pool is read only when its quote vault balance moved (solana/gate.ts). Off elsewhere (a serverless run has no memory between calls). */
+  MI_SOLANA_GATE?: string;
   [k: string]: string | undefined;
 }
 
@@ -107,7 +110,7 @@ export async function runAll(d: RunAllDeps): Promise<RunAllReport> {
     }
     const chain = chainConfig('solana', d.env);
     const rpc = d.readFor ? d.readFor(spec) : makeRead(chain.rpcUrls, { fetchImpl: d.fetchImpl, concurrency: 3 });
-    const solDeps = { spec: spec as SolanaAdapterSpec, chain, rpc, store: d.store, rules, now: d.now, launch: d.launch ?? null, nativeUsd: solUsdReader(rpc, d.now), budgetMs: budgetMs - historyMs, followNewest: count(d.env.MI_FOLLOW_NEWEST), followRecent: count(d.env.MI_FOLLOW_RECENT) };
+    const solDeps = { spec: spec as SolanaAdapterSpec, chain, rpc, store: d.store, rules, now: d.now, launch: d.launch ?? null, nativeUsd: solUsdReader(rpc, d.now), budgetMs: budgetMs - historyMs, followNewest: count(d.env.MI_FOLLOW_NEWEST), followRecent: count(d.env.MI_FOLLOW_RECENT), ...(d.env.MI_SOLANA_GATE === '1' ? { gate: gateFor(spec.id) } : {}) };
     const report = await runSolanaAdapter(solDeps);
     if (report.ok) await deepenSolanaHistory({ ...solDeps, retentionDays: retentionDays() }, { budgetMs: historyMs }).catch(() => undefined);
     return report;

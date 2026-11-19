@@ -28,6 +28,7 @@ import { poolsCreatedIn, type CreatedPool } from '../../indexer/solanaIndexer.js
 import { decodeSolanaSwap, type ParsedTx, type TrackedPool } from '../../store/swaps.js';
 import type { SolanaAdapterSpec } from '../dexes.js';
 import { ammV4PoolsCreatedIn } from './ammv4.js';
+import type { VaultGate } from './gate.js';
 import { pumpswapPoolsCreatedIn } from './pumpswap.js';
 import { fromBase64, isSolanaAddress, metadataAddress, parseMetadata, parseMint, parseToken2022Metadata, parseWhirlpool, tokenAmount, whirlpoolPriceScaled } from './accounts.js';
 
@@ -53,6 +54,8 @@ export interface SolDeps {
   swapSigs?: number;
   /** How sure the chain must be of the swaps read for a followed pool (default `finalized`). The watched-pools task uses `confirmed` to be seconds behind, not a quarter of a minute. */
   commitment?: Commitment;
+  /** When set, a followed pool is read only if its quote vault's balance moved since it was last followed (one node call for 100 pools; see gate.ts). */
+  gate?: VaultGate;
 }
 
 interface TxJson extends ParsedTx {
@@ -241,10 +244,12 @@ export async function runSolanaAdapter(d: SolDeps): Promise<RunReport> {
     // ---- swaps of followed pools
     const followed = await followedPools(d);
     const touched = new Set<string>();
-    const stale = await staleness(d, followed);
+    const byAge = await staleness(d, followed);
+    const stale = d.gate ? await d.gate.select(d.rpc, byAge, d.now(), d.commitment ?? 'finalized') : byAge;
     for (const pool of stale) {
       if (d.now() > deadline) break;
       const got = await followPool(d, pool, report);
+      d.gate?.settle(pool.key, got.unavailable === 0, d.now());
       truncated += got.truncated ? 1 : 0;
       unavailable += got.unavailable;
       skippedTx.push(...got.skipped);
@@ -478,7 +483,8 @@ export async function followWatchedPools(d: SolDeps, pools: readonly MiPool[], o
   const eligible = pools.filter((p) => p.state === 'active' && !p.paused && p.quoteVault && p.lastTradeAt !== null && p.lastTradeAt >= day);
   const fastMs = o.fastMs ?? 2_000;
   const due = o.lastPolled ? eligible.filter((p) => d.now() - (o.lastPolled!.get(p.key) ?? 0) >= pollIntervalMs(p.lastTradeAt, d.now(), fastMs)) : eligible;
-  const order = (await staleness(d, due)).slice(0, o.maxPools);
+  const dueOrdered = await staleness(d, due);
+  const order = (d.gate ? await d.gate.select(d.rpc, dueOrdered, d.now(), d.commitment ?? 'finalized') : dueOrdered).slice(0, o.maxPools);
   const cache = new Map<string, TokenFacts | null>();
   const report = emptyReport(d.spec.id);
   let polled = 0;
@@ -487,6 +493,7 @@ export async function followWatchedPools(d: SolDeps, pools: readonly MiPool[], o
   for (const pool of order) {
     if (d.now() > deadline) break;
     const got = await followPool(d, pool, report);
+    d.gate?.settle(pool.key, got.unavailable === 0, d.now());
     o.lastPolled?.set(pool.key, d.now());
     polled++;
     unavailable += got.unavailable;

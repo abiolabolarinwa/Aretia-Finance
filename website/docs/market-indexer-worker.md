@@ -98,6 +98,16 @@ venue **already has**: `*` for every venue, or a comma list of adapter ids (`ray
 - **Not yet run against a live node.** The pool sizes of Raydium CPMM (637), Orca Whirlpool (653) and PumpSwap (301) and their account tags were read back
   from real mainnet pool accounts when this was written; the other venues' sizes come from the repo's parsers. Tested with a fake node (`discovery.test.ts`).
 
+## Solana: cheaper reading and new pools by listening
+
+Two changes cut how many node calls the Solana side makes. They exist because a hosted node's monthly allowance was used up in days by following every pool on every run.
+
+**The balance check (`MI_SOLANA_GATE`, on by default in the worker; `0` turns it off).** Following a pool means listing the signatures of its quote vault and reading each new transaction. A swap always moves tokens through the vaults, so before following, the worker reads the quote vault balances of all followed pools with `getMultipleAccounts` (100 pools in one call, only the 8 balance bytes) and follows only the pools whose balance moved since they were last followed. A pool left alone is still followed after 10 minutes, a pool whose vault cannot be read is followed, a failed balance read follows everything, and a pool followed with a transaction still missing is tried again. Nothing is lost, only read later: the pool's cursor is a signature, so the next follow reads everything since the last. It applies to the live adapters and to the watched pools (the log line says how many pools were left alone).
+
+**Hearing new pools (`MI_SOLANA_LISTEN`, off by default).** The task `solana:listen` opens a websocket (`MI_SOLANA_WS_URL`, the public node if empty) and subscribes to the logs of each listed venue's program. A transaction whose logs say it created a pool ("Instruction: InitializeLbPair", "InitializePool", "CreatePool", ...) is read once, the pool account is found among the accounts it touched (owned by the program, the venue's pool size) and registered the same way as every other discovery. Nothing is polled, and no node call is made for swaps. The listener closes the socket and rests for 10 minutes if one minute brings more than 4 MB, so a very busy program cannot run up a metered bill unnoticed, and it reconnects with a growing wait. To follow the swaps of the pools it registers, add the venue's id to `MI_ADAPTERS`.
+
+What this does not do: it does not replay creations heard while the worker or the socket was down (Raydium CPMM, Orca, PumpSwap and Raydium AMM v4 still catch up through their creation-only accounts; the program-wide listing, `MI_SOLANA_DISCOVERY`, finds the rest, on a node that allows `getProgramAccounts`); it does not cover Pump.fun's own bonding curve before a token graduates (a token appears when it moves to PumpSwap); and the log wording and the websocket path were checked with a scripted socket and node, not a live one. The first live log line (`listen: connected, N creation(s) heard, M pool(s) registered`) is the check.
+
 ## Status
 
 Tested with a fake chain and a fake Multicall3 (`worker/worker.test.ts`). **Not yet run against a live node or in Docker.** A first run

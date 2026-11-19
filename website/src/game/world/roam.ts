@@ -28,6 +28,9 @@ import { WEATHER_LABEL, WeatherSystem, applyWeather, fogRange, wetness, type Wea
 import { makeRain } from './rain.js';
 import { armGroup, junctionsFor, lightFor, stopDistance, targetAtLight, type Junction } from './junctions.js';
 import { buildSignalSet, headsFor, makeSignalShapes } from './signals3d.js';
+import { CAR_MODELS, loadCarModel, makeModelCar, type CarTemplate } from './modelCars.js';
+import { PROP_SPECS, propsFor, type PropKind, type PropPlacement } from './roamProps.js';
+import { loadProp, propInstances, type PropTemplate } from './propModels.js';
 import { otherLook, PALETTES, saveLook, savedLook, type Palette } from './style.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { makeAtmosphere } from './atmosphere.js';
@@ -335,6 +338,12 @@ export async function mountRoam(host: HTMLElement, city: City, startAt: [number,
     return m;
   };
   const character = await characterLoading;
+  // Free 3D models for more variety: six kinds of car, and street furniture. Each that loads is used; any that does not is simply left out.
+  const [carModels, propModels] = await Promise.all([
+    Promise.all(CAR_MODELS.map((spec) => Promise.race([loadCarModel(three, `${textureBase}game/models/cars/${spec.file}.glb`, spec), timeout]))).then((l) => l.filter((t): t is CarTemplate => !!t)),
+    Promise.all((Object.keys(PROP_SPECS) as PropKind[]).map(async (kind) => [kind, await Promise.race([loadProp(three, `${textureBase}game/models/props/${PROP_SPECS[kind].file}.glb`, PROP_SPECS[kind].height), timeout])] as const)).then((l) => new Map(l.filter((e): e is readonly [PropKind, PropTemplate] => !!e[1]))),
+  ]);
+  for (const tpl of propModels.values()) for (const part of tpl.parts) sharedGeos.add(part.geometry);
   const newPerson = (appearance?: Look): Human => (character ? makeAnimatedHuman(three, character, appearance) : makeHuman(three, appearance));
   const human = newPerson();
   const person = human.group;
@@ -606,6 +615,17 @@ export async function mountRoam(host: HTMLElement, city: City, startAt: [number,
         g.add(im);
       }
     }
+    // Street furniture: benches, bins, hydrants, mailboxes, signs and market stands beside the streets, dumpsters beside back lanes.
+    if (propModels.size) {
+      const byKind = new Map<PropKind, PropPlacement[]>();
+      for (const p of propsFor(key, t.world, blocked)) {
+        if (!propModels.has(p.kind)) continue;
+        const list = byKind.get(p.kind) ?? [];
+        list.push(p);
+        byKind.set(p.kind, list);
+      }
+      for (const [kind, list] of byKind) for (const im of propInstances(three, propModels.get(kind)!, list)) g.add(im);
+    }
     // Traffic lights for the junctions that lie in this square (each junction is drawn once, by whichever tile finds it first).
     const mine = t.signals.filter((j) => cellKey(j.x, j.z) === key && !signalIds.has(j.id));
     const heads = mine.flatMap((j) => headsFor(j));
@@ -655,12 +675,14 @@ export async function mountRoam(host: HTMLElement, city: City, startAt: [number,
   ];
   let spawned = 0;
   function spawnCar(x: number, z: number, heading: number): Rig {
+    // Half the cars standing about are the hand-built kind, half are one of the loaded models (when those loaded).
+    const model = carModels.length && spawned % 2 === 1 ? carModels[Math.floor(spawned / 2) % carModels.length]! : null;
     const spec = CAR_KINDS[spawned++ % CAR_KINDS.length]!;
-    const parts = carMesh(spec.colour, spec.kind);
+    const parts = model ? makeModelCar(three, model, TRAFFIC_COLOURS[spawned % TRAFFIC_COLOURS.length]) : carMesh(spec.colour, spec.kind);
     const mesh = parts.group;
     shadowed(mesh);
     scene.add(mesh);
-    const rig: Rig = { spec: CAR, kind: 'car', state: { x, z, heading, speed: 0 }, mesh, name: spec.name, parts };
+    const rig: Rig = { spec: CAR, kind: 'car', state: { x, z, heading, speed: 0 }, mesh, name: model ? model.spec.name : spec.name, parts };
     rigs.push(rig);
     return rig;
   }
@@ -790,8 +812,9 @@ export async function mountRoam(host: HTMLElement, city: City, startAt: [number,
     if (kind === 'car') {
       const spec = CAR_KINDS[Math.floor(Math.random() * CAR_KINDS.length)]!;
       const colour = spec.kind === 'taxi' ? spec.colour : TRAFFIC_COLOURS[Math.floor(Math.random() * TRAFFIC_COLOURS.length)]!;
-      const car = makeCar(three, colour, spec.kind);
-      // Someone is at the wheel, seen through the glass.
+      // About half the traffic is one of the loaded car models, the rest the hand-built cars with a driver seen through the glass.
+      const loaded = carModels.length && Math.random() < 0.5 ? carModels[Math.floor(Math.random() * carModels.length)]! : null;
+      const car = loaded ? makeModelCar(three, loaded, colour) : makeCar(three, colour, spec.kind);
       const who = LOOKS[Math.floor(Math.random() * LOOKS.length)]!;
       car.addDummyDriver({ skin: who.skin, hair: who.hair, top: who.top });
       shadowed(car.group);
@@ -1193,7 +1216,7 @@ export async function mountRoam(host: HTMLElement, city: City, startAt: [number,
   // Only the real model can sit; if it did not load, the car is simply driven without a visible driver.
   let playerDriver: Human | null = null;
   function seatPlayer(rig: Rig): void {
-    if (!character || rig.kind !== 'car' || !rig.parts) return;
+    if (!character || rig.kind !== 'car' || !rig.parts?.interior) return; // models with dark solid windows have no one to show
     playerDriver ??= newPerson();
     const at = seatOffset(rig.parts.seat);
     playerDriver.group.position.set(...at);

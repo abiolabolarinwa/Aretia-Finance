@@ -96,6 +96,8 @@ export interface CarParts {
   cabin: T.Group;
   /** Where the driver's hips go, in the car's own frame (x across, y up, z along; the front is negative z). */
   seat: [number, number, number];
+  /** Whether you can see inside (clear windows, seats). Cars made from a loaded model have dark solid windows, so nobody is shown in them. */
+  interior: boolean;
   /**
    * Moves the wheels and body for this moment: the car's speed (m/s, negative in reverse), how fast it is turning (rad/s, positive to
    * the right) and how fast its speed is changing (m/s², negative when braking).
@@ -262,6 +264,7 @@ export function makeCar(three: Three, colour: string, kind: CarKind = 'sedan'): 
     group: g,
     cabin: shell,
     seat: [hx, hy, hz],
+    interior: true,
     animate,
     setNight(night) {
       head.emissiveIntensity = 1.4 + Math.max(0, Math.min(1, night)) * 3.4;

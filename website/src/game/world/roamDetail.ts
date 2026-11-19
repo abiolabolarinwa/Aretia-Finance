@@ -36,7 +36,7 @@ const overlaps = (pts: Pt[], s: Square, margin: number): boolean => {
 };
 
 /** The class of a street that gets pavements either side. */
-const hasPavement = (cls: string): boolean => cls !== 'path' && cls !== 'track' && cls !== 'pier' && cls !== 'service' && cls !== 'motorway' && cls !== 'trunk';
+export const hasPavement = (cls: string): boolean => cls !== 'path' && cls !== 'track' && cls !== 'pier' && cls !== 'service' && cls !== 'motorway' && cls !== 'trunk';
 
 /**
  * Paints one square of the ground. `size` is the picture's side in pixels (it covers CELL_M metres). The background is left clear,

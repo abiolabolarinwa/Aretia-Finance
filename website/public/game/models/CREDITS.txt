@@ -1,2 +1,22 @@
-man.glb - "Man" by Quaternius, CC0 (public domain). Source: https://poly.pizza/m/HMnuH5geEG
-Credit is not required; it is given here anyway. Unmodified.
+3D models used by the Ultimate City Search roaming view. All are CC0 (public domain), downloaded unmodified from Poly Pizza
+(https://poly.pizza). Credit is not required; it is given here anyway. Each file's licence was read on its page when it was added.
+
+man.glb                  "Man"                 Quaternius          https://poly.pizza/m/HMnuH5geEG
+
+cars/taxi.glb            "Taxi"                Quaternius          https://poly.pizza/m/x43lOScTpN
+cars/suv.glb             "SUV"                 Quaternius          https://poly.pizza/m/xsMtZhBkxL
+cars/sedan.glb           "Car"                 Quaternius          https://poly.pizza/m/unqqkULtRU
+cars/pickup.glb          "Pickup Truck"        Quaternius          https://poly.pizza/m/qn4grQgHm8
+cars/hatchback.glb       "Car Hatchback"       Kay Lousberg        https://poly.pizza/m/BG0KAhmGDt
+cars/sports.glb          "Sports Car"          Quaternius          https://poly.pizza/m/OyqKvX9xNh
+
+props/bench.glb          "Bench"               Quaternius          https://poly.pizza/m/jLxjFxFRpw
+props/bin-small.glb      "Trashcan Small"      Quaternius          https://poly.pizza/m/i7HDuYDLkx
+props/bin-large.glb      "Trashcan Large"      Quaternius          https://poly.pizza/m/eYNKnGlhon
+props/hydrant.glb        "Fire Hydrant"        Quaternius          https://poly.pizza/m/DKkMQbEklp
+props/mailbox.glb        "Mailbox"             CreativeTrio        https://poly.pizza/m/2olZ0G8iur
+props/cone.glb           "Traffic Cone"        Quaternius          https://poly.pizza/m/lAx8JytxGD
+props/barrier.glb        "Traffic Barrier"     Quaternius          https://poly.pizza/m/cM3aJPU9NS
+props/dumpster.glb       "Dumpster"            Quaternius          https://poly.pizza/m/PKsbolkZSr
+props/market-stand.glb   "Market Stand"        Quaternius          https://poly.pizza/m/DGIM5HGISb
+props/sign.glb           "Sign"                Quaternius          https://poly.pizza/m/4MSsNFk5fc

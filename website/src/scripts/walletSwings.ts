@@ -1905,7 +1905,10 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
               ),
             )
           : null;
-        const boardRows = boardPages && boardPages.some((g) => g !== null) ? boardPages.flatMap((g) => g?.rows ?? []) : null;
+        // A page past a network's end is answered with its last page, so the same tokens can come twice: each is kept once, and the count that decides
+        // whether a column needs filling is the count of different tokens.
+        const seenKeys = new Set<string>();
+        const boardRows = boardPages && boardPages.some((g) => g !== null) ? boardPages.flatMap((g) => g?.rows ?? []).filter((r) => (seenKeys.has(rowKey(r.chain, r.address)) ? false : (seenKeys.add(rowKey(r.chain, r.address)), true))) : null;
         // A tab such as Gainers can hold fewer than 100 tokens on a quiet network. Such a column is filled up with that network's most liquid tokens,
         // listed after the tab's own under a divider, so every column that can have 100 tokens does.
         boardFill = new Set();

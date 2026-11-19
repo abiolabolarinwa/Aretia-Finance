@@ -29,7 +29,7 @@ export const BOARD_CHAINS: readonly ChainId[] = ['solana', 'ethereum', 'bnb', 'b
 /** The index serves 100 tokens a page; the board reads two pages of each network, so a column starts with 100 or more. */
 export const BOARD_PAGE_SIZE = 100;
 /** A column holding fewer tokens than this from the tab itself is filled up with the network's most liquid ones (the tab's own may be filtered a little more afterwards). */
-export const BOARD_FILL_TO = 120;
+export const BOARD_FILL_TO = 150;
 /** Tokens drawn per column at most. */
 export const PER_COLUMN = 200;
 

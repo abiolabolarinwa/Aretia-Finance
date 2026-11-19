@@ -42,7 +42,7 @@ export const hasPavement = (cls: string): boolean => cls !== 'path' && cls !== '
  * Paints one square of the ground. `size` is the picture's side in pixels (it covers CELL_M metres). The background is left clear,
  * so the plain ground colour shows through wherever the map has nothing to say.
  */
-export function paintGround(ctx: CanvasRenderingContext2D, size: number, key: string, world: TileWorld, palette: Palette = REAL): void {
+export function paintGround(ctx: CanvasRenderingContext2D, size: number, key: string, world: TileWorld, palette: Palette = REAL, extras: { crosswalks?: { x: number; z: number; tx: number; tz: number; width: number }[] } = {}): void {
   const AREA_PAINT = palette.area;
   const WATER_PAINT = palette.water;
   const R = palette.road;
@@ -165,6 +165,25 @@ export function paintGround(ctx: CanvasRenderingContext2D, size: number, key: st
       ctx.lineTo(px(sx + rx * (arm.width / 2 - 0.3)), pz(sz + rz * (arm.width / 2 - 0.3)));
       ctx.stroke();
     }
+  }
+
+  // Real crosswalks found in street photos (zebra stripes along the street, side by side across it), except where a junction's own
+  // crossings are already painted close by.
+  const painted = junctionsFor(world).filter((j) => j.signalised);
+  for (const cw of extras.crosswalks ?? []) {
+    if (cw.x < s.x0 - 8 || cw.x > s.x0 + CELL_M + 8 || cw.z < s.z0 - 8 || cw.z > s.z0 + CELL_M + 8) continue;
+    if (painted.some((j) => Math.hypot(j.x - cw.x, j.z - cw.z) < crosswalkDistance(j) + 10)) continue;
+    const across: Pt = [-cw.tz, cw.tx];
+    const half = cw.width / 2 - 0.4;
+    ctx.strokeStyle = R.centre;
+    ctx.lineWidth = 0.55 * k;
+    ctx.lineCap = 'butt';
+    ctx.beginPath();
+    for (let off = -half; off <= half + 0.01; off += 1.1) {
+      ctx.moveTo(px(cw.x + across[0] * off - cw.tx * 1.5), pz(cw.z + across[1] * off - cw.tz * 1.5));
+      ctx.lineTo(px(cw.x + across[0] * off + cw.tx * 1.5), pz(cw.z + across[1] * off + cw.tz * 1.5));
+    }
+    ctx.stroke();
   }
 }
 

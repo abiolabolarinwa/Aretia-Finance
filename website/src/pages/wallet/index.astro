@@ -980,7 +980,8 @@ const sendTips = [
   .wapp-bd__switch button { font: inherit; font-size: 11px; font-weight: 650; padding: 2px 8px; border: 0; border-radius: 999px; background: transparent; color: var(--color-muted); cursor: pointer; }
   .wapp-bd__switch button[aria-pressed='true'] { background: var(--color-strong); color: var(--color-bg); }
   /* Each column scrolls on its own, with no scroll bar showing. */
-  .wapp-bd__list { display: flex; flex-direction: column; max-height: calc(100vh - 190px); min-height: 160px; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none; -ms-overflow-style: none; }
+  /* Every column is one screen tall and scrolls by itself: the wheel over a column moves that column only, and at its end it does not pass on to the page or to another column. */
+  .wapp-bd__list { display: flex; flex-direction: column; height: calc(100dvh - 170px); min-height: 360px; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none; -ms-overflow-style: none; }
   .wapp-bd__list::-webkit-scrollbar { display: none; width: 0; height: 0; }
   .wapp-bd__card { position: relative; display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; align-items: center; gap: 8px; padding: 6px 10px 6px 12px; border-bottom: 1px solid var(--color-border); cursor: pointer; transition: background 120ms ease; }
   /* A long column is cheap to hold: the browser skips drawing cards that are out of view. */
@@ -1014,7 +1015,7 @@ const sendTips = [
   .wapp-bd__empty, .wapp-bd__more { margin: 0; padding: 16px 12px; font-size: 13px; color: var(--color-faint); }
   /* One network chosen from the rail: one wide column, the cards laid out in rows of several. */
   @media (max-width: 1280px) { .wapp-bd { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-  @media (max-width: 720px) { .wapp-bd { grid-template-columns: minmax(0, 1fr); } .wapp-bd__list { max-height: 70vh; } }
+  @media (max-width: 720px) { .wapp-bd { grid-template-columns: minmax(0, 1fr); } .wapp-bd__list { height: 70dvh; } }
   /* The chart opened from the docked panel: in the centre, above the list. */
   .wapp-mt__chart { display: grid; gap: 10px; padding: 14px; margin-bottom: 14px; background: var(--color-bg); border: 1px solid var(--color-border); border-radius: 14px; box-shadow: var(--shadow-soft); }
   .wapp-mt__chart-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }

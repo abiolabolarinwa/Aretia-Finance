@@ -1926,7 +1926,9 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
           const counts = new Map<ChainId, number>();
           for (const r of boardRows) counts.set(r.chain, (counts.get(r.chain) ?? 0) + 1);
           const short = boardChains.filter((c) => (counts.get(c) ?? 0) < BOARD_FILL_TO);
-          const filler = await Promise.all(short.flatMap((c) => [1, 2].map((p) => fetchIndexPage({ kind: 'liquidity', chain: c, window: m.window, page: p, size: BOARD_PAGE_SIZE, minLiquidityUsd: Number(f.liquidity) }))));
+          // Pools, not tokens, are listed by liquidity, so one token fills several places (SOL has dozens of pools) and the page drops the repeats:
+          // four pages of 100 are read so that enough different tokens remain.
+          const filler = await Promise.all(short.flatMap((c) => [1, 2, 3, 4].map((p) => fetchIndexPage({ kind: 'liquidity', chain: c, window: m.window, page: p, size: BOARD_PAGE_SIZE, minLiquidityUsd: Number(f.liquidity) }))));
           if (mine !== seq) return;
           for (const g of filler) {
             for (const r of g?.rows ?? []) {

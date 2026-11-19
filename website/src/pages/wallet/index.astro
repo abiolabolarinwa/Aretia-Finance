@@ -1005,13 +1005,14 @@ const sendTips = [
   .wapp-bd__card:hover .wapp-bd__star, .wapp-bd__star:focus-visible { opacity: 1; }
   .wapp-bd__star:hover { color: var(--color-gold); }
   .wapp-bd__divider { margin: 0; padding: 7px 12px; font-size: 11px; font-weight: 650; letter-spacing: 0.04em; color: var(--color-faint); background: var(--color-surface-2); border-bottom: 1px solid var(--color-border); }
-  .wapp-bd--single .wapp-bd__divider { grid-column: 1 / -1; }
+  .wapp-bd__price.is-tick-up, .wapp-bd__price.is-tick-down { padding: 0 4px; margin-left: -4px; border-radius: 4px; }
+  .wapp-bd__price.is-tick-up { color: var(--bd-up); background: color-mix(in srgb, var(--bd-up) 22%, transparent); }
+  .wapp-bd__price.is-tick-down { color: var(--bd-down); background: color-mix(in srgb, var(--bd-down) 22%, transparent); }
+  .wapp-bd__price { transition: background 500ms ease, color 500ms ease; }
   .wapp-bd__empty, .wapp-bd__more { margin: 0; padding: 16px 12px; font-size: 13px; color: var(--color-faint); }
   /* One network chosen from the rail: one wide column, the cards laid out in rows of several. */
-  .wapp-bd--single { grid-template-columns: minmax(0, 1fr); }
-  .wapp-bd--single .wapp-bd__list { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); }
-  @media (max-width: 1280px) { .wapp-bd:not(.wapp-bd--single) { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-  @media (max-width: 720px) { .wapp-bd:not(.wapp-bd--single) { grid-template-columns: minmax(0, 1fr); } .wapp-bd__list { max-height: 70vh; } }
+  @media (max-width: 1280px) { .wapp-bd { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (max-width: 720px) { .wapp-bd { grid-template-columns: minmax(0, 1fr); } .wapp-bd__list { max-height: 70vh; } }
   /* The chart opened from the docked panel: in the centre, above the list. */
   .wapp-mt__chart { display: grid; gap: 10px; padding: 14px; margin-bottom: 14px; background: var(--color-bg); border: 1px solid var(--color-border); border-radius: 14px; box-shadow: var(--shadow-soft); }
   .wapp-mt__chart-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }

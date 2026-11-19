@@ -22,7 +22,9 @@ import { isMarketsHash, parseMarketsHash, parseSwapHash, routeHash, walletTokenP
 
 /** Where the page is now, as its router reads it (the hash, or a clean token path). */
 const hashNow = (): string => routeHash(location.pathname, location.hash);
-import { BOARD_CHAINS, BOARD_FILL_TO, BOARD_PAGE_SIZE, marketBoard, type FourthChain } from './walletMarketBoard.js';
+import { BOARD_CHAINS, BOARD_FILL_TO, BOARD_PAGE_SIZE, marketBoard, observeBoard, poolKey, updateBoardCards, type FourthChain } from './walletMarketBoard.js';
+import { overviewBand } from './walletMarketOverview.js';
+import { fetchMarketIntel, intelNow } from '../swings/market/intel/client.js';
 import { markSelected, marketTable, tableRowKey, updateLiquidityCells, updateLiveCells, updateRatingCells, type TableState } from './walletMarketTable.js';
 import { createLiveStream } from './walletLiveStream.js';
 import { applyLive, type LiveUpdate } from '../swings/market/liveFields.js';
@@ -1761,10 +1763,15 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
     let seq = 0;
     const rowKey = (chain: ChainId, address: string): string => `${chain}:${chain === 'solana' ? address : address.toLowerCase()}`;
     let tableEl: HTMLElement | null = null;
-    /** Every list except Favourites is the board: four network columns, or one wide column when a single network is chosen from the rail. */
+    /** The all-networks list (the Aretia mark) is the board: four network columns. A single network chosen from the rail keeps the table. */
     let fourthChain: FourthChain = 'base';
     /** The tokens that only fill up a short column (keys), as opposed to the tab's own. */
     let boardFill = new Set<string>();
+    /** When the overview cards' sample was last asked for, so a failing read is not repeated at every redraw. */
+    let sampleTriedAt = 0;
+    /** The board on screen, so live numbers can be written into its cards. */
+    let boardEl: HTMLElement | null = null;
+    let stopBoardWatch: (() => void) | null = null;
     // Live numbers: the pools on screen are named to the stream, and what it sends is applied to the rows in place. If the stream is
     // off or unreachable nothing changes: the list's own refresh below keeps it current.
     let liveRows = new Map<string, MarketRow>();
@@ -1784,6 +1791,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
           changed.push(r);
         }
         if (changed.length > 0 && tableEl?.isConnected) updateLiveCells(tableEl, changed, before);
+        if (changed.length > 0 && boardEl?.isConnected) updateBoardCards(boardEl, changed, before);
       },
     });
     document.addEventListener('visibilitychange', () => live.visibility());
@@ -1897,15 +1905,19 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
         const sorted = ixSort && ixSort.kind === m.kind ? ixSort : null;
         // The board asks the index for each network on its own, two pages of 100 together, so every column starts with a hundred tokens or more
         // (a single list for all networks would be filled by whichever network is busiest). One network chosen from the rail asks for that one.
-        const boardChains: readonly ChainId[] = m.chain === '' ? BOARD_CHAINS : [m.chain];
-        const boardPages = wantsIndex
+        const boardChains: readonly ChainId[] = BOARD_CHAINS;
+        const boardMode = wantsIndex && m.chain === '';
+        const boardPages = boardMode
           ? await Promise.all(
               boardChains.flatMap((c) =>
                 [1, 2].map((p) => fetchIndexPage({ kind: m.kind as 'trending' | 'top' | 'gainers' | 'new' | 'liquidity', chain: c, window: sorted?.window && m.kind !== 'trending' && m.kind !== 'gainers' ? sorted.window : m.window, sort: sorted?.sort, dir: sorted?.dir, page: p, size: BOARD_PAGE_SIZE, minLiquidityUsd: Number(f.liquidity), maxAgeHours: autoAge ? 0 : Number(f.age), bullish: f.bullish })),
               ),
             )
           : null;
-        const boardRows = boardPages && boardPages.some((g) => g !== null) ? boardPages.flatMap((g) => g?.rows ?? []) : null;
+        // A page past a network's end is answered with its last page, so the same tokens can come twice: each is kept once, and the count that decides
+        // whether a column needs filling is the count of different tokens.
+        const seenKeys = new Set<string>();
+        const boardRows = boardPages && boardPages.some((g) => g !== null) ? boardPages.flatMap((g) => g?.rows ?? []).filter((r) => (seenKeys.has(rowKey(r.chain, r.address)) ? false : (seenKeys.add(rowKey(r.chain, r.address)), true))) : null;
         // A tab such as Gainers can hold fewer than 100 tokens on a quiet network. Such a column is filled up with that network's most liquid tokens,
         // listed after the tab's own under a divider, so every column that can have 100 tokens does.
         boardFill = new Set();
@@ -1927,12 +1939,23 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
           }
         }
         if (mine !== seq) return;
-        ix = null;
+        const paged: IndexPage | null = wantsIndex && !boardMode
+          ? await fetchIndexPage({ kind: m.kind as 'trending' | 'top' | 'gainers' | 'new' | 'liquidity', chain: m.chain, window: sorted?.window && m.kind !== 'trending' && m.kind !== 'gainers' ? sorted.window : m.window, sort: sorted?.sort, dir: sorted?.dir, page: pageNo, size: pageSize, minLiquidityUsd: Number(f.liquidity), maxAgeHours: autoAge ? 0 : Number(f.age), bullish: f.bullish })
+          : null;
+        if (mine !== seq) return;
+        ix = paged;
         if (boardRows) {
           staleAt = null;
           fromIndex = false;
           failures = 0;
           rows = rateRows(boardRows);
+        } else if (paged) {
+          // Aretia's own index holds enough markets for this list and network: it is the list, paged by the server. The outside feed is not asked.
+          staleAt = null;
+          fromIndex = false;
+          failures = 0;
+          pageNo = paged.page;
+          rows = rateRows(paged.rows);
         } else if (m.kind === 'new') {
           const q = new URLSearchParams();
           if (m.chain) q.set('chain', m.chain);
@@ -2342,6 +2365,22 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
       }
       card.append(bar);
       const shownRows = visible();
+      // The overview band sits above the list's own controls (mood, rising or falling, busiest venues from the market intelligence engine, and three short lists from the rows shown).
+      // Only the all-networks view (the Aretia mark) has it; each single network keeps the plain table.
+      if (m.chain === '' && rows !== null && !error && !gathering && m.kind !== 'favourites') {
+        // The three cards draw what the market intelligence engine worked out from every eligible pool the index holds (not the list's own rows: Gainers holds
+        // only risers, which would make the mood read 100 whatever the market did). Read once a minute; the band redraws when a newer answer arrives.
+        const intel = intelNow(m.chain);
+        const intelChain = m.chain;
+        if (Date.now() - sampleTriedAt > 60_000 || (intel === null && Date.now() - sampleTriedAt > 15_000)) {
+          sampleTriedAt = Date.now();
+          void fetchMarketIntel(intelChain, Date.now()).then((got) => {
+            if (got && got.asOf !== intel?.asOf && target.isConnected && !page && m.chain === intelChain && m.kind !== 'favourites') draw();
+          });
+        }
+        const band = overviewBand(shownRows, { onOpen: userPick, intel });
+        if (band) card.insertBefore(band, bar);
+      }
       if (rows !== null && lowHidden > 0 && m.kind !== 'favourites') {
         const limit = `$${Number(f.liquidity).toLocaleString('en-US')}`;
         const note = el('p', { class: 'wapp__fine', text: `${lowHidden} ${lowHidden === 1 ? 'token' : 'tokens'} with under ${limit} of liquidity (or none known) ${lowHidden === 1 ? 'is' : 'are'} hidden. ` });
@@ -2384,10 +2423,18 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
         tableEl = marketTable({ rows: shown, rankStart: ix ? (ix.page - 1) * ix.size + 1 : m.kind !== 'favourites' ? (pageNo - 1) * pageSize + 1 : 1, sort: tsort, showRisk: false, selectedKey: panel.selectedKey(), ratingState: ratings.stateOf, favourites: { has: (r) => favourites.has(r.chain, r.address), toggle: toggleFavourite }, onSort: (key) => { tsort = tsort.key === key ? { key, dir: tsort.dir === 'desc' ? 'asc' : 'desc' } : { key, dir: 'desc' }; if (m.kind !== 'favourites') pageNo = 1; const server = ix ? serverSort(key, tsort.dir) : null; if (server) { ixSort = { kind: m.kind, ...server }; void load(true); } else draw(); }, onOpen: userPick, ...(m.chain === '' ? { showSpark: true, onTrade: (r: MarketRow) => (swapHandler(r) ?? (() => userPick(r)))() } : {}) });
         watchRows(shown);
         const featured = featuredForMarkets();
-        const boardMode = m.kind !== 'favourites';
+        const boardMode = m.kind !== 'favourites' && m.chain === '';
         const body = boardMode
-          ? marketBoard({ rows: shownRows, isFill: (r) => boardFill.has(rowKey(r.chain, r.address)), ...(m.chain === '' ? {} : { only: m.chain }), fourth: fourthChain, onFourth: (c) => { fourthChain = c; draw(); }, onOpen: userPick, favourites: { has: (r) => favourites.has(r.chain, r.address), toggle: toggleFavourite } })
+          ? marketBoard({ rows: shownRows, isFill: (r) => boardFill.has(rowKey(r.chain, r.address)), fourth: fourthChain, onFourth: (c) => { fourthChain = c; draw(); }, onOpen: userPick, favourites: { has: (r) => favourites.has(r.chain, r.address), toggle: toggleFavourite } })
           : tableEl;
+        stopBoardWatch?.();
+        stopBoardWatch = null;
+        if (boardMode) {
+          // The live stream follows the pools whose cards are on screen in their columns, so a price moves as soon as the stream says it did.
+          boardEl = body;
+          liveRows = new Map(shownRows.filter((r) => r.source === 'index' && r.pool).map((r) => [poolKey(r), r]));
+          stopBoardWatch = observeBoard(body, (keys) => live.setKeys(keys));
+        } else boardEl = null;
         const main = el('div', { class: 'wapp-mt__main' }, featured ? [featured, body] : [body]);
         inMain = main;
         card.append(main);

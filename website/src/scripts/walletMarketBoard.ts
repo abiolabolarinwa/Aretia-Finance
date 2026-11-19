@@ -6,7 +6,7 @@
  */
 import type { ChainId } from '../swings/core/types.js';
 import { compactUsd, formatChange, formatPrice, type MarketRow } from '../swings/market/types.js';
-import { marketLogo } from './walletMarketTable.js';
+import { marketLogo, tableRowKey } from './walletMarketTable.js';
 
 export type FourthChain = 'base' | 'robinhood';
 export interface BoardColumn {
@@ -29,7 +29,7 @@ export const BOARD_CHAINS: readonly ChainId[] = ['solana', 'ethereum', 'bnb', 'b
 /** The index serves 100 tokens a page; the board reads two pages of each network, so a column starts with 100 or more. */
 export const BOARD_PAGE_SIZE = 100;
 /** A column holding fewer tokens than this from the tab itself is filled up with the network's most liquid ones (the tab's own may be filtered a little more afterwards). */
-export const BOARD_FILL_TO = 120;
+export const BOARD_FILL_TO = 150;
 /** Tokens drawn per column at most. */
 export const PER_COLUMN = 200;
 
@@ -40,8 +40,6 @@ export interface BoardOptions {
   onOpen(row: MarketRow): void;
   /** True for a token added to fill a column that the current tab alone leaves short; it is listed under a divider, after the tab's own tokens. */
   isFill?(row: MarketRow): boolean;
-  /** One network chosen from the rail: a single wide column of that network, with the cards in rows of several. */
-  only?: ChainId;
   /** The key of the token on screen elsewhere (the selected one), to mark. */
   selectedKey?: string | null;
   favourites?: { has(row: MarketRow): boolean; toggle(row: MarketRow): void };
@@ -67,6 +65,9 @@ export function pickFourth(rows: readonly MarketRow[], chosen: FourthChain): Fou
   return columnRows(rows, chosen).length === 0 && columnRows(rows, other).length > 0 ? other : chosen;
 }
 
+/** The key the live stream knows a row's pool by. */
+export const poolKey = (r: Pick<MarketRow, 'chain' | 'pool'>): string => `${r.chain}:${r.chain === 'solana' ? r.pool : r.pool.toLowerCase()}`;
+
 function changeTone(n: number | null): 'up' | 'down' | 'flat' {
   return n === null || !Number.isFinite(n) || n === 0 ? 'flat' : n > 0 ? 'up' : 'down';
 }
@@ -77,7 +78,8 @@ function card(r: MarketRow, o: BoardOptions): HTMLElement {
   const c = el('div', `wapp-bd__card is-${tone}`);
   c.setAttribute('role', 'button');
   c.tabIndex = 0;
-  c.dataset.key = `${r.chain}:${r.address.toLowerCase()}`;
+  c.dataset.k = tableRowKey(r);
+  if (r.pool) c.dataset.pool = poolKey(r);
   c.setAttribute('aria-label', `${r.symbol}, market cap ${compactUsd(r.capUsd)}, one hour ${formatChange(h1)}, price ${formatPrice(r.priceUsd)}`);
   const open = (): void => o.onOpen(r);
   c.addEventListener('click', (e) => {
@@ -149,13 +151,6 @@ function column(title: string, chain: ChainId, rows: readonly MarketRow[], o: Bo
 }
 
 export function marketBoard(o: BoardOptions): HTMLElement {
-  if (o.only) {
-    const one = el('div', 'wapp-bd wapp-bd--single');
-    const chain = o.only;
-    const title = chain === 'solana' ? 'Solana' : chain === 'ethereum' ? 'Ethereum' : chain === 'bnb' ? 'BNB Chain' : chain === 'base' ? 'Base' : chain === 'robinhood' ? 'Robinhood' : chain;
-    one.append(column(title, chain, columnRows(o.rows, chain), o));
-    return one;
-  }
   const board = el('div', 'wapp-bd');
   for (const c of FIXED_COLUMNS) board.append(column(c.title, c.chain, columnRows(o.rows, c.chain), o));
   const fourth = pickFourth(o.rows, o.fourth);
@@ -171,4 +166,75 @@ export function marketBoard(o: BoardOptions): HTMLElement {
   }
   board.append(column(FOURTH_TITLES[fourth], fourth, columnRows(o.rows, fourth), o, sw));
   return board;
+}
+
+const tickTimers = new WeakMap<Element, ReturnType<typeof setTimeout>>();
+function flash(e: Element, dir: 'up' | 'down'): void {
+  e.classList.remove('is-tick-up', 'is-tick-down');
+  void (e as HTMLElement).offsetWidth;
+  e.classList.add(`is-tick-${dir}`);
+  clearTimeout(tickTimers.get(e));
+  tickTimers.set(e, setTimeout(() => e.classList.remove('is-tick-up', 'is-tick-down'), 700));
+}
+
+/** Writes fresh numbers (from the live stream) into the cards already on screen, with a brief green or red flash on a price that moved. */
+export function updateBoardCards(board: ParentNode, rows: readonly MarketRow[], before?: ReadonlyMap<string, MarketRow>): void {
+  for (const r of rows) {
+    const k = tableRowKey(r);
+    const c = board.querySelector<HTMLElement>(`.wapp-bd__card[data-k="${CSS.escape(k)}"]`);
+    if (!c) continue;
+    const prev = before?.get(k);
+    const price = c.querySelector('.wapp-bd__price');
+    const next = formatPrice(r.priceUsd);
+    if (price && price.textContent !== next) {
+      price.textContent = next;
+      if (prev && prev.priceUsd !== null && r.priceUsd !== null && r.priceUsd !== prev.priceUsd) flash(price, r.priceUsd > prev.priceUsd ? 'up' : 'down');
+    }
+    const cap = c.querySelector('.wapp-bd__cap');
+    if (cap && cap.textContent !== compactUsd(r.capUsd)) cap.textContent = compactUsd(r.capUsd);
+    const chg = c.querySelector<HTMLElement>('.wapp-bd__chg');
+    if (chg) {
+      const h1 = r.change.h1;
+      const tone = changeTone(h1);
+      const text = tone === 'up' ? `▲ ${formatChange(h1)}` : tone === 'down' ? `▼ ${formatChange(h1).replace('-', '')}` : formatChange(h1);
+      if (chg.textContent !== text) chg.textContent = text;
+      chg.className = `wapp-bd__chg is-${tone}`;
+      c.classList.remove('is-up', 'is-down', 'is-flat');
+      c.classList.add(`is-${tone}`);
+    }
+  }
+}
+
+/**
+ * Names to `onKeys` the pools whose cards are on screen, as they scroll in and out of their column (the stream follows at most 100 pools, so only the
+ * visible ones are named). Returns a function that stops watching.
+ */
+export function observeBoard(board: HTMLElement, onKeys: (keys: string[]) => void): () => void {
+  if (typeof IntersectionObserver === 'undefined') {
+    onKeys([...board.querySelectorAll<HTMLElement>('.wapp-bd__card[data-pool]')].slice(0, 100).map((c) => c.dataset.pool!));
+    return () => undefined;
+  }
+  const visible = new Set<string>();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const push = (): void => {
+    clearTimeout(timer);
+    timer = setTimeout(() => onKeys([...visible].slice(0, 100)), 150);
+  };
+  const observers = [...board.querySelectorAll<HTMLElement>('.wapp-bd__list')].map((list) => {
+    const io = new IntersectionObserver((entries) => {
+      for (const e of entries) {
+        const k = (e.target as HTMLElement).dataset.pool;
+        if (!k) continue;
+        if (e.isIntersecting) visible.add(k);
+        else visible.delete(k);
+      }
+      push();
+    }, { root: list });
+    list.querySelectorAll('.wapp-bd__card[data-pool]').forEach((c) => io.observe(c));
+    return io;
+  });
+  return () => {
+    clearTimeout(timer);
+    observers.forEach((o) => o.disconnect());
+  };
 }

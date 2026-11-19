@@ -272,6 +272,19 @@ describe('the new-pool listener task', () => {
     const task = mk({ MI_SOLANA_LISTEN: 'meteora-dlmm-solana' }).find((x) => x.id === 'solana:listen')!;
     expect(task.lane).toBe('solana-listen');
   });
+  it('uses the byte limit from MI_SOLANA_LISTEN_MAX_MB', async () => {
+    const sockets: { onopen: ((e: unknown) => void) | null; onmessage: ((e: { data: unknown }) => void) | null; closed?: boolean }[] = [];
+    const mkOpen = (env: Record<string, string>) => buildTasks({ env, store: new InMemoryMiStore(), now: Date.now, readFor: () => (async () => null) as unknown as Read, listenOpen: () => { const s = { onopen: null, onmessage: null, onclose: null, onerror: null, closed: false, send() { /* nothing */ }, close() { this.closed = true; } }; sockets.push(s as never); return s as never; } }).find((x) => x.id === 'solana:listen')!;
+    const big = { data: 'x'.repeat(2_000_000) };
+    const a = mkOpen({ MI_SOLANA_LISTEN: 'meteora-dlmm-solana', MI_SOLANA_LISTEN_MAX_MB: '1' });
+    await a.run(1_000);
+    sockets[0]!.onmessage?.(big);
+    expect(sockets[0]!.closed).toBe(true); // 2 MB is over a 1 MB limit
+    const b = mkOpen({ MI_SOLANA_LISTEN: 'meteora-dlmm-solana', MI_SOLANA_LISTEN_MAX_MB: '10' });
+    await b.run(1_000);
+    sockets[1]!.onmessage?.(big);
+    expect(sockets[1]!.closed).toBe(false); // but not over 10 MB
+  });
   it('opens one websocket the first time it runs and not again, and asks no node while nothing is heard', async () => {
     const sockets: unknown[] = [];
     const task = mk({ MI_SOLANA_LISTEN: '*' }, sockets).find((x) => x.id === 'solana:listen')!;

@@ -148,6 +148,7 @@ services:
       MI_SOLANA_DISCOVERY_MAX: ${MI_SOLANA_DISCOVERY_MAX:-}
       MI_SOLANA_LISTEN: ${MI_SOLANA_LISTEN:-}
       MI_SOLANA_WS_URL: ${MI_SOLANA_WS_URL:-}
+      MI_SOLANA_LISTEN_MAX_MB: ${MI_SOLANA_LISTEN_MAX_MB:-}
       MI_SOLANA_GATE: ${MI_SOLANA_GATE:-}
       MI_TRADE_RETENTION_DAYS: ${MI_TRADE_RETENTION_DAYS:-}
       # Live market stream: announce every pool statistics write to the stream service (empty = off).

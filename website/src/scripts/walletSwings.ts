@@ -1772,6 +1772,8 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
     /** The board on screen, so live numbers can be written into its cards. */
     let boardEl: HTMLElement | null = null;
     let stopBoardWatch: (() => void) | null = null;
+    /** Where each column was scrolled to before a redraw, so a refresh does not send it back to the top. */
+    let boardScroll: Map<string, number> | null = null;
     // Live numbers: the pools on screen are named to the stream, and what it sends is applied to the rows in place. If the stream is
     // off or unreachable nothing changes: the list's own refresh below keeps it current.
     let liveRows = new Map<string, MarketRow>();
@@ -1890,6 +1892,42 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
 
     /** One page of the index; a page it answered with an error (it does so briefly under load) is asked once more. */
     const indexPageRetry = async (req: Parameters<typeof fetchIndexPage>[0]): Promise<IndexPage | null> => (await fetchIndexPage(req)) ?? (await new Promise((r) => setTimeout(r, 500)), fetchIndexPage(req));
+    /** The fill that last reached the screen, kept across refreshes. */
+    let lastFillRows: MarketRow[] = [];
+    /**
+     * A tab such as Gainers can hold fewer than 100 tokens on a quiet network. Such a column is filled up with that network's most liquid tokens, listed
+     * after the tab's own under a divider. A network counts by its different symbols (a symbol is listed once per network), and the liquidity list is read
+     * eight pages deep because it lists pools, so one token fills several places. Read after the board is drawn; asked again twice if the index refused.
+     */
+    async function fillBoard(mine: number, base: MarketRow[], chains: readonly ChainId[], attempt: number): Promise<void> {
+      const symbols = new Map<ChainId, Set<string>>();
+      for (const r of base) symbols.set(r.chain, (symbols.get(r.chain) ?? new Set<string>()).add(r.symbol.trim().toUpperCase()));
+      const short = chains.filter((c) => (symbols.get(c)?.size ?? 0) < BOARD_FILL_TO);
+      if (short.length === 0) {
+        lastFillRows = [];
+        return;
+      }
+      const pages = await Promise.all(short.flatMap((c) => [1, 2, 3, 4, 5, 6, 7, 8].map((p) => indexPageRetry({ kind: 'liquidity', chain: c, window: m.window, page: p, size: BOARD_PAGE_SIZE, minLiquidityUsd: Number(f.liquidity) }))));
+      if (mine !== seq || m.chain !== '' || m.kind === 'favourites') return;
+      if (pages.every((g) => g === null)) {
+        if (attempt < 2) setTimeout(() => void fillBoard(mine, base, chains, attempt + 1), 3000 * (attempt + 1));
+        return;
+      }
+      const have = new Set(base.map((r) => rowKey(r.chain, r.address)));
+      const fill: MarketRow[] = [];
+      for (const g of pages) {
+        for (const r of g?.rows ?? []) {
+          const k = rowKey(r.chain, r.address);
+          if (have.has(k)) continue;
+          have.add(k);
+          fill.push(r);
+        }
+      }
+      lastFillRows = fill;
+      boardFill = new Set(fill.map((r) => rowKey(r.chain, r.address)));
+      rows = rateRows([...base, ...fill]);
+      if (!page) draw();
+    }
     async function load(silent = false): Promise<void> {
       const mine = ++seq;
       clearTimeout(retryTimer);
@@ -1920,31 +1958,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
         // whether a column needs filling is the count of different tokens.
         const seenKeys = new Set<string>();
         const boardRows = boardPages && boardPages.some((g) => g !== null) ? boardPages.flatMap((g) => g?.rows ?? []).filter((r) => (seenKeys.has(rowKey(r.chain, r.address)) ? false : (seenKeys.add(rowKey(r.chain, r.address)), true))) : null;
-        // A tab such as Gainers can hold fewer than 100 tokens on a quiet network. Such a column is filled up with that network's most liquid tokens,
-        // listed after the tab's own under a divider, so every column that can have 100 tokens does.
         boardFill = new Set();
-        if (boardRows && boardPages) {
-          const have = new Set(boardRows.map((r) => rowKey(r.chain, r.address)));
-          // A symbol is listed once per network (copy-cat tokens are dropped), so what counts is the number of different symbols, not of rows:
-          // Solana's Trending list held 186 rows but only about 75 different symbols and was never filled.
-          const symbols = new Map<ChainId, Set<string>>();
-          for (const r of boardRows) symbols.set(r.chain, (symbols.get(r.chain) ?? new Set<string>()).add(r.symbol.trim().toUpperCase()));
-          const counts = new Map<ChainId, number>([...symbols].map(([c, s]) => [c, s.size]));
-          const short = boardChains.filter((c) => (counts.get(c) ?? 0) < BOARD_FILL_TO);
-          // Pools, not tokens, are listed by liquidity, so one token fills several places (SOL has dozens of pools) and the page drops the repeats:
-          // eight pages of 100 are read (the list also drops repeated symbols on a network, which cuts Solana's 392 pools to 73 tokens in four pages).
-          const filler = await Promise.all(short.flatMap((c) => [1, 2, 3, 4, 5, 6, 7, 8].map((p) => indexPageRetry({ kind: 'liquidity', chain: c, window: m.window, page: p, size: BOARD_PAGE_SIZE, minLiquidityUsd: Number(f.liquidity) }))));
-          if (mine !== seq) return;
-          for (const g of filler) {
-            for (const r of g?.rows ?? []) {
-              const k = rowKey(r.chain, r.address);
-              if (have.has(k)) continue;
-              have.add(k);
-              boardFill.add(k);
-              boardRows.push(r);
-            }
-          }
-        }
         if (mine !== seq) return;
         const paged: IndexPage | null = wantsIndex && !boardMode
           ? await fetchIndexPage({ kind: m.kind as 'trending' | 'top' | 'gainers' | 'new' | 'liquidity', chain: m.chain, window: sorted?.window && m.kind !== 'trending' && m.kind !== 'gainers' ? sorted.window : m.window, sort: sorted?.sort, dir: sorted?.dir, page: pageNo, size: pageSize, minLiquidityUsd: Number(f.liquidity), maxAgeHours: autoAge ? 0 : Number(f.age), bullish: f.bullish })
@@ -1955,7 +1969,13 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
           staleAt = null;
           fromIndex = false;
           failures = 0;
-          rows = rateRows(boardRows);
+          // The tab's own tokens are drawn at once. What fills a short column is read after that (below), so a slow or refused request for it never
+          // holds the board back; the last fill is kept on screen meanwhile so a refresh does not make a column shrink and grow.
+          const baseKeys = new Set(boardRows.map((r) => rowKey(r.chain, r.address)));
+          const keptFill = lastFillRows.filter((r) => !baseKeys.has(rowKey(r.chain, r.address)));
+          boardFill = new Set(keptFill.map((r) => rowKey(r.chain, r.address)));
+          rows = rateRows(keptFill.length > 0 ? [...boardRows, ...keptFill] : boardRows);
+          void fillBoard(mine, [...boardRows], boardChains, 0);
         } else if (paged) {
           // Aretia's own index holds enough markets for this list and network: it is the list, paged by the server. The outside feed is not asked.
           staleAt = null;
@@ -2434,6 +2454,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
         const body = boardMode
           ? marketBoard({ rows: shownRows, isFill: (r) => boardFill.has(rowKey(r.chain, r.address)), fourth: fourthChain, onFourth: (c) => { fourthChain = c; draw(); }, onOpen: userPick, favourites: { has: (r) => favourites.has(r.chain, r.address), toggle: toggleFavourite } })
           : tableEl;
+        boardScroll = boardEl?.isConnected ? new Map([...boardEl.querySelectorAll<HTMLElement>('.wapp-bd__col')].map((c) => [c.dataset.chain ?? '', c.querySelector('.wapp-bd__list')?.scrollTop ?? 0])) : null;
         stopBoardWatch?.();
         stopBoardWatch = null;
         if (boardMode) {
@@ -2456,6 +2477,14 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
       }
       if (m.kind === 'favourites') (inMain ?? card).append(favouriteAlerts());
       target.append(card);
+      if (boardScroll && boardEl?.isConnected) {
+        for (const col of boardEl.querySelectorAll<HTMLElement>('.wapp-bd__col')) {
+          const list = col.querySelector<HTMLElement>('.wapp-bd__list');
+          const y = boardScroll.get(col.dataset.chain ?? '');
+          if (list && y) list.scrollTop = y;
+        }
+      }
+      boardScroll = null;
       // On a wide screen the panel opens on the selected row, or the first one when nothing is selected yet.
       if (tableEl && panelShown() && !page) {
         const shownNow = visible();

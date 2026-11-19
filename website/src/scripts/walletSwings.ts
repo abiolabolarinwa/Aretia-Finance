@@ -1888,6 +1888,8 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
       }
     }
 
+    /** One page of the index; a page it answered with an error (it does so briefly under load) is asked once more. */
+    const indexPageRetry = async (req: Parameters<typeof fetchIndexPage>[0]): Promise<IndexPage | null> => (await fetchIndexPage(req)) ?? (await new Promise((r) => setTimeout(r, 500)), fetchIndexPage(req));
     async function load(silent = false): Promise<void> {
       const mine = ++seq;
       clearTimeout(retryTimer);
@@ -1910,7 +1912,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
         const boardPages = boardMode
           ? await Promise.all(
               boardChains.flatMap((c) =>
-                [1, 2].map((p) => fetchIndexPage({ kind: m.kind as 'trending' | 'top' | 'gainers' | 'new' | 'liquidity', chain: c, window: sorted?.window && m.kind !== 'trending' && m.kind !== 'gainers' ? sorted.window : m.window, sort: sorted?.sort, dir: sorted?.dir, page: p, size: BOARD_PAGE_SIZE, minLiquidityUsd: Number(f.liquidity), maxAgeHours: autoAge ? 0 : Number(f.age), bullish: f.bullish })),
+                [1, 2].map((p) => indexPageRetry({ kind: m.kind as 'trending' | 'top' | 'gainers' | 'new' | 'liquidity', chain: c, window: sorted?.window && m.kind !== 'trending' && m.kind !== 'gainers' ? sorted.window : m.window, sort: sorted?.sort, dir: sorted?.dir, page: p, size: BOARD_PAGE_SIZE, minLiquidityUsd: Number(f.liquidity), maxAgeHours: autoAge ? 0 : Number(f.age), bullish: f.bullish })),
               ),
             )
           : null;
@@ -1923,12 +1925,15 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
         boardFill = new Set();
         if (boardRows && boardPages) {
           const have = new Set(boardRows.map((r) => rowKey(r.chain, r.address)));
-          const counts = new Map<ChainId, number>();
-          for (const r of boardRows) counts.set(r.chain, (counts.get(r.chain) ?? 0) + 1);
+          // A symbol is listed once per network (copy-cat tokens are dropped), so what counts is the number of different symbols, not of rows:
+          // Solana's Trending list held 186 rows but only about 75 different symbols and was never filled.
+          const symbols = new Map<ChainId, Set<string>>();
+          for (const r of boardRows) symbols.set(r.chain, (symbols.get(r.chain) ?? new Set<string>()).add(r.symbol.trim().toUpperCase()));
+          const counts = new Map<ChainId, number>([...symbols].map(([c, s]) => [c, s.size]));
           const short = boardChains.filter((c) => (counts.get(c) ?? 0) < BOARD_FILL_TO);
           // Pools, not tokens, are listed by liquidity, so one token fills several places (SOL has dozens of pools) and the page drops the repeats:
           // eight pages of 100 are read (the list also drops repeated symbols on a network, which cuts Solana's 392 pools to 73 tokens in four pages).
-          const filler = await Promise.all(short.flatMap((c) => [1, 2, 3, 4, 5, 6, 7, 8].map((p) => fetchIndexPage({ kind: 'liquidity', chain: c, window: m.window, page: p, size: BOARD_PAGE_SIZE, minLiquidityUsd: Number(f.liquidity) }))));
+          const filler = await Promise.all(short.flatMap((c) => [1, 2, 3, 4, 5, 6, 7, 8].map((p) => indexPageRetry({ kind: 'liquidity', chain: c, window: m.window, page: p, size: BOARD_PAGE_SIZE, minLiquidityUsd: Number(f.liquidity) }))));
           if (mine !== seq) return;
           for (const g of filler) {
             for (const r of g?.rows ?? []) {

@@ -164,6 +164,8 @@ function column(title: string, chain: ChainId, rows: readonly MarketRow[], o: Bo
   if (switcher) head.append(switcher);
   col.append(head);
   const list = el('div', 'wapp-bd__list');
+  // The page scrolls smoothly through a library that takes the mouse wheel for itself; this tells it to leave a column alone, so the wheel moves the column.
+  list.setAttribute('data-lenis-prevent', '');
   if (rows.length === 0) list.append(el('p', 'wapp-bd__empty', `No ${title} tokens match right now.`));
   const fill = o.isFill;
   const own = fill ? rows.filter((r) => !fill(r)) : rows;

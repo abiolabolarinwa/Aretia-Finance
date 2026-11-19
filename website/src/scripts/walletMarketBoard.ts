@@ -30,6 +30,12 @@ export const BOARD_CHAINS: readonly ChainId[] = ['solana', 'ethereum', 'bnb', 'b
 export const BOARD_PAGE_SIZE = 100;
 /** A column holding fewer tokens than this from the tab itself is filled up with the network's most liquid ones (the tab's own may be filtered a little more afterwards). */
 export const BOARD_FILL_TO = 150;
+/** Cards drawn at first in a column, and added each time its scroll gets near the end: a column of 500 tokens is not 500 elements until it is read that far. */
+export const CHUNK = 50;
+/** How many cards each column has drawn so far, kept across redraws so a refresh does not cut a column short under the reader. */
+const drawnCount = new Map<string, number>();
+let drawnFor = '';
+
 /** Tokens drawn per column at most: all of them in practice, the column's own scroll reaches every one (the header count is what is in the list). */
 export const PER_COLUMN = 10_000;
 
@@ -38,6 +44,8 @@ export interface BoardOptions {
   fourth: FourthChain;
   onFourth(c: FourthChain): void;
   onOpen(row: MarketRow): void;
+  /** Names the list on screen (tab and window): a different one starts every column again at its first screen of cards. */
+  listKey?: string;
   /** True for a token added to fill a column that the current tab alone leaves short; it is listed under a divider, after the tab's own tokens. */
   isFill?(row: MarketRow): boolean;
   /** The key of the token on screen elsewhere (the selected one), to mark. */
@@ -161,20 +169,44 @@ function column(title: string, chain: ChainId, rows: readonly MarketRow[], o: Bo
   const own = fill ? rows.filter((r) => !fill(r)) : rows;
   const extra = fill ? rows.filter((r) => fill(r)) : [];
   const ordered = [...own.slice(0, PER_COLUMN), ...extra.slice(0, Math.max(0, PER_COLUMN - own.length))];
-  let dividerShown = false;
-  for (const r of ordered) {
-    if (fill && fill(r) && !dividerShown) {
-      dividerShown = true;
-      list.append(el('p', 'wapp-bd__divider', `More on ${title}, by liquidity`));
+  const fillAt = fill ? ordered.findIndex((r) => fill(r)) : -1;
+  const start = Math.min(ordered.length, Math.max(CHUNK, drawnCount.get(chain) ?? 0));
+  const draw = (from: number, to: number): void => {
+    for (let i = from; i < to; i++) {
+      if (i === fillAt) list.append(el('p', 'wapp-bd__divider', `More on ${title}, by liquidity`));
+      list.append(card(ordered[i]!, o));
     }
-    list.append(card(r, o));
+    drawnCount.set(chain, to);
+  };
+  draw(0, start);
+  if (start < ordered.length && typeof IntersectionObserver !== 'undefined') {
+    // The next cards are added when the end of what is drawn comes within a few screens of the top of the column's view.
+    const sentinel = el('div', 'wapp-bd__sentinel');
+    list.append(sentinel);
+    let next = start;
+    const io = new IntersectionObserver((entries) => {
+      if (!entries.some((e) => e.isIntersecting)) return;
+      const to = Math.min(ordered.length, next + CHUNK);
+      sentinel.remove();
+      draw(next, to);
+      next = to;
+      if (next < ordered.length) list.append(sentinel);
+      else io.disconnect();
+    }, { root: list, rootMargin: '600px 0px' });
+    io.observe(sentinel);
+  } else if (start < ordered.length) {
+    draw(start, ordered.length);
   }
-  if (rows.length > ordered.length) list.append(el('p', 'wapp-bd__more', `${rows.length - ordered.length} more not shown. Use the search.`));
   col.append(list);
   return col;
 }
 
 export function marketBoard(o: BoardOptions): HTMLElement {
+  const key = o.listKey ?? '';
+  if (key !== drawnFor) {
+    drawnFor = key;
+    drawnCount.clear();
+  }
   const board = el('div', 'wapp-bd');
   for (const c of FIXED_COLUMNS) board.append(column(c.title, c.chain, columnRows(o.rows, c.chain), o));
   const fourth = pickFourth(o.rows, o.fourth);
@@ -255,7 +287,12 @@ export function observeBoard(board: HTMLElement, onKeys: (keys: string[]) => voi
       push();
     }, { root: list });
     list.querySelectorAll('.wapp-bd__card[data-pool]').forEach((c) => io.observe(c));
-    return io;
+    // Cards the column adds as it is scrolled are watched too.
+    const mo = new MutationObserver((muts) => {
+      for (const mu of muts) mu.addedNodes.forEach((n) => { if (n instanceof HTMLElement && n.matches('.wapp-bd__card[data-pool]')) io.observe(n); });
+    });
+    mo.observe(list, { childList: true });
+    return { disconnect: () => { io.disconnect(); mo.disconnect(); } };
   });
   return () => {
     clearTimeout(timer);

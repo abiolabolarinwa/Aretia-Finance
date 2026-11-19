@@ -1894,6 +1894,8 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
     const indexPageRetry = async (req: Parameters<typeof fetchIndexPage>[0]): Promise<IndexPage | null> => (await fetchIndexPage(req)) ?? (await new Promise((r) => setTimeout(r, 500)), fetchIndexPage(req));
     /** The fill that last reached the screen, kept across refreshes. */
     let lastFillRows: MarketRow[] = [];
+    /** When the fill was last read: the most liquid pools change slowly, so it is not read again at every half-minute refresh. */
+    let lastFillAt = 0;
     /**
      * A tab such as Gainers can hold fewer than 100 tokens on a quiet network. Such a column is filled up with that network's most liquid tokens, listed
      * after the tab's own under a divider. A network counts by its different symbols (a symbol is listed once per network), and the liquidity list is read
@@ -1907,6 +1909,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
         lastFillRows = [];
         return;
       }
+      if (lastFillRows.length > 0 && Date.now() - lastFillAt < 300_000) return;
       const pages = await Promise.all(short.flatMap((c) => [1, 2, 3, 4, 5, 6, 7, 8].map((p) => indexPageRetry({ kind: 'liquidity', chain: c, window: m.window, page: p, size: BOARD_PAGE_SIZE, minLiquidityUsd: Number(f.liquidity) }))));
       if (mine !== seq || m.chain !== '' || m.kind === 'favourites') return;
       if (pages.every((g) => g === null)) {
@@ -1924,6 +1927,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
         }
       }
       lastFillRows = fill;
+      lastFillAt = Date.now();
       boardFill = new Set(fill.map((r) => rowKey(r.chain, r.address)));
       rows = rateRows([...base, ...fill]);
       if (!page) draw();
@@ -2306,6 +2310,8 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
       else draw();
     };
 
+    let lastDrawAt = 0;
+    let drawTimer: ReturnType<typeof setTimeout> | undefined;
     function draw(): void {
       // The docked panel steps aside while a full token page is open.
       // The docked side panel is not shown: a click on a token opens its page (chart, trades, numbers and pool details) instead.
@@ -2315,6 +2321,13 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
         if (target.firstElementChild !== tokenPage.element || target.childElementCount !== 1) target.replaceChildren(tokenPage.element);
         return;
       }
+      // The board is large, so redraws that come one on top of another (the fill arriving, pictures found, a refresh) are joined into one a moment later.
+      if (boardEl?.isConnected && Date.now() - lastDrawAt < 700) {
+        clearTimeout(drawTimer);
+        drawTimer = setTimeout(draw, 700 - (Date.now() - lastDrawAt) + 20);
+        return;
+      }
+      lastDrawAt = Date.now();
       for (const child of [...target.children]) child.remove();
       const card = el('div', { class: 'wapp__card wapp-mt__card' });
       card.append(el('h2', { class: 'wapp__h2 sr-only', text: 'Marketplace' }));
@@ -2452,7 +2465,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
         const featured = featuredForMarkets();
         const boardMode = m.kind !== 'favourites' && m.chain === '';
         const body = boardMode
-          ? marketBoard({ rows: shownRows, isFill: (r) => boardFill.has(rowKey(r.chain, r.address)), fourth: fourthChain, onFourth: (c) => { fourthChain = c; draw(); }, onOpen: userPick, favourites: { has: (r) => favourites.has(r.chain, r.address), toggle: toggleFavourite } })
+          ? marketBoard({ rows: shownRows, listKey: `${m.kind}:${m.window}`, isFill: (r) => boardFill.has(rowKey(r.chain, r.address)), fourth: fourthChain, onFourth: (c) => { fourthChain = c; draw(); }, onOpen: userPick, favourites: { has: (r) => favourites.has(r.chain, r.address), toggle: toggleFavourite } })
           : tableEl;
         boardScroll = boardEl?.isConnected ? new Map([...boardEl.querySelectorAll<HTMLElement>('.wapp-bd__col')].map((c) => [c.dataset.chain ?? '', c.querySelector('.wapp-bd__list')?.scrollTop ?? 0])) : null;
         stopBoardWatch?.();

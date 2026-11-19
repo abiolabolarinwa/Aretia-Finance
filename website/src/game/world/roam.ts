@@ -31,6 +31,8 @@ import { buildSignalSet, headsFor, makeSignalShapes } from './signals3d.js';
 import { CAR_MODELS, loadCarModel, makeModelCar, type CarTemplate } from './modelCars.js';
 import { PROP_SPECS, propsFor, type PropKind, type PropPlacement } from './roamProps.js';
 import { loadProp, propInstances, type PropTemplate } from './propModels.js';
+import { FeatureStore } from './mapillaryFeatures.js';
+import { crosswalksFromFeatures, lampsFromFeatures, mergeProps, polesFromFeatures, signalsFromFeatures } from './realPlaces.js';
 import { otherLook, PALETTES, saveLook, savedLook, type Palette } from './style.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { makeAtmosphere } from './atmosphere.js';
@@ -123,6 +125,8 @@ export async function mountRoam(host: HTMLElement, city: City, startAt: [number,
   const place = hud('left:50%;top:12px;transform:translateX(-50%);font-size:15px;text-align:center;max-width:40%;' + pill);
   const prompt = hud(`left:50%;bottom:84px;transform:translateX(-50%);font-size:17px;text-align:center;${look.id === 'bright' ? card : 'background:rgba(0,0,0,.55);'}padding:8px 16px;border-radius:999px;display:none`);
   const toast = hud(`left:50%;top:56px;transform:translateX(-50%);text-align:center;max-width:70%;${look.id === 'bright' ? card : 'background:rgba(0,0,0,.6);'}padding:8px 14px;border-radius:${look.id === 'bright' ? '18px' : '12px'};display:none`);
+  // The credit Mapillary's data licence asks for, shown while any of its map data is in use.
+  const dataCredit = hud(`left:50%;bottom:6px;transform:translateX(-50%);font-size:11px;font-weight:500;opacity:.85;display:none`, 'Street data © Mapillary contributors, CC BY-SA 4.0');
   const help = hud(`left:14px;bottom:14px;font-size:12px;line-height:1.5;${look.id === 'bright' ? card : 'background:rgba(0,0,0,.5);'}padding:8px 12px;border-radius:12px;font-weight:500`, 'W A S D move · Shift run · E get in or out, collect · Space handbrake · drag or ← → look · F full screen · V street photo · T time · R weather · M sound · H horn');
   const mini = document.createElement('canvas');
   mini.width = 176;
@@ -324,7 +328,14 @@ export async function mountRoam(host: HTMLElement, city: City, startAt: [number,
   const poleMat = new three.MeshLambertMaterial({ color: '#4a4d52' });
   // Street lamp heads glow warmly once it is dark.
   const lampHeadMat = new three.MeshLambertMaterial({ color: '#4a4d52', emissive: '#ffc766', emissiveIntensity: 0 });
-  const sharedGeos = new Set<T.BufferGeometry>([trunkGeo, crownGeo, poleGeo, lampHeadGeo]);
+  // A utility pole: a tall pole with a cross-arm near the top.
+  const utilityPoleGeo = mergeGeometries([
+    new three.CylinderGeometry(0.1, 0.14, 9, 7).translate(0, 4.5, 0).toNonIndexed(),
+    new three.BoxGeometry(1.7, 0.12, 0.14).translate(0, 8.4, 0).toNonIndexed(),
+    new three.BoxGeometry(1.2, 0.1, 0.12).translate(0, 7.6, 0).toNonIndexed(),
+  ])!;
+  const utilityPoleMat = new three.MeshLambertMaterial({ color: '#6b5a48' });
+  const sharedGeos = new Set<T.BufferGeometry>([trunkGeo, crownGeo, poleGeo, lampHeadGeo, utilityPoleGeo]);
   // Traffic lights: one set of shapes shared by every junction, and a note of which junctions already have their posts drawn (a junction
   // near the edge of two map tiles is found twice).
   const signalShapes = makeSignalShapes(three);
@@ -367,6 +378,24 @@ export async function mountRoam(host: HTMLElement, city: City, startAt: [number,
   const loading = new Set<string>();
   const failed = new Map<string, number>();
   const built = new Map<string, T.Group>();
+  // Real street furniture from Mapillary's map data (needs the site's Mapillary key): fetched in 600 m blocks without making anything
+  // wait, and when a block arrives the squares already drawn from it are rebuilt with the real positions. Without a key, or where there
+  // is little data, the game's own rules stay in charge.
+  const features = new FeatureStore({
+    token: String(import.meta.env.PUBLIC_MAPILLARY_TOKEN ?? ''),
+    origin,
+    onBlock: (squares) => {
+      for (const sq of squares) {
+        for (const id of [...built.keys()]) {
+          if (!id.endsWith(`|${sq}`)) continue;
+          const old = built.get(id)!;
+          scene.remove(old);
+          disposeGroup(old);
+          built.delete(id);
+        }
+      }
+    },
+  });
   const abort = new AbortController();
   let destroyed = false;
 
@@ -518,6 +547,7 @@ export async function mountRoam(host: HTMLElement, city: City, startAt: [number,
         const id = `${t.id}|${key}`;
         const [cx, cz] = cellCentre(key);
         const d = Math.hypot(cx - x, cz - z);
+        if (d < BUILD_RADIUS_M) features.request(key);
         const have = built.get(id);
         if (!have && d < BUILD_RADIUS_M && made < maxNew) {
           const g = buildSquare(t, key, cell);
@@ -552,6 +582,7 @@ export async function mountRoam(host: HTMLElement, city: City, startAt: [number,
   function buildSquare(t: LoadedTile, key: string, cell: Cell): T.Group {
     const g = new three.Group();
     const sq = squareOf(key);
+    const feats = features.get(key) ?? [];
     // The ground, painted like a street map seen from above (half a metre to the pixel).
     const size = 512;
     const canvas = document.createElement('canvas');
@@ -559,7 +590,9 @@ export async function mountRoam(host: HTMLElement, city: City, startAt: [number,
     canvas.height = size;
     const ctx = canvas.getContext('2d');
     if (ctx) {
-      paintGround(ctx, size, key, t.world, look);
+      // Real positions from Mapillary for this square, if they have arrived: traffic lights make junctions signalised, crosswalks are painted.
+      for (const j of signalsFromFeatures(junctionsFor(t.world), feats)) t.signals.push(j);
+      paintGround(ctx, size, key, t.world, look, { crosswalks: crosswalksFromFeatures(feats, t.world) });
       const tex = new three.CanvasTexture(canvas);
       tex.colorSpace = three.SRGBColorSpace;
       tex.anisotropy = 8;
@@ -599,7 +632,21 @@ export async function mountRoam(host: HTMLElement, city: City, startAt: [number,
         g.add(im);
       }
     }
-    const lamps = lampsFor(key, t.world, blocked);
+    const lamps = lampsFromFeatures(feats, blocked) ?? lampsFor(key, t.world, blocked); // the real street lights where Mapillary has them
+    // Utility poles (the poles that carry power lines) stand only where Mapillary saw them: a familiar sight in Lagos.
+    const polePlaces = polesFromFeatures(feats, blocked);
+    if (polePlaces.length) {
+      const im = new three.InstancedMesh(utilityPoleGeo, utilityPoleMat, polePlaces.length);
+      const pm = new three.Matrix4();
+      polePlaces.forEach((p, i) => {
+        pm.makeRotationY(p.yaw);
+        pm.setPosition(p.x, 0, p.z);
+        im.setMatrixAt(i, pm);
+      });
+      im.instanceMatrix.needsUpdate = true;
+      im.frustumCulled = false;
+      g.add(im);
+    }
     if (lamps.length) {
       const poles = new three.InstancedMesh(poleGeo, poleMat, lamps.length);
       const heads = new three.InstancedMesh(lampHeadGeo, lampHeadMat, lamps.length);
@@ -618,7 +665,7 @@ export async function mountRoam(host: HTMLElement, city: City, startAt: [number,
     // Street furniture: benches, bins, hydrants, mailboxes, signs and market stands beside the streets, dumpsters beside back lanes.
     if (propModels.size) {
       const byKind = new Map<PropKind, PropPlacement[]>();
-      for (const p of propsFor(key, t.world, blocked)) {
+      for (const p of mergeProps(propsFor(key, t.world, blocked), feats, t.world, blocked)) {
         if (!propModels.has(p.kind)) continue;
         const list = byKind.get(p.kind) ?? [];
         list.push(p);
@@ -1412,6 +1459,7 @@ export async function mountRoam(host: HTMLElement, city: City, startAt: [number,
 
   let hudAt = 0;
   function updateHud(now: number): void {
+    dataCredit.style.display = features.count > 0 ? 'block' : 'none';
     if (now - hudAt < 120) return;
     hudAt = now;
     const p = here();

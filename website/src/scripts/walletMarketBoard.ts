@@ -68,19 +68,39 @@ export function pickFourth(rows: readonly MarketRow[], chosen: FourthChain): Fou
 /** The key the live stream knows a row's pool by. */
 export const poolKey = (r: Pick<MarketRow, 'chain' | 'pool'>): string => `${r.chain}:${r.chain === 'solana' ? r.pool : r.pool.toLowerCase()}`;
 
+/** The windows tried, in order, for the pill: the hour first, then the shorter and the longer ones, whichever the source has. */
+const WINDOWS = [['h1', '1H'], ['m5', '5M'], ['h6', '6H'], ['h24', '24H']] as const;
+export type ChangeKey = (typeof WINDOWS)[number][0];
+
+/** The price change the card shows: the one-hour change, or the 5-minute, 6-hour or 24-hour one when the hour is not available. Null value when none is. */
+export function pillChange(c: MarketRow['change']): { key: ChangeKey; label: string; value: number | null } {
+  for (const [key, label] of WINDOWS) {
+    const v = c[key];
+    if (v !== null && v !== undefined && Number.isFinite(v)) return { key, label, value: v };
+  }
+  return { key: 'h1', label: '1H', value: null };
+}
+
+/** The pill's words: an arrow and the figure, and the window's name when it is not the hour. */
+export function pillText(p: { label: string; value: number | null }): string {
+  const v = p.value;
+  const body = v === null || v === 0 ? formatChange(v) : v > 0 ? `▲ ${formatChange(v)}` : `▼ ${formatChange(v).replace('-', '')}`;
+  return v === null || p.label === '1H' ? body : `${p.label} ${body}`;
+}
+
 function changeTone(n: number | null): 'up' | 'down' | 'flat' {
   return n === null || !Number.isFinite(n) || n === 0 ? 'flat' : n > 0 ? 'up' : 'down';
 }
 
 function card(r: MarketRow, o: BoardOptions): HTMLElement {
-  const h1 = r.change.h1;
-  const tone = changeTone(h1);
+  const pill = pillChange(r.change);
+  const tone = changeTone(pill.value);
   const c = el('div', `wapp-bd__card is-${tone}`);
   c.setAttribute('role', 'button');
   c.tabIndex = 0;
   c.dataset.k = tableRowKey(r);
   if (r.pool) c.dataset.pool = poolKey(r);
-  c.setAttribute('aria-label', `${r.symbol}, market cap ${compactUsd(r.capUsd)}, one hour ${formatChange(h1)}, price ${formatPrice(r.priceUsd)}`);
+  c.setAttribute('aria-label', `${r.symbol}, price ${formatPrice(r.priceUsd)}, ${pill.label} ${formatChange(pill.value)}, market cap ${compactUsd(r.capUsd)}`);
   const open = (): void => o.onOpen(r);
   c.addEventListener('click', (e) => {
     if ((e.target as HTMLElement).closest('.wapp-bd__star')) return;
@@ -93,18 +113,22 @@ function card(r: MarketRow, o: BoardOptions): HTMLElement {
     }
   });
 
-  // Two short lines: symbol and name above the price on the left; market cap above the one-hour change on the right.
+  // Two short lines: symbol and name above the market cap on the left; the price (large) above the price change on the right.
   const mid = el('div', 'wapp-bd__mid');
   const top = el('div', 'wapp-bd__top');
   top.append(el('strong', 'wapp-bd__sym', r.symbol), el('span', 'wapp-bd__name', r.name));
-  mid.append(top, el('span', 'wapp-bd__price', formatPrice(r.priceUsd)));
+  const subLine = el('span', 'wapp-bd__sub');
+  const capEl = el('span', 'wapp-bd__cap', compactUsd(r.capUsd));
+  capEl.title = r.capIsFdv ? 'Market cap (fully diluted: price times total supply)' : 'Market cap';
+  subLine.append(el('span', 'wapp-bd__mc', 'MC '), capEl);
+  mid.append(top, subLine);
 
   const right = el('div', 'wapp-bd__right');
-  const cap = el('span', 'wapp-bd__cap', compactUsd(r.capUsd));
-  cap.title = r.capIsFdv ? 'Market cap (fully diluted: price times total supply)' : 'Market cap';
-  const chg = el('span', `wapp-bd__chg is-${tone}`, tone === 'up' ? `▲ ${formatChange(h1)}` : tone === 'down' ? `▼ ${formatChange(h1).replace('-', '')}` : formatChange(h1));
-  chg.title = 'Price change over the last hour';
-  right.append(cap, chg);
+  const big = el('span', 'wapp-bd__big', formatPrice(r.priceUsd));
+  big.title = 'Price';
+  const chg = el('span', `wapp-bd__chg is-${tone}`, pillText(pill));
+  chg.title = `Price change over ${pill.label === '1H' ? 'the last hour' : pill.label === '5M' ? 'the last 5 minutes' : pill.label === '6H' ? 'the last 6 hours' : 'the last 24 hours'}`;
+  right.append(big, chg);
 
   c.append(marketLogo(r), mid, right);
   if (o.favourites) {
@@ -128,7 +152,7 @@ function column(title: string, chain: ChainId, rows: readonly MarketRow[], o: Bo
   logo.width = 22;
   logo.height = 22;
   head.append(logo, el('h3', 'wapp-bd__title', title), el('span', 'wapp-bd__count', String(rows.length)));
-  head.append(el('span', 'wapp-bd__legend', 'MCAP · 1H'));
+  head.append(el('span', 'wapp-bd__legend', 'PRICE · CHANGE'));
   if (switcher) head.append(switcher);
   col.append(head);
   const list = el('div', 'wapp-bd__list');
@@ -184,7 +208,7 @@ export function updateBoardCards(board: ParentNode, rows: readonly MarketRow[], 
     const c = board.querySelector<HTMLElement>(`.wapp-bd__card[data-k="${CSS.escape(k)}"]`);
     if (!c) continue;
     const prev = before?.get(k);
-    const price = c.querySelector('.wapp-bd__price');
+    const price = c.querySelector('.wapp-bd__big');
     const next = formatPrice(r.priceUsd);
     if (price && price.textContent !== next) {
       price.textContent = next;
@@ -194,9 +218,9 @@ export function updateBoardCards(board: ParentNode, rows: readonly MarketRow[], 
     if (cap && cap.textContent !== compactUsd(r.capUsd)) cap.textContent = compactUsd(r.capUsd);
     const chg = c.querySelector<HTMLElement>('.wapp-bd__chg');
     if (chg) {
-      const h1 = r.change.h1;
-      const tone = changeTone(h1);
-      const text = tone === 'up' ? `▲ ${formatChange(h1)}` : tone === 'down' ? `▼ ${formatChange(h1).replace('-', '')}` : formatChange(h1);
+      const pill = pillChange(r.change);
+      const tone = changeTone(pill.value);
+      const text = pillText(pill);
       if (chg.textContent !== text) chg.textContent = text;
       chg.className = `wapp-bd__chg is-${tone}`;
       c.classList.remove('is-up', 'is-down', 'is-flat');

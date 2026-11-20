@@ -9,7 +9,9 @@
  *
  * What it needs: a node that accepts websocket subscriptions (MI_SOLANA_WS_URL; the public node does, with limits). The stream of a very
  * busy program is large, so the listener counts bytes and, above `maxBytesPerMinute`, closes the socket and rests for a while rather than
- * silently running up a metered bill. It reconnects with a growing wait. A creation heard while it was down is not replayed: the venues
+ * silently running up a metered bill. It reconnects with a growing wait. A quiet program sends nothing for long stretches and the public node
+ * closes a socket it hears nothing from (the first live run reconnected every 20 to 60 seconds, each gap able to miss a creation), so the listener
+ * sends a harmless request every 25 seconds to keep the line open. A creation heard while it was down is not replayed: the venues
  * with a known creation-only account (Raydium CPMM, Orca, PumpSwap, Raydium AMM v4) still catch up through their usual runs, and the
  * program-wide listing (MI_SOLANA_DISCOVERY) finds the rest.
  *
@@ -65,6 +67,8 @@ export interface ListenerOptions {
   /** Bytes a minute above which the socket is closed and left alone for `restMs` (default 4 MB, 10 minutes). */
   maxBytesPerMinute?: number;
   restMs?: number;
+  /** How often a keepalive request is sent while connected (default 25 seconds; the public node drops a socket idle for about a minute). */
+  keepAliveMs?: number;
 }
 
 export interface ListenerStats {
@@ -88,6 +92,7 @@ export function startListener(o: ListenerOptions): Listener {
   const clearTimer = o.clearTimer ?? ((t) => clearTimeout(t as ReturnType<typeof setTimeout>));
   const maxBytes = o.maxBytesPerMinute ?? 4_000_000;
   const restMs = o.restMs ?? 600_000;
+  const keepAliveMs = o.keepAliveMs ?? 25_000;
   const stats: ListenerStats = { connected: false, connects: 0, messages: 0, bytes: 0, heard: 0, tripped: 0 };
   const programs = o.venues.flatMap((id) => {
     const s = SOLANA_SPECS.find((x) => x.id === id);
@@ -100,9 +105,29 @@ export function startListener(o: ListenerOptions): Listener {
   let socket: Socket | null = null;
   let timer: unknown = null;
   let closed = false;
+  let alive: unknown = null;
   let attempt = 0;
   let windowStart = now();
   let windowBytes = 0;
+
+  const stopAlive = (): void => {
+    if (alive !== null) clearTimer(alive);
+    alive = null;
+  };
+  /** An unsubscribe for a subscription that does not exist: the node answers with an error, and the traffic keeps the socket from being called idle. */
+  const startAlive = (s: Socket): void => {
+    const tick = (): void => {
+      if (closed || socket !== s || alive === null) return;
+      try {
+        s.send(JSON.stringify({ jsonrpc: '2.0', id: 9_999, method: 'logsUnsubscribe', params: [0] }));
+      } catch {
+        /* the socket is closing; its close handler reconnects */
+      }
+      alive = setTimer(tick, keepAliveMs);
+    };
+    stopAlive();
+    alive = setTimer(tick, keepAliveMs);
+  };
 
   const schedule = (ms: number): void => {
     if (closed) return;
@@ -126,6 +151,7 @@ export function startListener(o: ListenerOptions): Listener {
       stats.connected = true;
       stats.connects++;
       attempt = 0;
+      startAlive(s);
       programs.forEach((p, i) => {
         byRequest.set(i + 1, p.id);
         s.send(JSON.stringify({ jsonrpc: '2.0', id: i + 1, method: 'logsSubscribe', params: [{ mentions: [p.program] }, { commitment: 'confirmed' }] }));
@@ -147,6 +173,7 @@ export function startListener(o: ListenerOptions): Listener {
         o.log?.(`creation listener: ${(windowBytes / 1e6).toFixed(1)} MB in ${Math.max(1, Math.round((t - windowStart) / 1000))} s is over the limit of ${(maxBytes / 1e6).toFixed(0)} MB a minute (MI_SOLANA_LISTEN_MAX_MB); closing for ${Math.round(restMs / 60_000)} minutes`);
         try {
           s.onclose = null;
+          stopAlive();
           s.close();
         } catch {
           /* already closed */
@@ -180,6 +207,7 @@ export function startListener(o: ListenerOptions): Listener {
     };
     const lost = (): void => {
       if (socket !== s) return;
+      stopAlive();
       stats.connected = false;
       attempt++;
       schedule(Math.min(60_000, 1_000 * 2 ** attempt));
@@ -193,6 +221,7 @@ export function startListener(o: ListenerOptions): Listener {
     stats,
     close() {
       closed = true;
+      stopAlive();
       if (timer !== null) clearTimer(timer);
       try {
         socket?.close();

@@ -73,6 +73,28 @@ describe('the creation log line', () => {
   });
 });
 
+describe('the websocket listener keepalive', () => {
+  it('sends a request every 25 seconds while connected, and stops when the socket drops or is closed', () => {
+    const cleared: unknown[] = [];
+    const { l, sockets, timers } = harness({ clearTimer: (t: unknown) => cleared.push(t) });
+    const s = sockets[0]!;
+    s.onopen?.({});
+    expect(s.sent).toHaveLength(2); // the two subscriptions
+    const first = timers.find((t) => t.ms === 25_000)!;
+    first.fn();
+    const ping = JSON.parse(s.sent.at(-1)!);
+    expect(ping.method).toBe('logsUnsubscribe');
+    expect(timers.filter((t) => t.ms === 25_000)).toHaveLength(2); // the next one is already set
+    s.say({ jsonrpc: '2.0', id: 9_999, error: { code: -32602, message: 'Invalid subscription id' } }); // the node's answer is ignored
+    expect(l.stats.heard).toBe(0);
+    s.onclose?.({});
+    expect(cleared.length).toBeGreaterThan(0); // the timer was stopped
+    const sentBefore = s.sent.length;
+    timers.filter((t) => t.ms === 25_000).at(-1)!.fn(); // a tick that fires late does nothing
+    expect(s.sent).toHaveLength(sentBefore);
+  });
+});
+
 describe('the websocket listener', () => {
   it('subscribes to each program once connected and reports only successful creations, once each', () => {
     const { l, sockets, heard } = harness();
@@ -100,13 +122,14 @@ describe('the websocket listener', () => {
     const { l, sockets, timers } = harness();
     sockets[0]!.onopen?.({});
     sockets[0]!.onclose?.({});
-    expect(timers.map((t) => t.ms)).toEqual([2_000]);
-    timers[0]!.fn();
+    const waits = () => timers.filter((t) => t.ms !== 25_000).map((t) => t.ms); // the keepalive timer is not a reconnect wait
+    expect(waits()).toEqual([2_000]);
+    timers.find((t) => t.ms === 2_000)!.fn();
     expect(sockets).toHaveLength(2);
     sockets[1]!.onclose?.({}); // dropped before it ever opened
-    expect(timers[1]!.ms).toBe(4_000);
+    expect(waits()).toEqual([2_000, 4_000]);
     l.close();
-    timers[1]!.fn();
+    timers.filter((t) => t.ms === 4_000)[0]!.fn();
     expect(sockets).toHaveLength(2); // closed: no new socket
   });
 
@@ -118,7 +141,7 @@ describe('the websocket listener', () => {
     s.say(note(77, 'big', ['x'.repeat(2_000)]));
     expect(s.closed).toBe(true);
     expect(l.stats.tripped).toBe(1);
-    expect(timers.at(-1)!.ms).toBe(600_000);
+    expect(timers.filter((t) => t.ms !== 25_000).at(-1)!.ms).toBe(600_000);
     expect(logs.some((x) => /closing for 10 minutes/.test(x))).toBe(true);
   });
 });

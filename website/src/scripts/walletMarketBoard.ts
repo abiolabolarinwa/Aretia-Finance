@@ -347,3 +347,47 @@ export function observeMissingCaps(board: HTMLElement, onKeys: (keys: string[]) 
     observers.forEach((o) => o.disconnect());
   };
 }
+
+/**
+ * Tracks which cards are on screen: inside their column's view and with that column on the page's screen. `keys()` gives their row keys at the moment
+ * it is called (the price poll asks for these once a second). `stop()` ends the watching.
+ */
+export function observeVisibleCards(board: HTMLElement): { keys(): string[]; stop(): void } {
+  const inView = new Set<HTMLElement>();
+  const observers = typeof IntersectionObserver === 'undefined' ? [] : [...board.querySelectorAll<HTMLElement>('.wapp-bd__list')].map((list) => {
+    const io = new IntersectionObserver((entries) => {
+      for (const e of entries) {
+        const c = e.target as HTMLElement;
+        if (e.isIntersecting) inView.add(c);
+        else inView.delete(c);
+      }
+    }, { root: list });
+    list.querySelectorAll('.wapp-bd__card').forEach((c) => io.observe(c));
+    // Cards a column adds as it is scrolled are watched too.
+    const mo = new MutationObserver((muts) => {
+      for (const mu of muts) mu.addedNodes.forEach((n) => { if (n instanceof HTMLElement && n.matches('.wapp-bd__card')) io.observe(n); });
+    });
+    mo.observe(list, { childList: true });
+    return { disconnect: () => { io.disconnect(); mo.disconnect(); } };
+  });
+  return {
+    keys: () => {
+      const out: string[] = [];
+      const listOnScreen = new Map<Element, boolean>();
+      for (const c of inView) {
+        if (!c.isConnected) continue;
+        const list = c.parentElement;
+        if (!list) continue;
+        let on = listOnScreen.get(list);
+        if (on === undefined) {
+          const r = list.getBoundingClientRect();
+          on = r.bottom > 0 && r.top < window.innerHeight;
+          listOnScreen.set(list, on);
+        }
+        if (on && c.dataset.k) out.push(c.dataset.k);
+      }
+      return out;
+    },
+    stop: () => observers.forEach((o) => o.disconnect()),
+  };
+}

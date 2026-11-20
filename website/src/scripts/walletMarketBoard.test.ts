@@ -56,4 +56,11 @@ describe('a column scrolls by itself', () => {
     const page = readFileSync(new URL('../pages/wallet/index.astro', import.meta.url), 'utf8');
     expect(page).toMatch(/\.wapp-bd__card \{ flex: none;/);
   });
+  it('reads where each column is scrolled to before the old board is removed, or a refresh sends it back to the top', () => {
+    const code = readFileSync(new URL('./walletSwings.ts', import.meta.url), 'utf8');
+    const read = code.indexOf('boardScroll = boardEl?.isConnected');
+    const removed = code.indexOf('for (const child of [...target.children]) child.remove();');
+    expect(read).toBeGreaterThan(-1);
+    expect(read).toBeLessThan(removed);
+  });
 });

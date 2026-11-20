@@ -2330,6 +2330,8 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
         return;
       }
       lastDrawAt = Date.now();
+      // Where each column is scrolled to is read now, before the old board is taken out of the page, and put back on the new one.
+      boardScroll = boardEl?.isConnected ? new Map([...boardEl.querySelectorAll<HTMLElement>('.wapp-bd__col')].map((c) => [c.dataset.chain ?? '', c.querySelector('.wapp-bd__list')?.scrollTop ?? 0])) : null;
       for (const child of [...target.children]) child.remove();
       const card = el('div', { class: 'wapp__card wapp-mt__card' });
       card.append(el('h2', { class: 'wapp__h2 sr-only', text: 'Marketplace' }));
@@ -2469,7 +2471,6 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
         const body = boardMode
           ? marketBoard({ rows: shownRows, listKey: `${m.kind}:${m.window}`, isFill: (r) => boardFill.has(rowKey(r.chain, r.address)), fourth: fourthChain, onFourth: (c) => { fourthChain = c; draw(); }, onOpen: userPick, favourites: { has: (r) => favourites.has(r.chain, r.address), toggle: toggleFavourite } })
           : tableEl;
-        boardScroll = boardEl?.isConnected ? new Map([...boardEl.querySelectorAll<HTMLElement>('.wapp-bd__col')].map((c) => [c.dataset.chain ?? '', c.querySelector('.wapp-bd__list')?.scrollTop ?? 0])) : null;
         stopBoardWatch?.();
         stopBoardWatch = null;
         stopCapWatch?.();

@@ -7,6 +7,7 @@
 import type { ChainId } from '../swings/core/types.js';
 import { compactUsd, formatChange, formatPrice, type MarketRow } from '../swings/market/types.js';
 import { marketLogo, tableRowKey } from './walletMarketTable.js';
+import { knownCap } from './walletMarketCap.js';
 
 export type FourthChain = 'base' | 'robinhood';
 export interface BoardColumn {
@@ -103,7 +104,10 @@ function changeTone(n: number | null): 'up' | 'down' | 'flat' {
 function card(r: MarketRow, o: BoardOptions): HTMLElement {
   const pill = pillChange(r.change);
   const tone = changeTone(pill.value);
-  const c = el('div', `wapp-bd__card is-${tone}`);
+  // A card the index gave no market cap is filled from an earlier answer of the outside source when there is one, and is marked so the board asks for the rest.
+  const earlier = knownCap(r);
+  const capNow = r.capUsd ?? earlier?.capUsd ?? null;
+  const c = el('div', `wapp-bd__card is-${tone}${capNow === null ? ' is-nocap' : ''}`);
   c.setAttribute('role', 'button');
   c.tabIndex = 0;
   c.dataset.k = tableRowKey(r);
@@ -126,8 +130,8 @@ function card(r: MarketRow, o: BoardOptions): HTMLElement {
   const top = el('div', 'wapp-bd__top');
   top.append(el('strong', 'wapp-bd__sym', r.symbol), el('span', 'wapp-bd__name', r.name));
   const subLine = el('span', 'wapp-bd__sub');
-  const capEl = el('span', 'wapp-bd__cap', compactUsd(r.capUsd));
-  capEl.title = r.capIsFdv ? 'Market cap (fully diluted: price times total supply)' : 'Market cap';
+  const capEl = el('span', 'wapp-bd__cap', compactUsd(capNow));
+  capEl.title = (r.capUsd !== null ? r.capIsFdv : earlier?.isFdv) ? 'Market cap (fully diluted: price times total supply)' : 'Market cap';
   subLine.append(el('span', 'wapp-bd__mc', 'MC '), capEl);
   mid.append(top, subLine);
 
@@ -249,7 +253,9 @@ export function updateBoardCards(board: ParentNode, rows: readonly MarketRow[], 
       if (prev && prev.priceUsd !== null && r.priceUsd !== null && r.priceUsd !== prev.priceUsd) flash(price, r.priceUsd > prev.priceUsd ? 'up' : 'down');
     }
     const cap = c.querySelector('.wapp-bd__cap');
-    if (cap && cap.textContent !== compactUsd(r.capUsd)) cap.textContent = compactUsd(r.capUsd);
+    const capNow = r.capUsd ?? knownCap(r)?.capUsd ?? null;
+    if (cap && cap.textContent !== compactUsd(capNow)) cap.textContent = compactUsd(capNow);
+    if (capNow !== null) c.classList.remove('is-nocap');
     const chg = c.querySelector<HTMLElement>('.wapp-bd__chg');
     if (chg) {
       const pill = pillChange(r.change);
@@ -292,6 +298,46 @@ export function observeBoard(board: HTMLElement, onKeys: (keys: string[]) => voi
     // Cards the column adds as it is scrolled are watched too.
     const mo = new MutationObserver((muts) => {
       for (const mu of muts) mu.addedNodes.forEach((n) => { if (n instanceof HTMLElement && n.matches('.wapp-bd__card[data-pool]')) io.observe(n); });
+    });
+    mo.observe(list, { childList: true });
+    return { disconnect: () => { io.disconnect(); mo.disconnect(); } };
+  });
+  return () => {
+    clearTimeout(timer);
+    observers.forEach((o) => o.disconnect());
+  };
+}
+
+/**
+ * Names to `onKeys` the cards without a market cap that are on screen (their row keys), as columns scroll; the board asks the outside source for just
+ * those. Returns a function that stops watching.
+ */
+export function observeMissingCaps(board: HTMLElement, onKeys: (keys: string[]) => void): () => void {
+  const pick = (): string[] => [...board.querySelectorAll<HTMLElement>('.wapp-bd__card.is-nocap')].map((c) => c.dataset.k ?? '').filter(Boolean);
+  if (typeof IntersectionObserver === 'undefined') {
+    onKeys(pick().slice(0, 60));
+    return () => undefined;
+  }
+  const visible = new Set<string>();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const push = (): void => {
+    clearTimeout(timer);
+    timer = setTimeout(() => onKeys([...visible].slice(0, 90)), 250);
+  };
+  const observers = [...board.querySelectorAll<HTMLElement>('.wapp-bd__list')].map((list) => {
+    const io = new IntersectionObserver((entries) => {
+      for (const e of entries) {
+        const el2 = e.target as HTMLElement;
+        const k = el2.dataset.k;
+        if (!k) continue;
+        if (e.isIntersecting && el2.classList.contains('is-nocap')) visible.add(k);
+        else visible.delete(k);
+      }
+      push();
+    }, { root: list, rootMargin: '200px 0px' });
+    list.querySelectorAll('.wapp-bd__card.is-nocap').forEach((c) => io.observe(c));
+    const mo = new MutationObserver((muts) => {
+      for (const mu of muts) mu.addedNodes.forEach((n) => { if (n instanceof HTMLElement && n.matches('.wapp-bd__card.is-nocap')) io.observe(n); });
     });
     mo.observe(list, { childList: true });
     return { disconnect: () => { io.disconnect(); mo.disconnect(); } };

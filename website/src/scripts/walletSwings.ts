@@ -22,7 +22,8 @@ import { isMarketsHash, parseMarketsHash, parseSwapHash, routeHash, walletTokenP
 
 /** Where the page is now, as its router reads it (the hash, or a clean token path). */
 const hashNow = (): string => routeHash(location.pathname, location.hash);
-import { BOARD_CHAINS, BOARD_FILL_TO, BOARD_PAGE_SIZE, marketBoard, observeBoard, poolKey, updateBoardCards, type FourthChain } from './walletMarketBoard.js';
+import { BOARD_CHAINS, BOARD_FILL_TO, BOARD_PAGE_SIZE, marketBoard, observeBoard, observeMissingCaps, poolKey, updateBoardCards, type FourthChain } from './walletMarketBoard.js';
+import { fetchMissingCaps } from './walletMarketCap.js';
 import { overviewBand } from './walletMarketOverview.js';
 import { fetchMarketIntel, intelNow } from '../swings/market/intel/client.js';
 import { markSelected, marketTable, tableRowKey, updateLiquidityCells, updateLiveCells, updateRatingCells, type TableState } from './walletMarketTable.js';
@@ -1772,6 +1773,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
     /** The board on screen, so live numbers can be written into its cards. */
     let boardEl: HTMLElement | null = null;
     let stopBoardWatch: (() => void) | null = null;
+    let stopCapWatch: (() => void) | null = null;
     /** Where each column was scrolled to before a redraw, so a refresh does not send it back to the top. */
     let boardScroll: Map<string, number> | null = null;
     // Live numbers: the pools on screen are named to the stream, and what it sends is applied to the rows in place. If the stream is
@@ -2470,11 +2472,30 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
         boardScroll = boardEl?.isConnected ? new Map([...boardEl.querySelectorAll<HTMLElement>('.wapp-bd__col')].map((c) => [c.dataset.chain ?? '', c.querySelector('.wapp-bd__list')?.scrollTop ?? 0])) : null;
         stopBoardWatch?.();
         stopBoardWatch = null;
+        stopCapWatch?.();
+        stopCapWatch = null;
         if (boardMode) {
           // The live stream follows the pools whose cards are on screen in their columns, so a price moves as soon as the stream says it did.
           boardEl = body;
           liveRows = new Map(shownRows.filter((r) => r.source === 'index' && r.pool).map((r) => [poolKey(r), r]));
           stopBoardWatch = observeBoard(body, (keys) => live.setKeys(keys));
+          // A card with no market cap from the index asks DexScreener for it, for the cards on screen only, and shows it as soon as it arrives.
+          const byKey = new Map(shownRows.map((r) => [tableRowKey(r), r]));
+          stopCapWatch = observeMissingCaps(body, (keys) => {
+            const want = keys.map((k) => byKey.get(k)).filter((r): r is MarketRow => r !== undefined && r.capUsd === null);
+            if (want.length === 0) return;
+            void fetchMissingCaps(want).then((got) => {
+              const filled: MarketRow[] = [];
+              for (const r of want) {
+                const v = got.get(tableRowKey(r));
+                if (!v) continue;
+                r.capUsd = v.capUsd;
+                r.capIsFdv = v.isFdv;
+                filled.push(r);
+              }
+              if (filled.length > 0 && boardEl?.isConnected) updateBoardCards(boardEl, filled);
+            });
+          });
         } else boardEl = null;
         const main = el('div', { class: 'wapp-mt__main' }, featured ? [featured, body] : [body]);
         inMain = main;

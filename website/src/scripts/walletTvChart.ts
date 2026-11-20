@@ -10,6 +10,7 @@ import { formatAxisPrice } from '../swings/market/types.js';
 import type { ChainId } from '../swings/core/types.js';
 import { holdLowPriority } from '../swings/charts/geckoGate.js';
 import { createLiveStream } from './walletLiveStream.js';
+import { currentTheme, type Theme } from './walletTheme.js';
 import { createPoolDatafeed, SUPPORTED_RESOLUTIONS, type ChartStatus, type TvDatafeed } from '../swings/charts/tvDatafeed.js';
 
 const LIBRARY_PATH = '/charting_library/';
@@ -20,6 +21,8 @@ interface TvWidget {
   onChartReady(cb: () => void): void;
   activeChart(): { onIntervalChanged(): { subscribe(ctx: null, cb: (interval: string) => void): void }; getPanes?(): { getMainSourcePriceScale?(): { setMode(mode: number): void; setAutoScale?(on: boolean): void } | null }[]; setVisibleRange?(range: { from: number; to: number }, options?: { percentRightMargin?: number }): Promise<void> };
   headerReady(): Promise<void>;
+  changeTheme?(theme: string): Promise<void>;
+  applyOverrides?(overrides: Record<string, unknown>): void;
   createButton(): HTMLElement;
 }
 interface TvGlobal {
@@ -93,6 +96,13 @@ export function preloadChartingLibrary(): void {
   if (typeof requestIdleCallback === 'function') requestIdleCallback(start, { timeout: 4_000 });
   else setTimeout(start, 1_500);
 }
+
+/** The chart's own colours for the page's light or dark mode: the library's theme plus the pane background, and the notes drawn over the chart. */
+const PALETTE: Record<Theme, { bg: string; text: string; note: string; veil: string; link: string }> = {
+  light: { bg: '#ffffff', text: '#334155', note: '#64748b', veil: 'rgba(255,255,255,.96)', link: 'rgba(255,255,255,.8)' },
+  dark: { bg: '#0b0b0d', text: '#e2e8f0', note: '#94a3b8', veil: 'rgba(11,11,13,.96)', link: 'rgba(11,11,13,.8)' },
+};
+const paneOverrides = (t: Theme): Record<string, unknown> => ({ 'paneProperties.background': PALETTE[t].bg, 'paneProperties.backgroundType': 'solid' });
 
 /** What is turned off: the datafeed carries one pool, so there is nothing to search or compare, and nothing is saved to a server. */
 const DISABLED = ['header_symbol_search', 'symbol_search_hot_key', 'header_compare', 'header_saveload', 'header_screenshot', 'display_market_status', 'popup_hints'];
@@ -299,10 +309,10 @@ export function mountTvChart(
       if (!label) return;
       el.textContent = label;
       if (s.note) el.title = s.note;
-      el.style.cssText = 'position:absolute;right:76px;bottom:46px;z-index:5;pointer-events:auto;font:11px/1.3 system-ui,sans-serif;color:#64748b;background:rgba(255,255,255,.85);padding:2px 6px;border-radius:6px;cursor:help;max-width:60%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis';
+      el.style.cssText = 'position:absolute;right:76px;bottom:46px;z-index:5;pointer-events:auto;font:11px/1.3 system-ui,sans-serif;color:var(--tvc-note);background:var(--tvc-veil);padding:2px 6px;border-radius:6px;cursor:help;max-width:60%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis';
     } else {
       const retryable = s.kind === 'failed' && restarts < MAX_RESTARTS && !!library;
-      el.style.cssText = 'position:absolute;inset:0;z-index:5;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:24px;text-align:center;font:14px/1.45 system-ui,sans-serif;color:#334155;background:rgba(255,255,255,.96)';
+      el.style.cssText = 'position:absolute;inset:0;z-index:5;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:24px;text-align:center;font:14px/1.45 system-ui,sans-serif;color:var(--tvc-text);background:var(--tvc-veil)';
       const text = host.ownerDocument.createElement('div');
       text.style.maxWidth = '420px';
       text.textContent = s.kind === 'empty' ? (s.message ?? 'No candles yet for this market.') : retryable ? 'The price services did not answer. Trying again in a few seconds…' : 'No price service answered, so there are no candles to draw right now. The trades below are still live.';
@@ -330,8 +340,38 @@ export function mountTvChart(
     overlay = el;
   }
 
+  /** The colours of the notes drawn over the chart, for the page's current mode. */
+  function paintPalette(): void {
+    const p = PALETTE[currentTheme()];
+    host.style.setProperty('--tvc-text', p.text);
+    host.style.setProperty('--tvc-note', p.note);
+    host.style.setProperty('--tvc-veil', p.veil);
+    host.style.setProperty('--tvc-link', p.link);
+  }
+  /** When the reader switches light / dark, the chart follows without being rebuilt (its drawings stay). */
+  let shownTheme: Theme = currentTheme();
+  const themeWatch = new MutationObserver(() => {
+    const t = currentTheme();
+    if (t === shownTheme) return;
+    shownTheme = t;
+    paintPalette();
+    const w = widget;
+    if (!w || !chartReady) return;
+    const paint = (): void => {
+      try {
+        w.applyOverrides?.(paneOverrides(t));
+      } catch {
+        // The library version has no such call.
+      }
+    };
+    if (w.changeTheme) void w.changeTheme(t).then(paint, paint);
+    else paint();
+  });
+  themeWatch.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+
   function build(TradingView: TvGlobal): void {
     library = TradingView;
+    paintPalette();
     chartReady = false;
     wide = false;
     zoomOffered = false;
@@ -346,13 +386,13 @@ export function mountTvChart(
           interval: lastInterval ?? o.interval ?? '15',
           locale: 'en',
           timezone: 'Etc/UTC',
-          theme: 'light',
+          theme: currentTheme(),
           autosize: true,
-          loading_screen: { backgroundColor: '#ffffff', foregroundColor: '#0e5c45' },
+          loading_screen: { backgroundColor: PALETTE[currentTheme()].bg, foregroundColor: '#0e5c45' },
           // Prices on the axis and in the legend: a tiny one is 0.0₅3264, not 3.264e-6.
           custom_formatters: { priceFormatterFactory: (info: { format?: string } | null) => (info?.format === 'price' || !info ? { format: (price: number) => formatAxisPrice(price) } : null) },
           disabled_features: [...DISABLED, ...(o.toolbar ? [] : ['left_toolbar'])],
-          overrides: { 'paneProperties.background': '#ffffff', 'paneProperties.backgroundType': 'solid', 'mainSeriesProperties.candleStyle.upColor': '#16a34a', 'mainSeriesProperties.candleStyle.downColor': '#dc2626', 'mainSeriesProperties.candleStyle.borderUpColor': '#16a34a', 'mainSeriesProperties.candleStyle.borderDownColor': '#dc2626', 'mainSeriesProperties.candleStyle.wickUpColor': '#16a34a', 'mainSeriesProperties.candleStyle.wickDownColor': '#dc2626' },
+          overrides: { ...paneOverrides(currentTheme()), 'mainSeriesProperties.candleStyle.upColor': '#16a34a', 'mainSeriesProperties.candleStyle.downColor': '#dc2626', 'mainSeriesProperties.candleStyle.borderUpColor': '#16a34a', 'mainSeriesProperties.candleStyle.borderDownColor': '#dc2626', 'mainSeriesProperties.candleStyle.wickUpColor': '#16a34a', 'mainSeriesProperties.candleStyle.wickDownColor': '#dc2626' },
         });
         widget = w;
         currentFeed = feed;
@@ -363,7 +403,7 @@ export function mountTvChart(
         credit.rel = 'noopener noreferrer';
         credit.textContent = 'Charts by TradingView';
         credit.className = 'wapp-tv-credit';
-        credit.style.cssText = 'position:absolute;left:44px;bottom:34px;z-index:6;font:10px/1.2 system-ui,sans-serif;color:#64748b;text-decoration:none;background:rgba(255,255,255,.8);padding:1px 5px;border-radius:4px';
+        credit.style.cssText = 'position:absolute;left:44px;bottom:34px;z-index:6;font:10px/1.2 system-ui,sans-serif;color:var(--tvc-note);text-decoration:none;background:var(--tvc-link);padding:1px 5px;border-radius:4px';
         if (getComputedStyle(host).position === 'static') host.style.position = 'relative';
         host.append(credit);
         // Remember the timeframe the reader picks, but only one the datafeed can serve.
@@ -393,6 +433,7 @@ export function mountTvChart(
   return {
     dispose() {
       disposed = true;
+      themeWatch.disconnect();
       if (restartTimer !== null) clearTimeout(restartTimer);
       restartTimer = null;
       try {

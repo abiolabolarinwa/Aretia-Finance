@@ -299,15 +299,22 @@ async function loadPool(store: MiStore, ref: Ref): Promise<MiPool | null> {
 }
 
 async function poolDetail(store: MiStore, req: ApiRequest, ref: Ref): Promise<ApiResponse> {
+  // The store is on another continent from the function, so every call that has to wait for another costs a full round trip. Only the
+  // pool itself is needed before the rest can be asked; the rest are asked together.
   const pool = await loadPool(store, ref);
   if (!pool || pool.paused) return err(404, 'not-found', 'No such market.');
   // Numbers are recomputed from the stored trades so the page is never older than the last indexed block.
   const since = Math.floor(req.now / 1000) - 86_400;
-  const [recent, prior] = await Promise.all([store.windowTrades(pool.chain, pool.address, since, RECENT_TRADE_LIMIT), store.lastTradeBefore(pool.chain, pool.address, since)]);
+  const [recent, prior, siblingPage, healthRows] = await Promise.all([
+    store.windowTrades(pool.chain, pool.address, since, RECENT_TRADE_LIMIT),
+    store.lastTradeBefore(pool.chain, pool.address, since),
+    store.listPools({ sort: 'liquidity', limit: 20, tokenKey: `${pool.chain}:${pool.base}`, states: ['active', 'awaiting_liquidity', 'inactive'] }),
+    store.listHealth(),
+  ]);
   const fresh: MiPool = pool.stats ? { ...pool, stats: computeStats(pool, recent, prior, req.now, { quoteUsd: pool.stats.quoteUsd }, parseRaw(pool.reserveQuote)) ?? pool.stats } : pool;
-  const siblings = (await store.listPools({ sort: 'liquidity', limit: 20, tokenKey: `${pool.chain}:${pool.base}`, states: ['active', 'awaiting_liquidity', 'inactive'] })).pools.filter((p) => p.key !== pool.key);
+  const siblings = siblingPage.pools.filter((p) => p.key !== pool.key);
   const tokens = await tokensFor(store, [fresh, ...siblings]);
-  const health = (await store.listHealth()).find((h) => h.adapterId === pool.adapterId);
+  const health = healthRows.find((h) => h.adapterId === pool.adapterId);
   return ok({ pool: poolDto(fresh, tokens, req.now), otherMarketsOfToken: siblings.map((p) => poolDto(p, tokens, req.now)) }, req.now, 5, {
     indexedThroughBlock: health?.checkpoint ?? null,
     lagBlocks: health?.lagBlocks ?? null,
@@ -315,29 +322,34 @@ async function poolDetail(store: MiStore, req: ApiRequest, ref: Ref): Promise<Ap
 }
 
 async function poolTrades(store: MiStore, req: ApiRequest, ref: Ref): Promise<ApiResponse> {
+  const limit = intParam(req.query.limit, 50, 1, 200);
+  const before = req.query.before === undefined ? undefined : intParam(req.query.before, 0, 1, 4_102_444_800);
+  // The rows and the pool are asked at the same time (one round trip, not two); the pool is checked first for the answer.
+  const asked = limit === null || before === null ? null : store.recentTrades(ref.chain, ref.address, limit, before === 0 ? undefined : before);
+  asked?.catch(() => undefined);
   const pool = await loadPool(store, ref);
   if (!pool || pool.paused) return err(404, 'not-found', 'No such market.');
-  const limit = intParam(req.query.limit, 50, 1, 200);
   if (limit === null) return err(400, 'bad-limit', 'limit must be 1 to 200.');
-  const before = req.query.before === undefined ? undefined : intParam(req.query.before, 0, 1, 4_102_444_800);
   if (before === null) return err(400, 'bad-before', 'before must be a unix time in seconds.');
-  const rows = await store.recentTrades(pool.chain, pool.address, limit, before === 0 ? undefined : before);
+  const rows = await asked!;
   const data = rows.map((t) => ({ id: t.id, time: new Date(t.time * 1000).toISOString(), unix: t.time, side: t.side, price: t.price, baseAmount: t.baseAmount, quoteAmount: t.quoteAmount, block: t.block, account: t.maker }));
   return ok(data, req.now, 5, { limit, baseDecimals: pool.baseDecimals, quoteDecimals: pool.quoteDecimals, nextBefore: rows.length === limit ? rows[rows.length - 1]!.time : null });
 }
 
 async function poolCandles(store: MiStore, req: ApiRequest, ref: Ref): Promise<ApiResponse> {
-  const pool = await loadPool(store, ref);
-  if (!pool || pool.paused) return err(404, 'not-found', 'No such market.');
   const tf = req.query.tf ?? '5m';
   const seconds = TF_SECONDS[tf];
+  const limit = seconds ? intParam(req.query.limit, 300, 1, 1000) : null;
+  const before = seconds && limit !== null ? (req.query.before === undefined ? Math.floor(req.now / 1000) + seconds : intParam(req.query.before, 0, 1, 4_102_444_800)) : null;
+  // The trades and the pool are asked at the same time (one round trip, not two); the pool is checked first for the answer.
+  const asked = seconds && limit !== null && before !== null ? store.tradesSince(ref.chain, ref.address, before - limit * seconds, 10_000) : null;
+  asked?.catch(() => undefined);
+  const pool = await loadPool(store, ref);
+  if (!pool || pool.paused) return err(404, 'not-found', 'No such market.');
   if (!seconds) return err(400, 'bad-timeframe', `tf must be one of: ${Object.keys(TF_SECONDS).join(', ')}.`);
-  const limit = intParam(req.query.limit, 300, 1, 1000);
   if (limit === null) return err(400, 'bad-limit', 'limit must be 1 to 1000.');
-  const before = req.query.before === undefined ? Math.floor(req.now / 1000) + seconds : intParam(req.query.before, 0, 1, 4_102_444_800);
   if (before === null) return err(400, 'bad-before', 'before must be a unix time in seconds.');
-  const from = before - limit * seconds;
-  const trades = (await store.tradesSince(pool.chain, pool.address, from, 10_000)).filter((t) => t.time < before);
+  const trades = (await asked!).filter((t) => t.time < before);
   const rows = buildCandleRows(trades, seconds, pool.quoteDecimals);
   // Candles are priced in the quote token. They are in dollars only when that token is a dollar stablecoin; a pool quoted in the native
   // coin is NOT converted at today's rate (that would invent history).

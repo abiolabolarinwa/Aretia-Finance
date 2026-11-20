@@ -408,3 +408,46 @@ describe('trades for the chart table, from the index', () => {
     expect(await miTrades({ chain: 'bnb', pool: POOL, token: 'base', env: {}, fetchImpl: nofetch, now })).toBeNull();
   });
 });
+
+describe('pool pages and the distance to the data server', () => {
+  /** A store whose every call takes one "round trip"; counts how many round trips a request waits for, in sequence. */
+  function slow(store: InMemoryMiStore) {
+    let inflight = 0;
+    let rounds = 0;
+    const wrapped = new Proxy(store, {
+      get(t, k) {
+        const v = (t as unknown as Record<string | symbol, unknown>)[k];
+        if (typeof v !== 'function' || typeof k !== 'string' || !/^(getPools|getTokens|listPools|listHealth|windowTrades|lastTradeBefore|recentTrades|tradesSince)$/.test(k)) return typeof v === 'function' ? v.bind(t) : v;
+        return async (...a: unknown[]) => {
+          if (inflight === 0) rounds++; // a call that starts when nothing is waiting is a new round trip in the chain
+          inflight++;
+          await new Promise((r) => setTimeout(r, 5));
+          inflight--;
+          return (v as (...x: unknown[]) => unknown).apply(t, a);
+        };
+      },
+    });
+    return { store: wrapped as InMemoryMiStore, rounds: () => rounds };
+  }
+
+  it('asks for what it can at the same time: 3 round trips for a pool page, 1 for its trades and candles', async () => {
+    const { store, now } = await seeded();
+    const addr = (await store.listPools({ sort: 'newest', limit: 1, states: ['active', 'awaiting_liquidity', 'inactive'] })).pools[0]!;
+    for (const [path, trips] of [['pools/bnb/' + addr.address, 3], ['pools/bnb/' + addr.address + '/trades', 1], ['pools/bnb/' + addr.address + '/candles', 1]] as const) {
+      resetMiCache();
+      const s = slow(store);
+      const out = await get(s.store, now, path);
+      expect(out.status, path).toBe(200);
+      expect(s.rounds(), path).toBeLessThanOrEqual(trips);
+    }
+  });
+
+  it('still answers 404 and 400 for a missing pool or a bad parameter', async () => {
+    const { store, now } = await seeded();
+    expect((await get(store, now, 'pools/bnb/' + '0x' + '7'.repeat(40) + '/trades')).status).toBe(404);
+    expect((await get(store, now, 'pools/bnb/' + '0x' + '7'.repeat(40) + '/candles')).status).toBe(404);
+    const addr = (await store.listPools({ sort: 'newest', limit: 1, states: ['active', 'awaiting_liquidity', 'inactive'] })).pools[0]!;
+    expect((await get(store, now, `pools/bnb/${addr.address}/trades`, { limit: '0' })).status).toBe(400);
+    expect((await get(store, now, `pools/bnb/${addr.address}/candles`, { tf: '7y' })).status).toBe(400);
+  });
+});

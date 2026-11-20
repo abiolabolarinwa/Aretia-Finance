@@ -22,7 +22,7 @@ import { isMarketsHash, parseMarketsHash, parseSwapHash, routeHash, walletTokenP
 
 /** Where the page is now, as its router reads it (the hash, or a clean token path). */
 const hashNow = (): string => routeHash(location.pathname, location.hash);
-import { BOARD_CHAINS, BOARD_FILL_TO, BOARD_PAGE_SIZE, marketBoard, observeBoard, observeMissingCaps, observeVisibleCards, poolKey, updateBoardCards, type FourthChain } from './walletMarketBoard.js';
+import { BOARD_CHAINS, BOARD_FILL_TO, BOARD_PAGE_SIZE, hideBoardCards, marketBoard, observeBoard, observeMissingCaps, observeVisibleCards, poolKey, updateBoardCards, type FourthChain } from './walletMarketBoard.js';
 import { fetchMissingCaps } from './walletMarketCap.js';
 import { fetchLivePrices } from './walletMarketPrices.js';
 import { overviewBand } from './walletMarketOverview.js';
@@ -1832,8 +1832,17 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
         const current = rows ?? [];
         const changed = ratings.sync(current);
         if (page) return;
-        // With a risk filter on, a changed rating can change which rows belong in the list.
-        if ((f.hideRisky || f.risk) && changed.length > 0) return draw();
+        // With a risk filter on, a changed rating can change which rows belong in the list. On the board a card that has just been rated risky is taken
+        // out in place: drawing the whole board for every check that finishes (hundreds of them) kept it redrawing about once a second, which made the
+        // page heavy, sent columns back to the top and stopped the once-a-second price refresh from ever starting.
+        if ((f.hideRisky || f.risk) && changed.length > 0) {
+          if (boardEl?.isConnected && !f.risk) {
+            const risky = changed.filter((r) => r.risk?.status === 'high' || r.risk?.status === 'restricted').map((r) => tableRowKey(r));
+            if (risky.length > 0) hideBoardCards(boardEl, risky);
+            return;
+          }
+          return draw();
+        }
         if (tableEl) updateRatingCells(tableEl, current, ratings.stateOf);
       },
     });

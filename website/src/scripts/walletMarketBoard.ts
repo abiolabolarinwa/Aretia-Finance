@@ -391,3 +391,26 @@ export function observeVisibleCards(board: HTMLElement): { keys(): string[]; sto
     stop: () => observers.forEach((o) => o.disconnect()),
   };
 }
+
+/**
+ * Takes cards out of the board in place (a token whose on-chain check just rated it risky, with risky tokens hidden) and lowers each column's count,
+ * instead of drawing the whole board again for every rating that finishes. Returns how many cards were taken out.
+ */
+export function hideBoardCards(board: ParentNode, keys: readonly string[]): number {
+  const removed = new Map<HTMLElement, number>();
+  let total = 0;
+  for (const k of keys) {
+    const c = board.querySelector<HTMLElement>(`.wapp-bd__card[data-k="${CSS.escape(k)}"]`);
+    if (!c) continue;
+    const col = c.closest<HTMLElement>('.wapp-bd__col');
+    c.remove();
+    total++;
+    if (col) removed.set(col, (removed.get(col) ?? 0) + 1);
+  }
+  for (const [col, n] of removed) {
+    const count = col.querySelector('.wapp-bd__count');
+    const now = Number(count?.textContent);
+    if (count && Number.isFinite(now)) count.textContent = String(Math.max(0, now - n));
+  }
+  return total;
+}

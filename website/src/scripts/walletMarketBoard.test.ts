@@ -63,4 +63,10 @@ describe('a column scrolls by itself', () => {
     expect(read).toBeGreaterThan(-1);
     expect(read).toBeLessThan(removed);
   });
+  it('does not draw the whole board again for every on-chain check that finishes', () => {
+    const code = readFileSync(new URL('./walletSwings.ts', import.meta.url), 'utf8');
+    const i = code.indexOf('const ratings = createRatingQueue');
+    const block = code.slice(i, code.indexOf('const locks = createLockQueue', i));
+    expect(block).toContain('hideBoardCards(boardEl, risky)');
+  });
 });

@@ -10,6 +10,7 @@ import { isMiChain } from '../src/swings/mi/chains.js';
 import { LIST_KINDS, LIST_SORTS, LIST_WINDOWS, MAX_RESULT, PAGE_SIZES, postgrestReader, readList, type ListAnswer, type ListKind, type ListQuery, type ListSort, type ListWindow } from '../src/swings/mi/marketList.js';
 import type { TokensInput, TokensOutput } from './_swingsTokens.js';
 import { jupiterCheck } from '../src/swings/mi/solana/tradable.js';
+import { mintFlagReader, PUBLIC_SOLANA_RPC } from '../src/swings/mi/solana/mintFlags.js';
 import { jupiterRanking } from '../src/swings/mi/solana/ranking.js';
 
 const FRESH_MS = 30_000;
@@ -61,7 +62,7 @@ export async function handleMarketIndex(input: TokensInput): Promise<TokensOutpu
   if (hit && input.now - hit.at < FRESH_MS) return ok(hit.answer, false);
   if (overLimit(`marketix:${input.ip}`, input.now)) return hit ? ok(hit.answer, true) : json(429, { error: 'rate-limit' }, { ...base, 'retry-after': '30' });
   try {
-    const answer = await readList(postgrestReader(url, supabaseHeaders(key), input.fetchImpl, AbortSignal.timeout(DEADLINE_MS)), q, input.now, (input.env as { MI_SOLANA_BUYABLE?: string }).MI_SOLANA_BUYABLE === '0' ? undefined : jupiterCheck(input.fetchImpl, () => input.now, AbortSignal.timeout(DEADLINE_MS), (input.env as { JUPITER_API_KEY?: string }).JUPITER_API_KEY), (input.env as { MI_SOLANA_BUYABLE?: string }).MI_SOLANA_BUYABLE === '0' ? undefined : jupiterRanking(input.fetchImpl, () => input.now, AbortSignal.timeout(DEADLINE_MS), (input.env as { JUPITER_API_KEY?: string }).JUPITER_API_KEY), (input.env as { MI_SOLANA_OWN?: string }).MI_SOLANA_OWN !== '0');
+    const answer = await readList(postgrestReader(url, supabaseHeaders(key), input.fetchImpl, AbortSignal.timeout(DEADLINE_MS)), q, input.now, (input.env as { MI_SOLANA_BUYABLE?: string }).MI_SOLANA_BUYABLE === '0' ? undefined : jupiterCheck(input.fetchImpl, () => input.now, AbortSignal.timeout(DEADLINE_MS), (input.env as { JUPITER_API_KEY?: string }).JUPITER_API_KEY), (input.env as { MI_SOLANA_BUYABLE?: string }).MI_SOLANA_BUYABLE === '0' ? undefined : jupiterRanking(input.fetchImpl, () => input.now, AbortSignal.timeout(DEADLINE_MS), (input.env as { JUPITER_API_KEY?: string }).JUPITER_API_KEY), (input.env as { MI_SOLANA_OWN?: string }).MI_SOLANA_OWN !== '0', mintFlagReader([...(((input.env as { SOLANA_RPC_URL?: string }).SOLANA_RPC_URL ?? '').trim() ? [(input.env as { SOLANA_RPC_URL?: string }).SOLANA_RPC_URL!.trim()] : []), PUBLIC_SOLANA_RPC], input.fetchImpl, () => input.now, AbortSignal.timeout(DEADLINE_MS)));
     if (answers.size > 500) answers.clear();
     answers.set(cacheKey, { at: input.now, answer });
     return ok(answer, false);

@@ -349,7 +349,9 @@ async function readTokenRows(reader: Reader, keys: readonly string[], now: numbe
  * them with Jupiter, and page through what is buyable. A window of only 300 was filled by a few tickers repeated dozens of times (one had 17
  * pools), and once the repeats were dropped a handful of rows were left.
  */
-export const SOLANA_READ = 2_500;
+export const SOLANA_READ = 3_000;
+/** Rows the database answers to one request, whatever limit is asked (Supabase and PostgREST stop at a thousand): a longer window is read page by page. */
+export const SOLANA_PAGE = 1_000;
 /** The most pools asked about at a time: three requests of a hundred, because the free service allows only a few requests at once. */
 export const SOLANA_CHECK = 300;
 /** A symbol's pools that are looked at: a drained first pool must not hide a good second one, but fifteen copies are not all asked about. */
@@ -420,7 +422,13 @@ export async function readList(reader: Reader, q: ListQuery, now: number, tradab
   const solanaRaw = async (): Promise<{ row: MarketRow; rec: PoolRecord }[]> =>
     (rawMemo ??= usesCandidates(q)
       ? rankCandidates(q, await toRows((await reader.get(candidatePath(floored, now), false)).rows as PoolRecord[]))
-      : dedupeTokens((await toRows((await reader.get(sqlPath({ ...floored, page: 1, size: SOLANA_READ }, now), false)).rows as PoolRecord[])).filter((x) => !isUnsafeLooking(x.row, x.rec))));
+      : dedupeTokens(
+          (
+            await toRows(
+              (await Promise.all(Array.from({ length: Math.ceil(SOLANA_READ / SOLANA_PAGE) }, (_, i) => reader.get(sqlPath({ ...floored, page: i + 1, size: SOLANA_PAGE }, now), false)))).flatMap((r) => r.rows as PoolRecord[]),
+            )
+          ).filter((x) => !isUnsafeLooking(x.row, x.rec)),
+        ));
   if (own && q.chain === 'solana') {
     // Buyable by Aretia's own rule (solana/buyable.ts), in Aretia's own order. Used once the mint flags have been read for most tokens; until
     // then (the column or the first supply pass is not there yet) the checks below stand in.

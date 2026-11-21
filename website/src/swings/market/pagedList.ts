@@ -23,7 +23,13 @@ export interface IndexPage {
 
 /** An index list with fewer pools than this is too thin to stand alone: the outside feed fills the list instead. */
 export const INDEX_MIN_TOTAL = 25;
-export const PAGE_SIZE_CHOICES = [50, 100] as const;
+export const PAGE_SIZE_CHOICES = [50, 100, 200] as const;
+/**
+ * A network chosen on its own opens with this many tokens on its first page. The all-networks board loads two pages of a hundred for each network
+ * and fills every column up to 150, so a network's own tab starting at fifty showed far fewer tokens than its column on the board did (41 against 140
+ * for Solana, once the duplicate and dead tokens were left out). A visitor's own choice, once made, is remembered and wins.
+ */
+export const DEFAULT_PAGE_SIZE = 200;
 const STORED_AS = 'aretia-market-page-size-v1';
 let remembered: number | null = null;
 
@@ -35,7 +41,7 @@ export function loadPageSize(storage: StorageLike | null): number {
   } catch {
     // storage unavailable: the default stands
   }
-  return 50;
+  return DEFAULT_PAGE_SIZE;
 }
 export function savePageSize(storage: StorageLike | null, size: number): void {
   remembered = size;

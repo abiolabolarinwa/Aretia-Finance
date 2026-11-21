@@ -1730,7 +1730,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
     /** The tabs that rank the same live list by a rule of their own. Rising reads the Trending feed and ranks it by buyer growth. */
     const isRanked = (k: Kind): k is 'trending' | 'top' | 'gainers' | 'rising' => k === 'trending' || k === 'top' || k === 'gainers' || k === 'rising';
     // The list opens on Gainers, the biggest price rises (each row is a real token with a real number; the tabs beside it show every other view).
-    const m = { kind: 'gainers' as Kind, window: 'h24' as MarketWindow, chain: '' as '' | ChainId };
+    const m = { kind: 'liquidity' as Kind, window: 'h24' as MarketWindow, chain: '' as '' | ChainId };
     const f = { age: '0', liquidity: loadMinLiquidity(browserStorage()), risk: '', hideRisky: true, bullish: false };
     /** The age limit was set by opening New, not chosen by the person, so leaving New takes it off again. */
     let autoAge = false;
@@ -1914,7 +1914,34 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
      * after the tab's own under a divider. A network counts by its different symbols (a symbol is listed once per network), and the liquidity list is read
      * eight pages deep because it lists pools, so one token fills several places. Read after the board is drawn; asked again twice if the index refused.
      */
+    /** The all-tokens list's deeper pages, kept five minutes: they are listed with the rest, with no divider. */
+    let lastDeepRows: MarketRow[] = [];
+    let lastDeepAt = 0;
+    /** Pages of 100 pools read for each network in the all-tokens list: three at first, then these in the background (about a thousand pools a network). */
+    const DEEP_PAGES = [4, 5, 6, 7, 8, 9, 10, 11, 12];
+    async function deepenBoard(mine: number, base: MarketRow[], chains: readonly ChainId[]): Promise<void> {
+      if (lastDeepRows.length > 0 && Date.now() - lastDeepAt < 300_000) return;
+      const pages = await Promise.all(chains.flatMap((c) => DEEP_PAGES.map((p) => indexPageRetry({ kind: 'liquidity', chain: c, window: m.window, page: p, size: BOARD_PAGE_SIZE, minLiquidityUsd: Number(f.liquidity), maxAgeHours: autoAge ? 0 : Number(f.age), bullish: f.bullish }))));
+      if (mine !== seq || m.chain !== '' || m.kind !== 'liquidity') return;
+      if (pages.every((g) => g === null)) return;
+      const have = new Set(base.map((r) => rowKey(r.chain, r.address)));
+      const more: MarketRow[] = [];
+      for (const g of pages) {
+        for (const r of g?.rows ?? []) {
+          const k = rowKey(r.chain, r.address);
+          if (have.has(k)) continue;
+          have.add(k);
+          more.push(r);
+        }
+      }
+      lastDeepRows = more;
+      lastDeepAt = Date.now();
+      boardFill = new Set();
+      rows = rateRows([...base, ...more]);
+      if (!page) draw();
+    }
     async function fillBoard(mine: number, base: MarketRow[], chains: readonly ChainId[], attempt: number): Promise<void> {
+      if (m.kind === 'liquidity') return deepenBoard(mine, base, chains);
       const symbols = new Map<ChainId, Set<string>>();
       for (const r of base) symbols.set(r.chain, (symbols.get(r.chain) ?? new Set<string>()).add(r.symbol.trim().toUpperCase()));
       const short = chains.filter((c) => (symbols.get(c)?.size ?? 0) < BOARD_FILL_TO);
@@ -1967,7 +1994,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
         const boardPages = boardMode
           ? await Promise.all(
               boardChains.flatMap((c) =>
-                [1, 2].map((p) => indexPageRetry({ kind: m.kind as 'trending' | 'top' | 'gainers' | 'new' | 'liquidity', chain: c, window: sorted?.window && m.kind !== 'trending' && m.kind !== 'gainers' ? sorted.window : m.window, sort: sorted?.sort, dir: sorted?.dir, page: p, size: BOARD_PAGE_SIZE, minLiquidityUsd: Number(f.liquidity), maxAgeHours: autoAge ? 0 : Number(f.age), bullish: f.bullish })),
+                (m.kind === 'liquidity' ? [1, 2, 3] : [1, 2]).map((p) => indexPageRetry({ kind: m.kind as 'trending' | 'top' | 'gainers' | 'new' | 'liquidity', chain: c, window: sorted?.window && m.kind !== 'trending' && m.kind !== 'gainers' ? sorted.window : m.window, sort: sorted?.sort, dir: sorted?.dir, page: p, size: BOARD_PAGE_SIZE, minLiquidityUsd: Number(f.liquidity), maxAgeHours: autoAge ? 0 : Number(f.age), bullish: f.bullish })),
               ),
             )
           : null;
@@ -1989,8 +2016,8 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
           // The tab's own tokens are drawn at once. What fills a short column is read after that (below), so a slow or refused request for it never
           // holds the board back; the last fill is kept on screen meanwhile so a refresh does not make a column shrink and grow.
           const baseKeys = new Set(boardRows.map((r) => rowKey(r.chain, r.address)));
-          const keptFill = lastFillRows.filter((r) => !baseKeys.has(rowKey(r.chain, r.address)));
-          boardFill = new Set(keptFill.map((r) => rowKey(r.chain, r.address)));
+          const keptFill = (m.kind === 'liquidity' ? lastDeepRows : lastFillRows).filter((r) => !baseKeys.has(rowKey(r.chain, r.address)));
+          boardFill = m.kind === 'liquidity' ? new Set() : new Set(keptFill.map((r) => rowKey(r.chain, r.address)));
           rows = rateRows(keptFill.length > 0 ? [...boardRows, ...keptFill] : boardRows);
           void fillBoard(mine, [...boardRows], boardChains, 0);
         } else if (paged) {
@@ -2355,7 +2382,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
       const swapButton = el('button', { class: 'wapp__btn wapp__btn--primary', text: 'Swap', attrs: { type: 'button', 'data-markets-swap': '' } });
       swapButton.addEventListener('click', openSwapDialog);
       bar.append(swapButton);
-      const kinds: [Kind, string, string][] = [['favourites', '★ Favourites', 'Tokens you have starred'], ['trending', 'Trending', 'Busiest right now'], ['rising', 'Rising', 'Tokens whose number of buyers is growing, top ten on every network'], ['top', 'Top', 'Most traded in 24 hours'], ['gainers', 'Gainers', 'Biggest price rises'], ['new', 'New', 'Tokens Aretia has just detected, with a trading pool'], ['liquidity', 'By liquidity', 'Largest pools first, including pools with no trade yet']];
+      const kinds: [Kind, string, string][] = [['favourites', '★ Favourites', 'Tokens you have starred'], ['liquidity', 'All', 'Every token Aretia knows on each network, largest pools first, including pools with no trade yet'], ['trending', 'Trending', 'Busiest right now'], ['rising', 'Rising', 'Tokens whose number of buyers is growing, top ten on every network'], ['top', 'Top', 'Most traded in 24 hours'], ['gainers', 'Gainers', 'Biggest price rises'], ['new', 'New', 'Tokens Aretia has just detected, with a trading pool']];
       const kindBox = el('div', { class: 'wapp__seg', attrs: { role: 'group', 'aria-label': 'List' } });
       for (const [k, label, tip] of kinds) {
         kindBox.append(chip(label, m.kind === k, () => {

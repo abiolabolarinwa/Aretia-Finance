@@ -349,7 +349,7 @@ async function readTokenRows(reader: Reader, keys: readonly string[], now: numbe
  * them with Jupiter, and page through what is buyable. A window of only 300 was filled by a few tickers repeated dozens of times (one had 17
  * pools), and once the repeats were dropped a handful of rows were left.
  */
-export const SOLANA_READ = 1_000;
+export const SOLANA_READ = 2_500;
 /** The most pools asked about at a time: three requests of a hundred, because the free service allows only a few requests at once. */
 export const SOLANA_CHECK = 300;
 /** A symbol's pools that are looked at: a drained first pool must not hide a good second one, but fifteen copies are not all asked about. */

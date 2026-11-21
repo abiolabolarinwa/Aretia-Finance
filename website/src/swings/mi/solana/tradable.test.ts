@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { readList, type ListQuery, type PoolRecord, type Reader } from '../marketList';
+import { readList, SOLANA_READ, type ListQuery, type PoolRecord, type Reader } from '../marketList';
 import { isBuyable, jupiterCheck, resetTradableMemory, TRADABLE_MIN_LIQUIDITY_USD, type Tradable } from './tradable';
 
 const NOW = 1_800_000_000_000;
@@ -188,7 +188,7 @@ describe('Solana lists: only what can be bought now', () => {
 describe('Solana lists: a window of repeats', () => {
   beforeEach(resetTradableMemory);
 
-  it('looks at a thousand pools, and at only the best three of a symbol, so repeats do not fill the list', async () => {
+  it('looks at a wide window of pools, and at only the best three of a symbol, so repeats do not fill the list', async () => {
     // 40 pools of one ticker, then 20 other tickers, in the database's order.
     const records = [...Array.from({ length: 40 }, (_, i) => rec(i)), ...Array.from({ length: 20 }, (_, i) => rec(100 + i))];
     const symbols: Record<string, string> = {};
@@ -200,7 +200,7 @@ describe('Solana lists: a window of repeats', () => {
     const rd = reader(records, symbols);
     const spy: Reader = { get: async (path, count) => (paths.push(path), rd.get(path, count)) };
     const a = await readList(spy, q(), NOW, jupiterCheck(impl, () => NOW));
-    expect(paths.find((p) => p.startsWith('mi_pools'))).toContain('limit=1000');
+    expect(paths.find((p) => p.startsWith('mi_pools'))).toContain(`limit=${SOLANA_READ}`);
     expect(a.rows.filter((r) => symbols[r.address] === 'UODF')).toHaveLength(1); // one row for the ticker
     expect(a.rows).toHaveLength(21); // and every other ticker
     expect(urls.join(' ').match(/Mint0/g)!.length).toBeLessThanOrEqual(23); // 3 UODF + 20 others were asked about, not 60

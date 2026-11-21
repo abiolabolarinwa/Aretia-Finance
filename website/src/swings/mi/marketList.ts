@@ -31,6 +31,7 @@ import { isBuyable, TRADABLE_MIN_LIQUIDITY_USD, type TradableCheck } from './sol
 import type { RankingSource } from './solana/ranking.js';
 import { BUYABLE_MIN_LIQUIDITY_USD, ownBuyable } from './solana/buyable.js';
 import type { MintFlagReader } from './solana/mintFlags.js';
+import { trendingScore } from './solana/trending.js';
 
 export type ListKind = 'trending' | 'top' | 'gainers' | 'new' | 'liquidity';
 export type ListWindow = 'm5' | 'h1' | 'h6' | 'h24';
@@ -419,8 +420,11 @@ export async function readList(reader: Reader, q: ListQuery, now: number, tradab
   // Pools under the buyable floor can never pass, so they are not read at all: the window is filled with pools that can, and the tokens whose
   // freeze flag matters are the ones of those pools (the rest are read last, and must not hold up the switch to the own rule).
   const floored: ListQuery = { ...q, minLiquidityUsd: Math.max(q.minLiquidityUsd, BUYABLE_MIN_LIQUIDITY_USD) };
+  // Solana's Trending (the default ranking, with the own rule) is ordered by momentum (solana/trending.ts), so it needs the wide window of pools whatever
+  // tab it is on, not only the busiest few hundred that the other windows' candidates would be.
+  const momentum = own && q.chain === 'solana' && q.kind === 'trending' && q.sort === 'rank' && !q.bullish;
   const solanaRaw = async (): Promise<{ row: MarketRow; rec: PoolRecord }[]> =>
-    (rawMemo ??= usesCandidates(q)
+    (rawMemo ??= usesCandidates(q) && !momentum
       ? rankCandidates(q, await toRows((await reader.get(candidatePath(floored, now), false)).rows as PoolRecord[]))
       : dedupeTokens(
           (
@@ -445,10 +449,19 @@ export async function readList(reader: Reader, q: ListQuery, now: number, tradab
     const read = raw.filter((x) => (flags.get(x.row.address) ?? null) !== null).length;
     if (raw.length > 0 && read * 2 >= raw.length) {
       const exempt = new Set(chainConfig('solana').quoteTokens.map((t) => t.address));
-      const kept = dedupeSymbols(raw.filter((x) => ownBuyable(x.row, flags.get(x.row.address), exempt)));
+      const buyable = raw.filter((x) => ownBuyable(x.row, flags.get(x.row.address), exempt));
+      // Trending: the tokens whose trading is speeding up, best first; a token slowing down or below the floor is not ranked. The best-scored of a symbol stays.
+      const ranked = momentum
+        ? buyable
+            .map((x) => ({ x, s: trendingScore(x.row, q.window) }))
+            .filter((e) => e.s > 0)
+            .sort((a, b) => b.s - a.s)
+            .map((e) => e.x)
+        : buyable;
+      const kept = dedupeSymbols(ranked);
       const start = (q.page - 1) * q.size;
       const a = wrap(kept.slice(start, start + q.size).map((x) => x.row), kept.length, raw.length);
-      return { ...a, note: `${a.note} Only tokens that can be bought now are listed, by Aretia's own checks: $${BUYABLE_MIN_LIQUIDITY_USD.toLocaleString('en-US')}+ of liquidity in the pool's SOL or dollar side, no freeze authority on the token, and no wash-trading signs. ${kept.length} of the ${raw.length} best-ranked pools pass.` };
+      return { ...a, note: `${a.note} Only tokens that can be bought now are listed, by Aretia's own checks: $${BUYABLE_MIN_LIQUIDITY_USD.toLocaleString('en-US')}+ of liquidity in the pool's SOL or dollar side, no freeze authority on the token, and no wash-trading signs. ${kept.length} of the ${raw.length} best-ranked pools pass.${momentum ? ' Trending ranks the tokens whose trading is speeding up: the value traded in the window, boosted by how much busier it is than the token\'s average pace over the day; a token slowing down is not ranked.' : ''}` };
     }
   }
   if (ranking && q.chain === 'solana' && (q.kind === 'top' || q.kind === 'trending') && q.sort === 'rank' && !q.bullish) {

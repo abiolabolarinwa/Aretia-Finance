@@ -28,6 +28,7 @@ import { tokenDto } from './dto.js';
 import { unitsToNumber } from './math.js';
 import type { MiToken } from './types.js';
 import { isBuyable, TRADABLE_MIN_LIQUIDITY_USD, type TradableCheck } from './solana/tradable.js';
+import type { RankingSource } from './solana/ranking.js';
 
 export type ListKind = 'trending' | 'top' | 'gainers' | 'new' | 'liquidity';
 export type ListWindow = 'm5' | 'h1' | 'h6' | 'h24';
@@ -319,7 +320,13 @@ export function dedupeSymbols<T extends { row: MarketRow }>(list: readonly T[]):
   });
 }
 
-export async function readList(reader: Reader, q: ListQuery, now: number, tradable?: TradableCheck): Promise<ListAnswer> {
+/** The pools of the given Solana tokens, deepest first (the first of a token is the one its row shows). */
+export function poolsOfMintsPath(mints: readonly string[]): string {
+  const list = mints.map((m) => m.replace(/[^A-Za-z0-9]/g, '')).join(',');
+  return `mi_pools?select=${POOL_SELECT}&chain=eq.solana&base=in.(${list})&state=eq.active&paused=is.false&liquidity_usd=gte.${DUST_LIQUIDITY_USD}&liquidity_usd=lte.${MAX_PLAUSIBLE_LIQUIDITY_USD}&order=liquidity_usd.desc.nullslast,key.desc&limit=${Math.min(1000, mints.length * 6)}`;
+}
+
+export async function readList(reader: Reader, q: ListQuery, now: number, tradable?: TradableCheck, ranking?: RankingSource): Promise<ListAnswer> {
   const wrap = (rows: MarketRow[], total: number, rankedAmong?: number): ListAnswer => ({ rows, total, page: q.page, size: q.size, pages: Math.max(1, Math.ceil(total / q.size)), ...(rankedAmong === undefined ? {} : { rankedAmong }), note: listNote(q, total, rankedAmong) });
   const toRows = async (records: PoolRecord[]): Promise<{ row: MarketRow; rec: PoolRecord }[]> => {
     const keys = new Set<string>();
@@ -350,6 +357,22 @@ export async function readList(reader: Reader, q: ListQuery, now: number, tradab
     }
     return out;
   };
+  if (ranking && q.chain === 'solana' && (q.kind === 'top' || q.kind === 'trending') && q.sort === 'rank' && !q.bullish) {
+    // Order and choice from Jupiter's own top-traded or trending list; each row is Aretia's own reading of the token's deepest pool.
+    const ranked = await ranking(q.kind, q.kind === 'top' ? 'h24' : q.window);
+    if (ranked) {
+      const pools = (await reader.get(poolsOfMintsPath(ranked.mints), false)).rows as PoolRecord[];
+      const deepest = new Map<string, PoolRecord>();
+      for (const p of pools) if (!deepest.has(p.base)) deepest.set(p.base, p);
+      const built = await toRows(ranked.mints.flatMap((m) => (deepest.has(m) ? [deepest.get(m)!] : [])));
+      const kept = dedupeSymbols(built.filter((x) => !isUnsafeLooking(x.row, x.rec) && isBuyable(ranked.byMint.get(x.row.address))));
+      if (kept.length > 0) {
+        const start = (q.page - 1) * q.size;
+        const a = wrap(kept.slice(start, start + q.size).map((x) => x.row), kept.length, ranked.mints.length);
+        return { ...a, note: `Ranked by what Jupiter, the Solana swap router, sees traded ${q.kind === 'trending' ? 'and trending' : ''} across every venue; the figures in each row are Aretia's own reading of the token's deepest pool. Only tokens Jupiter can swap now (at least $${TRADABLE_MIN_LIQUIDITY_USD.toLocaleString('en-US')} of liquidity, not flagged as suspicious, no freeze authority) and that Aretia's index has a pool for: ${kept.length} of Jupiter's ${ranked.mints.length}.` };
+      }
+    }
+  }
   if (tradable && q.chain === 'solana') {
     // Only what can be bought now: the best-ranked pools are checked with Jupiter and the list is paged from what passes.
     const raw = usesCandidates(q)

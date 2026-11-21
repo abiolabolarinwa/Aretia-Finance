@@ -5,7 +5,7 @@ import { DEFAULT_RULES } from '../lifecycle.js';
 import { RpcError, type Read } from '../rpc.js';
 import { InMemoryMiStore } from '../store.js';
 import type { MiPool } from '../types.js';
-import { followPool, pastGrace, readTx, TX_ATTEMPTS, TX_GRACE_SECONDS } from './engine.js';
+import { followPool, pastGrace, readTx, stackOrigin, TX_ATTEMPTS, TX_GRACE_SECONDS } from './engine.js';
 
 const SIG = (n: number) => String(n).padStart(88, '1');
 const NOW = 1_800_000_000_000;
@@ -71,5 +71,13 @@ describe('a pool whose signature list holds a transaction no node returns', () =
     expect(got.unavailable).toBe(0);
     expect(got.skipped).toEqual([{ signature: SIG(9), pool: 'P' }]);
     expect(cp?.blockHash).toBe(SIG(9));
+  });
+});
+
+describe('stackOrigin', () => {
+  it('names the first two code lines of an error, without folders', () => {
+    const e = new Error('x');
+    e.stack = ['Error: x', '    at readTx (C:\\app\\src\\engine.ts:102:25)', '    at async followPool (/app/worker.mjs:9:3)', '    at third (/a.ts:1:1)'].join('\n');
+    expect(stackOrigin(e)).toBe('readTx (engine.ts:102:25) < async followPool (worker.mjs:9:3)');
   });
 });

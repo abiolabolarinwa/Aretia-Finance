@@ -84,6 +84,16 @@ export const TX_ATTEMPTS = 3;
 /** A listed, finalized signature whose transaction no node returns after this long is not coming (nodes that lag catch up within minutes). */
 export const TX_GRACE_SECONDS = 1800;
 
+/** The first two code lines of an error's stack, with folders removed from each: enough to say which function a failure came from. */
+export function stackOrigin(e: Error): string {
+  return (e.stack ?? '')
+    .split('\n')
+    .filter((l) => /^\s+at /.test(l))
+    .slice(0, 2)
+    .map((l) => l.trim().replace(/^at /, '').replace(/\(.*[\\/]/, '('))
+    .join(' < ');
+}
+
 /** A signature that was skipped, kept as a note in the adapter's health so a missing trade is visible and can be re-read by hand. */
 export interface SkippedTx {
   signature: string;
@@ -277,7 +287,9 @@ export async function runSolanaAdapter(d: SolDeps): Promise<RunReport> {
     report.lagBlocks = 0;
   } catch (e) {
     report.ok = false;
-    report.error = (e instanceof Error ? e.message : 'the run failed').slice(0, 300);
+    // Where the failure came from (the first two code lines of its stack), so a failure that repeats can be traced from the log alone.
+    const where = e instanceof Error ? stackOrigin(e) : '';
+    report.error = `${e instanceof Error ? e.message : 'the run failed'}${where ? ` [${where}]` : ''}`.slice(0, 450);
   }
   return finish();
 }

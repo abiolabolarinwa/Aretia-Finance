@@ -24,6 +24,9 @@ export interface IntelConfig {
   washMaxTraders: number;
   /** An account that turns a pool's whole liquidity over more than this many times in a day (volume / accounts / liquidity) is not trading, it is looping. */
   maxTurnoverPerTrader: number;
+  /** A pool with at least this many transactions in 24 hours whose accounts average at least `loopTradesPerTrader` trades each is a bot looping it, however many accounts there are. */
+  loopMinTxns: number;
+  loopTradesPerTrader: number;
   /** Fewest eligible tokens for which a breadth figure or an index is shown. */
   minEligible: number;
   /** Trade size, in dollars, the depth measure asks about. */
@@ -39,6 +42,8 @@ export const DEFAULT_CONFIG: IntelConfig = {
   washMinTxns: 20,
   washMaxTraders: 10,
   maxTurnoverPerTrader: 5,
+  loopMinTxns: 100,
+  loopTradesPerTrader: 40,
   minEligible: 20,
   depthTradeUsd: 1_000,
   depthZeroImpact: 0.05,
@@ -100,7 +105,8 @@ export interface Screened {
 export const bump = (m: Partial<Record<Exclusion, number>>, k: Exclusion): void => void (m[k] = (m[k] ?? 0) + 1);
 
 /**
- * Wash trading or a broken price: far more volume than the pool could hold, many trades from a handful of accounts, or a few accounts each
+ * Wash trading or a broken price: far more volume than the pool could hold, many trades from a handful of accounts, accounts that trade the pool
+ * dozens of times a day each (a bot, whatever the number of accounts), or a few accounts each
  * turning the pool's whole liquidity over several times a day. (A day-old token with $2.7M of liquidity that did $220M from five accounts passed
  * the first two rules and is what the third is for. Real tokens spread their volume over hundreds of accounts.)
  */
@@ -109,6 +115,8 @@ export function suspicious(p: IntelPool, c: IntelConfig = DEFAULT_CONFIG): boole
   const v = p.volumeUsd.h24 ?? 0;
   if (liq > 0 && v > c.maxVolumeToLiquidity * liq) return true;
   if ((p.txns24h ?? 0) >= c.washMinTxns && p.traders24h !== null && p.traders24h <= c.washMaxTraders) return true;
+  // Eleven accounts with 120 trades each pass the rule above by one account and are plainly a bot: people do not trade a token a hundred times a day.
+  if ((p.txns24h ?? 0) >= c.loopMinTxns && p.traders24h !== null && p.traders24h >= 1 && (p.txns24h ?? 0) / p.traders24h >= c.loopTradesPerTrader) return true;
   return liq > 0 && p.traders24h !== null && p.traders24h >= 1 && v / p.traders24h > c.maxTurnoverPerTrader * liq;
 }
 

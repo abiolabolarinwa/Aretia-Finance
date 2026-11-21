@@ -234,6 +234,16 @@ describe('ADV: busiest venues', () => {
     // The same pool with the volume spread over 2,000 accounts is ordinary trading and counts.
     expect(adv([pool({ venue: 'X', vol: 220_290_000, liq: 2_653_000, txns: 20_000, traders: 2_000 })], null).venues).toHaveLength(1);
   });
+  it('leaves out a bot that loops a pool from a dozen accounts (an average of 40+ trades each), which the account-count rule misses by one', () => {
+    const bot = pool({ venue: 'Looped', vol: 50_000, liq: 1_400_000, txns: 1_468, traders: 12 }); // 122 trades per account
+    const people = pool({ venue: 'Looped', vol: 50_000, liq: 1_400_000, txns: 1_468, traders: 1_000 });
+    expect(adv([bot], null).venues).toHaveLength(0);
+    expect(adv([people], null).venues).toHaveLength(1);
+    // the line is at 40 trades per account, and only for pools with a hundred trades or more
+    expect(adv([pool({ venue: 'A', vol: 50_000, liq: 1_400_000, txns: 440, traders: 11 })], null).venues).toHaveLength(0); // exactly 40 each
+    expect(adv([pool({ venue: 'A', vol: 50_000, liq: 1_400_000, txns: 429, traders: 11 })], null).venues).toHaveLength(1); // 39 each
+    expect(adv([pool({ venue: 'A', vol: 50_000, liq: 1_400_000, txns: 90, traders: 2 + 9 })], null).venues).toHaveLength(1); // under a hundred trades: not this rule
+  });
   it('a swap count that is a floor says so', () => {
     const r = adv([{ ...pool({ venue: 'X', vol: 10_000 }), txnsCapped: true }], null);
     expect(r.venues[0]!.swapsCapped).toBe(true);

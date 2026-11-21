@@ -27,6 +27,7 @@ with `MI_ADAPTERS` once an operator is ready to carry its node load.
 | `MI_CONFIRMATIONS_<CHAIN>` | blocks to wait before trusting a log | ethereum 12, bnb 15, polygon 64, base 10 |
 | `MI_ADDRESS_BATCH_<CHAIN>` | pool addresses per `getLogs` (public nodes allow 10) | 10 |
 | `MI_FOLLOW_NEWEST`, `MI_FOLLOW_RECENT` | pools whose swaps are followed per adapter (newest created, most recently traded) | 100 each |
+| `MI_FOLLOW_DEEP` | Solana only: also follow the swaps of this many of each venue's deepest pools by liquidity (0 turns it off) | 60 |
 | `MI_MIN_LIQUIDITY_USD` | listing rule: minimum dollar liquidity where known | 500 |
 | `MI_INACTIVE_AFTER_HOURS` | a pool with no trade for this long becomes inactive | 168 |
 | `MI_TRADE_RETENTION_DAYS` | trades older than this are deleted | 30 |

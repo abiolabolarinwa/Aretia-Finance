@@ -39,6 +39,8 @@ export interface IntelResult {
   history: { days: number; hourlyReturns: number; liquiditySamples: number; venueGrowth: boolean };
 }
 
+/** How many venues the Busiest venues card lists: the ten with the most volume (the answer still carries the venue count and the total over all of them). */
+export const VENUES_SHOWN = 10;
 const share = (a: number, b: number): number => (b > 0 ? a / b : 0);
 
 function ammiConfidence(a: AmmiResult): Confidence {
@@ -69,7 +71,7 @@ export function computeIntel(allPools: readonly IntelPool[], scope: string, now:
   const pools = poolsOfScope(allPools, scope);
   const arfs = {} as Record<Window, ArfResult>;
   for (const w of WINDOWS) arfs[w] = arf(pools, w, c);
-  const a = adv(pools, stored.venuesPrev, 4, c);
+  const a = adv(pools, stored.venuesPrev, VENUES_SHOWN, c);
   // The current hour's market return is the newest point of the hourly series.
   const r1h = marketReturn(pools, 'h1', c);
   const history: IntelHistory = { ...stored.history, hourlyReturns: r1h === null ? stored.history.hourlyReturns : [...stored.history.hourlyReturns, r1h] };

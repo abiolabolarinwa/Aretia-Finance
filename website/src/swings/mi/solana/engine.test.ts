@@ -46,7 +46,7 @@ for (const id of ['raydium-cpmm-solana', 'orca-whirlpool-solana', 'pumpswap-sola
     const setup = () => {
       const store = new InMemoryMiStore();
       const { read, missing } = replay(rec);
-      const deps = { spec, chain: { ...chainConfig('solana'), lookback: 1800 }, rpc: read, store, rules: DEFAULT_RULES, now: () => rec.now, budgetMs: 1_000_000, maxCreationTx: 3, followNewest: 3, followRecent: 0, swapSigs: 8, sigPages: 1 };
+      const deps = { spec, chain: { ...chainConfig('solana'), lookback: 1800 }, rpc: read, store, rules: DEFAULT_RULES, now: () => rec.now, budgetMs: 1_000_000, maxCreationTx: 3, followNewest: 3, followRecent: 0, followDeep: 0, swapSigs: 8, sigPages: 1 };
       return { store, deps, missing };
     };
 

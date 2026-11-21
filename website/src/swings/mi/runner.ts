@@ -26,6 +26,7 @@ export interface RunnerEnv {
   /** How many pools' swaps are followed per adapter: the newest created and the most recently traded (default 100 each). */
   MI_FOLLOW_NEWEST?: string;
   MI_FOLLOW_RECENT?: string;
+  MI_FOLLOW_DEEP?: string;
   /** Chains (comma list, e.g. `ethereum,base`) whose V2/V3 swaps are read chain-wide by event, covering every registered pool (swapScan.ts). Off by default. */
   MI_SWAP_SCAN?: string;
   /** Solana venues whose existing pools are discovered and refreshed (`*` for all, or a comma list of adapter ids). Off by default (solana/discovery.ts). */
@@ -110,7 +111,7 @@ export async function runAll(d: RunAllDeps): Promise<RunAllReport> {
     }
     const chain = chainConfig('solana', d.env);
     const rpc = d.readFor ? d.readFor(spec) : makeRead(chain.rpcUrls, { fetchImpl: d.fetchImpl, concurrency: 3 });
-    const solDeps = { spec: spec as SolanaAdapterSpec, chain, rpc, store: d.store, rules, now: d.now, launch: d.launch ?? null, nativeUsd: solUsdReader(rpc, d.now), budgetMs: budgetMs - historyMs, followNewest: count(d.env.MI_FOLLOW_NEWEST), followRecent: count(d.env.MI_FOLLOW_RECENT), ...(d.env.MI_SOLANA_GATE === '1' ? { gate: gateFor(spec.id) } : {}) };
+    const solDeps = { spec: spec as SolanaAdapterSpec, chain, rpc, store: d.store, rules, now: d.now, launch: d.launch ?? null, nativeUsd: solUsdReader(rpc, d.now), budgetMs: budgetMs - historyMs, followNewest: count(d.env.MI_FOLLOW_NEWEST), followRecent: count(d.env.MI_FOLLOW_RECENT), followDeep: count(d.env.MI_FOLLOW_DEEP), ...(d.env.MI_SOLANA_GATE === '1' ? { gate: gateFor(spec.id) } : {}) };
     const report = await runSolanaAdapter(solDeps);
     if (report.ok) await deepenSolanaHistory({ ...solDeps, retentionDays: retentionDays() }, { budgetMs: historyMs }).catch(() => undefined);
     return report;

@@ -50,6 +50,8 @@ export interface SolDeps {
   maxCreationTx?: number;
   followNewest?: number;
   followRecent?: number;
+  /** Also followed: the deepest pools by liquidity, which are neither new nor recently traded in the index, so no trades of theirs were being recorded. */
+  followDeep?: number;
   /** Signatures read per pool per run. */
   swapSigs?: number;
   /** How sure the chain must be of the swaps read for a followed pool (default `finalized`). The watched-pools task uses `confirmed` to be seconds behind, not a quarter of a minute. */
@@ -369,7 +371,8 @@ export async function factsOf(d: SolDeps, pool: MiPool, readable: boolean, recog
 async function followedPools(d: SolDeps): Promise<MiPool[]> {
   const a = await d.store.poolsOfAdapter(d.spec.id, FOLLOWED_STATES, d.followNewest ?? 40, 'newest');
   const b = await d.store.poolsOfAdapter(d.spec.id, FOLLOWED_STATES, d.followRecent ?? 40, 'recent-trade');
-  return [...new Map([...a, ...b].map((p) => [p.key, p])).values()];
+  const c = await d.store.poolsOfAdapter(d.spec.id, FOLLOWED_STATES, d.followDeep ?? 60, 'liquidity');
+  return [...new Map([...a, ...b, ...c].map((p) => [p.key, p])).values()];
 }
 
 /** Followed pools, the one read longest ago first, so a run that runs out of time moves on to the others next time. */

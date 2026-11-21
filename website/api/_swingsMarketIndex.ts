@@ -60,7 +60,7 @@ export async function handleMarketIndex(input: TokensInput): Promise<TokensOutpu
   if (hit && input.now - hit.at < FRESH_MS) return ok(hit.answer, false);
   if (overLimit(`marketix:${input.ip}`, input.now)) return hit ? ok(hit.answer, true) : json(429, { error: 'rate-limit' }, { ...base, 'retry-after': '30' });
   try {
-    const answer = await readList(postgrestReader(url, supabaseHeaders(key), input.fetchImpl, AbortSignal.timeout(DEADLINE_MS)), q, input.now, (input.env as { MI_SOLANA_BUYABLE?: string }).MI_SOLANA_BUYABLE === '0' ? undefined : jupiterCheck(input.fetchImpl, () => input.now, AbortSignal.timeout(DEADLINE_MS)));
+    const answer = await readList(postgrestReader(url, supabaseHeaders(key), input.fetchImpl, AbortSignal.timeout(DEADLINE_MS)), q, input.now, (input.env as { MI_SOLANA_BUYABLE?: string }).MI_SOLANA_BUYABLE === '0' ? undefined : jupiterCheck(input.fetchImpl, () => input.now, AbortSignal.timeout(DEADLINE_MS), (input.env as { JUPITER_API_KEY?: string }).JUPITER_API_KEY));
     if (answers.size > 500) answers.clear();
     answers.set(cacheKey, { at: input.now, answer });
     return ok(answer, false);

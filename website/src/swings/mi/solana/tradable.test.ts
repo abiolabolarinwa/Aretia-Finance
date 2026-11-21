@@ -48,10 +48,35 @@ describe('the Jupiter check', () => {
     expect(urls).toHaveLength(2);
   });
 
-  it('asks in batches of fifty', async () => {
+  it('asks in batches of a hundred', async () => {
     const { impl, urls } = jupiter({});
-    await jupiterCheck(impl, () => NOW)(Array.from({ length: 120 }, (_, i) => mint(i)));
+    await jupiterCheck(impl, () => NOW)(Array.from({ length: 250 }, (_, i) => mint(i)));
     expect(urls).toHaveLength(3);
+  });
+
+  it('uses the keyed service, with the key in a header and never in the address, only when a key is set', async () => {
+    const seen: { url: string; key: string | null }[] = [];
+    const impl = (async (url: string, init?: RequestInit) => {
+      seen.push({ url, key: new Headers(init?.headers).get('x-api-key') });
+      return new Response('[]', { status: 200 });
+    }) as unknown as typeof fetch;
+    await jupiterCheck(impl, () => NOW)([mint(1)]);
+    await jupiterCheck(impl, () => NOW, undefined, 'secret-key')([mint(2)]);
+    expect(seen[0]!.url).toContain('lite-api.jup.ag');
+    expect(seen[0]!.key).toBeNull();
+    expect(seen[1]!.url).toContain('https://api.jup.ag/');
+    expect(seen[1]!.url).not.toContain('secret-key');
+    expect(seen[1]!.key).toBe('secret-key');
+  });
+
+  it('uses what it learned earlier, up to six hours old, when Jupiter refuses', async () => {
+    const { impl } = jupiter({ [mint(1)]: entry(mint(1), 80_000) });
+    await jupiterCheck(impl, () => NOW)([mint(1)]);
+    const refuse = (async () => new Response('slow down', { status: 429 })) as unknown as typeof fetch;
+    const later = (await jupiterCheck(refuse, () => NOW + 30 * 60_000)([mint(1), mint(2)]))!; // mint 2 was never learned
+    expect(isBuyable(later.get(mint(1)))).toBe(true);
+    expect(later.has(mint(2))).toBe(false); // not checked, so not listed
+    expect(await jupiterCheck(refuse, () => NOW + 7 * 3_600_000)([mint(1)])).toBeNull(); // too old to trust
   });
 
   it('answers null, and stops asking for a minute, when Jupiter cannot be reached', async () => {

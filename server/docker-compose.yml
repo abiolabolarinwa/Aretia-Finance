@@ -18,15 +18,16 @@ services:
       - pgdata:/var/lib/postgresql/data
       - ./db/init:/docker-entrypoint-initdb.d:ro
     shm_size: 256mb
-    # Tuned for an 8 GB machine that also runs the other containers. Lower shared_buffers if you rent less memory.
+    # The defaults are tuned for an 8 GB machine that also runs the other containers. On a smaller one set PG_SHARED_BUFFERS, PG_EFFECTIVE_CACHE_SIZE and
+    # PG_WORK_MEM in .env (see .env.example): on a 2 GB machine the database alone would hold 1.5 GB for itself and the machine would swap.
     command:
       - postgres
       - -c
-      - shared_buffers=1536MB
+      - shared_buffers=${PG_SHARED_BUFFERS:-1536MB}
       - -c
-      - effective_cache_size=4GB
+      - effective_cache_size=${PG_EFFECTIVE_CACHE_SIZE:-4GB}
       - -c
-      - work_mem=16MB
+      - work_mem=${PG_WORK_MEM:-16MB}
       - -c
       - max_connections=60
       - -c
@@ -141,6 +142,7 @@ services:
       MI_INACTIVE_AFTER_HOURS: ${MI_INACTIVE_AFTER_HOURS:-}
       MI_FOLLOW_NEWEST: ${MI_FOLLOW_NEWEST:-}
       MI_FOLLOW_RECENT: ${MI_FOLLOW_RECENT:-}
+      MI_FOLLOW_DEEP: ${MI_FOLLOW_DEEP:-}
       MI_SWAP_SCAN: ${MI_SWAP_SCAN:-}
       MI_SWAP_BACKFILL_DAYS: ${MI_SWAP_BACKFILL_DAYS:-}
       MI_SWAP_BACKFILL_ADAPTERS: ${MI_SWAP_BACKFILL_ADAPTERS:-}

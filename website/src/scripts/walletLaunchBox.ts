@@ -499,7 +499,7 @@ export function initLaunchBox(o: LaunchBoxOptions): { onShow(): void } {
     plot.setAttribute('aria-label', `${symbol} price chart`);
     const trades = el('div', 'wapp-mt__trades');
     chartHost.replaceChildren(head, plot, trades);
-    tvChart = mountTvChart(plot, { chain: r.chain, pool, symbol, ...(quote ? { quoteSymbol: quote } : {}), priceHint: r.priceUsd, interval: '15', toolbar: true, fallbackUrl: embedUrl({ network: GECKO_NETWORK[r.chain], pool }), title: `${symbol} price chart` });
+    tvChart = mountTvChart(plot, { chain: r.chain, pool, symbol, ...(quote ? { quoteSymbol: quote } : {}), priceHint: r.priceUsd, interval: '1', toolbar: true, fallbackUrl: embedUrl({ network: GECKO_NETWORK[r.chain], pool }), title: `${symbol} price chart` });
     tradesTable = mountTrades(trades, { chain: r.chain, pool, symbol, ...(quote ? { quoteSymbol: quote } : {}) });
   }
 

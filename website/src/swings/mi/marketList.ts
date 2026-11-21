@@ -305,8 +305,28 @@ export const resetSupplyColumnMemory = (): void => {
   supplyColumnMissingUntil = 0;
 };
 
-/** Solana lists read this many of the best-ranked pools, check them with Jupiter, and page through what is buyable. */
-export const SOLANA_READ = 300;
+/**
+ * Solana lists read this many of the best-ranked pools (the database's own order), keep each symbol's best few, check at most SOLANA_CHECK of
+ * them with Jupiter, and page through what is buyable. A window of only 300 was filled by a few tickers repeated dozens of times (one had 17
+ * pools), and once the repeats were dropped a handful of rows were left.
+ */
+export const SOLANA_READ = 1_000;
+/** The most pools asked about at a time: three requests of a hundred, because the free service allows only a few requests at once. */
+export const SOLANA_CHECK = 300;
+/** A symbol's pools that are looked at: a drained first pool must not hide a good second one, but fifteen copies are not all asked about. */
+export const PER_SYMBOL = 3;
+
+/** Keeps each symbol's best-ranked few, in order. */
+export function limitPerSymbol<T extends { row: MarketRow }>(list: readonly T[], most: number): T[] {
+  const count = new Map<string, number>();
+  return list.filter((x) => {
+    const k = x.row.symbol.trim().toLowerCase();
+    if (k === '') return true;
+    const n = (count.get(k) ?? 0) + 1;
+    count.set(k, n);
+    return n <= most;
+  });
+}
 
 /** One row per symbol, the best-ranked kept: a list of tokens people can buy does not need five copies of "ANT". The rest are found by search. */
 export function dedupeSymbols<T extends { row: MarketRow }>(list: readonly T[]): T[] {
@@ -378,12 +398,13 @@ export async function readList(reader: Reader, q: ListQuery, now: number, tradab
     const raw = usesCandidates(q)
       ? rankCandidates(q, await toRows((await reader.get(candidatePath(q, now), false)).rows as PoolRecord[]))
       : dedupeTokens((await toRows((await reader.get(sqlPath({ ...q, page: 1, size: SOLANA_READ }, now), false)).rows as PoolRecord[])).filter((x) => !isUnsafeLooking(x.row, x.rec)));
-    const checked = await tradable(raw.map((x) => x.row.address));
+    const examined = limitPerSymbol(raw, PER_SYMBOL).slice(0, SOLANA_CHECK);
+    const checked = await tradable(examined.map((x) => x.row.address));
     // Jupiter could not be reached: the list is shown as it was, not emptied.
-    const kept = checked ? dedupeSymbols(raw.filter((x) => isBuyable(checked.get(x.row.address)))) : raw;
+    const kept = checked ? dedupeSymbols(examined.filter((x) => isBuyable(checked.get(x.row.address)))) : raw;
     const start = (q.page - 1) * q.size;
     const a = wrap(kept.slice(start, start + q.size).map((x) => x.row), kept.length, raw.length);
-    return checked ? { ...a, note: `${a.note} Only tokens Jupiter can swap now are listed: $${TRADABLE_MIN_LIQUIDITY_USD.toLocaleString('en-US')}+ of liquidity, not flagged as suspicious, no freeze authority. ${kept.length} of the ${raw.length} best-ranked pools pass.` } : a;
+    return checked ? { ...a, note: `${a.note} Only tokens Jupiter can swap now are listed: $${TRADABLE_MIN_LIQUIDITY_USD.toLocaleString('en-US')}+ of liquidity, not flagged as suspicious, no freeze authority. ${kept.length} of the ${examined.length} pools checked pass (the ${raw.length} best-ranked, with each symbol's ${PER_SYMBOL} best asked about).` } : a;
   }
   if (usesCandidates(q)) {
     const got = await reader.get(candidatePath(q, now), false);

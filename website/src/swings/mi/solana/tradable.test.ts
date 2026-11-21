@@ -141,7 +141,7 @@ describe('Solana lists: only what can be bought now', () => {
     expect(a.rows.map((r) => r.address)).toEqual([mint(0), mint(1)]);
     expect(a.total).toBe(2);
     expect(a.note).toContain('Jupiter can swap now');
-    expect(a.note).toContain('2 of the 5');
+    expect(a.note).toContain('2 of the 5 pools checked');
   });
 
   it('shows one row per symbol, the best-ranked', async () => {
@@ -182,5 +182,45 @@ describe('Solana lists: only what can be bought now', () => {
     expect((await readList(reader(records), q({ chain: 'bnb' }), NOW, check)).rows.length).toBe(2);
     expect(asked).toBe(0);
     expect((await readList(reader([0, 1].map(rec)), q(), NOW)).rows.length).toBe(2);
+  });
+});
+
+describe('Solana lists: a window of repeats', () => {
+  beforeEach(resetTradableMemory);
+
+  it('looks at a thousand pools, and at only the best three of a symbol, so repeats do not fill the list', async () => {
+    // 40 pools of one ticker, then 20 other tickers, in the database's order.
+    const records = [...Array.from({ length: 40 }, (_, i) => rec(i)), ...Array.from({ length: 20 }, (_, i) => rec(100 + i))];
+    const symbols: Record<string, string> = {};
+    for (let i = 0; i < 40; i++) symbols[mint(i)] = 'UODF';
+    const known: Record<string, unknown> = {};
+    for (const r of records) known[r.base] = entry(r.base, 50_000);
+    const { impl, urls } = jupiter(known);
+    const paths: string[] = [];
+    const rd = reader(records, symbols);
+    const spy: Reader = { get: async (path, count) => (paths.push(path), rd.get(path, count)) };
+    const a = await readList(spy, q(), NOW, jupiterCheck(impl, () => NOW));
+    expect(paths.find((p) => p.startsWith('mi_pools'))).toContain('limit=1000');
+    expect(a.rows.filter((r) => symbols[r.address] === 'UODF')).toHaveLength(1); // one row for the ticker
+    expect(a.rows).toHaveLength(21); // and every other ticker
+    expect(urls.join(' ').match(/Mint0/g)!.length).toBeLessThanOrEqual(23); // 3 UODF + 20 others were asked about, not 60
+  });
+
+  it('a drained first pool of a symbol does not hide a good second one', async () => {
+    const records = [0, 1, 2].map(rec);
+    const symbols = { [mint(0)]: 'AAA', [mint(1)]: 'AAA', [mint(2)]: 'AAA' };
+    const { impl } = jupiter({ [mint(0)]: entry(mint(0), 0.05), [mint(1)]: entry(mint(1), 80_000), [mint(2)]: entry(mint(2), 90_000) });
+    const a = await readList(reader(records, symbols), q(), NOW, jupiterCheck(impl, () => NOW));
+    expect(a.rows.map((r) => r.address)).toEqual([mint(1)]);
+  });
+
+  it('asks about at most 300 pools however many distinct symbols there are', async () => {
+    const records = Array.from({ length: 450 }, (_, i) => rec(i));
+    const known: Record<string, unknown> = {};
+    for (const r of records) known[r.base] = entry(r.base, 50_000);
+    const { impl, urls } = jupiter(known);
+    const a = await readList(reader(records), q({ size: 100 }), NOW, jupiterCheck(impl, () => NOW));
+    expect(urls).toHaveLength(3); // three requests of a hundred
+    expect(a.total).toBe(300);
   });
 });

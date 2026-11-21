@@ -164,7 +164,7 @@ export function mountTvChart(
   // Starting up the chart takes a second or so, and it only asks for candles afterwards. Reading them now overlaps the two,
   // so they are usually there the moment the chart asks. (A throwaway datafeed does the reading into a store they share.)
   try {
-    makeFeed(currency, `${o.symbol} / ${currency === 'usd' ? 'USD' : o.quoteSymbol}`, () => undefined, isClosed).warm?.(lastInterval ?? o.interval ?? '15');
+    makeFeed(currency, `${o.symbol} / ${currency === 'usd' ? 'USD' : o.quoteSymbol}`, () => undefined, isClosed).warm?.(lastInterval ?? o.interval ?? '1');
   } catch {
     // Not needed for the chart to work.
   }
@@ -383,7 +383,7 @@ export function mountTvChart(
           library_path: LIBRARY_PATH,
           datafeed: feed,
           symbol: `${o.chain}:${o.pool}`,
-          interval: lastInterval ?? o.interval ?? '15',
+          interval: lastInterval ?? o.interval ?? '1',
           locale: 'en',
           timezone: 'Etc/UTC',
           theme: currentTheme(),

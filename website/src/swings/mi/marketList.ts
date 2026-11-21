@@ -29,6 +29,7 @@ import { unitsToNumber } from './math.js';
 import type { MiToken } from './types.js';
 import { isBuyable, TRADABLE_MIN_LIQUIDITY_USD, type TradableCheck } from './solana/tradable.js';
 import type { RankingSource } from './solana/ranking.js';
+import { BUYABLE_MIN_LIQUIDITY_USD, ownBuyable } from './solana/buyable.js';
 
 export type ListKind = 'trending' | 'top' | 'gainers' | 'new' | 'liquidity';
 export type ListWindow = 'm5' | 'h1' | 'h6' | 'h24';
@@ -149,9 +150,9 @@ export function candidatePath(q: ListQuery, now: number): string {
   return `mi_pools?select=${POOL_SELECT}&${baseFilters({ ...q, kind: 'top' }, now).join('&')}&order=vol24_usd.desc.nullslast,key.desc&limit=${CANDIDATE_CAP}`;
 }
 
-export function tokenPath(keys: readonly string[], withSupply = false): string {
+export function tokenPath(keys: readonly string[], withSupply = false, withFlags = false): string {
   const list = keys.map((k) => `"${k.replace(/[^A-Za-z0-9:._-]/g, '')}"`).join(',');
-  return `mi_tokens?key=in.(${list})&select=key,symbol,name,decimals${withSupply ? ',total_supply' : ''}&limit=${keys.length}`;
+  return `mi_tokens?key=in.(${list})&select=key,symbol,name,decimals${withSupply ? ',total_supply' : ''}${withFlags ? ',mint_flags' : ''}&limit=${keys.length}`;
 }
 
 /** The most a fully diluted value may be to be shown: a larger one comes from a price or supply that cannot be trusted. */
@@ -164,7 +165,7 @@ export function fdvOf(priceUsd: number | null, supply: string | null | undefined
   return Number.isFinite(v) && v > 0 && v <= FDV_MAX_USD ? v : null;
 }
 
-type TokenInfo = Pick<MiToken, 'symbol' | 'name' | 'decimals'> & { total_supply?: string | null };
+type TokenInfo = Pick<MiToken, 'symbol' | 'name' | 'decimals'> & { total_supply?: string | null; mint_flags?: number | null };
 
 /** A pool record as a Markets row. A number the index does not state stays null (drawn as a dash), never zero. */
 export function rowFromRecord(p: PoolRecord, tokens: ReadonlyMap<string, TokenInfo>, now: number): MarketRow | null {
@@ -300,10 +301,32 @@ export function listNote(q: ListQuery, total: number, rankedAmong?: number): str
 }
 
 let supplyColumnMissingUntil = 0;
+let flagsColumnMissingUntil = 0;
 /** Test hook. */
 export const resetSupplyColumnMemory = (): void => {
   supplyColumnMissingUntil = 0;
+  flagsColumnMissingUntil = 0;
 };
+
+/** The token rows of up to fifty keys, with the supply and mint-flag columns when the database has them (an older one is asked again in five minutes). */
+async function readTokenRows(reader: Reader, keys: readonly string[], now: number): Promise<{ rows: unknown[] }> {
+  if (supplyColumnMissingUntil <= now && flagsColumnMissingUntil <= now) {
+    try {
+      return await reader.get(tokenPath(keys, true, true), false);
+    } catch {
+      flagsColumnMissingUntil = now + 300_000;
+    }
+  }
+  if (supplyColumnMissingUntil <= now) {
+    try {
+      return await reader.get(tokenPath(keys, true), false);
+    } catch {
+      // The database has not got the supply column yet (migration 0022 not applied): list without market caps, and do not ask again for a while.
+      supplyColumnMissingUntil = now + 300_000;
+    }
+  }
+  return reader.get(tokenPath(keys), false);
+}
 
 /**
  * Solana lists read this many of the best-ranked pools (the database's own order), keep each symbol's best few, check at most SOLANA_CHECK of
@@ -346,8 +369,10 @@ export function poolsOfMintsPath(mints: readonly string[]): string {
   return `mi_pools?select=${POOL_SELECT}&chain=eq.solana&base=in.(${list})&state=eq.active&paused=is.false&liquidity_usd=gte.${DUST_LIQUIDITY_USD}&liquidity_usd=lte.${MAX_PLAUSIBLE_LIQUIDITY_USD}&order=liquidity_usd.desc.nullslast,key.desc&limit=${Math.min(1000, mints.length * 6)}`;
 }
 
-export async function readList(reader: Reader, q: ListQuery, now: number, tradable?: TradableCheck, ranking?: RankingSource): Promise<ListAnswer> {
+export async function readList(reader: Reader, q: ListQuery, now: number, tradable?: TradableCheck, ranking?: RankingSource, own = false): Promise<ListAnswer> {
   const wrap = (rows: MarketRow[], total: number, rankedAmong?: number): ListAnswer => ({ rows, total, page: q.page, size: q.size, pages: Math.max(1, Math.ceil(total / q.size)), ...(rankedAmong === undefined ? {} : { rankedAmong }), note: listNote(q, total, rankedAmong) });
+  /** What each token's mint still allows, by address (null: not read), filled as rows are built. */
+  const flags = new Map<string, number | null>();
   const toRows = async (records: PoolRecord[]): Promise<{ row: MarketRow; rec: PoolRecord }[]> => {
     const keys = new Set<string>();
     for (const p of records) {
@@ -357,26 +382,36 @@ export async function readList(reader: Reader, q: ListQuery, now: number, tradab
     const tokens = new Map<string, TokenInfo>();
     const all = [...keys];
     for (let i = 0; i < all.length; i += 50) {
-      let got: { rows: unknown[] };
-      if (supplyColumnMissingUntil > now) got = await reader.get(tokenPath(all.slice(i, i + 50)), false);
-      else {
-        try {
-          got = await reader.get(tokenPath(all.slice(i, i + 50), true), false);
-        } catch {
-          // The database has not got the supply column yet (migration 0022 not applied): list without market caps, and do not ask again for a while.
-          supplyColumnMissingUntil = now + 300_000;
-          got = await reader.get(tokenPath(all.slice(i, i + 50)), false);
-        }
-      }
-      for (const t of got.rows as { key: string; symbol: string; name: string; decimals: number; total_supply?: string | null }[]) tokens.set(t.key, t);
+      const got = await readTokenRows(reader, all.slice(i, i + 50), now);
+      for (const t of got.rows as { key: string; symbol: string; name: string; decimals: number; total_supply?: string | null; mint_flags?: number | null }[]) tokens.set(t.key, t);
     }
     const out: { row: MarketRow; rec: PoolRecord }[] = [];
     for (const rec of records) {
+      flags.set(rec.base, tokens.get(`${rec.chain}:${rec.base}`)?.mint_flags ?? null);
       const row = rowFromRecord(rec, tokens, now);
       if (row) out.push({ row, rec });
     }
     return out;
   };
+  /** The best-ranked Solana pools in the database's own order (or the candidates' ranking), read once however many branches look at them. */
+  let rawMemo: { row: MarketRow; rec: PoolRecord }[] | null = null;
+  const solanaRaw = async (): Promise<{ row: MarketRow; rec: PoolRecord }[]> =>
+    (rawMemo ??= usesCandidates(q)
+      ? rankCandidates(q, await toRows((await reader.get(candidatePath(q, now), false)).rows as PoolRecord[]))
+      : dedupeTokens((await toRows((await reader.get(sqlPath({ ...q, page: 1, size: SOLANA_READ }, now), false)).rows as PoolRecord[])).filter((x) => !isUnsafeLooking(x.row, x.rec))));
+  if (own && q.chain === 'solana') {
+    // Buyable by Aretia's own rule (solana/buyable.ts), in Aretia's own order. Used once the mint flags have been read for most tokens; until
+    // then (the column or the first supply pass is not there yet) the checks below stand in.
+    const raw = await solanaRaw();
+    const read = raw.filter((x) => (flags.get(x.row.address) ?? null) !== null).length;
+    if (raw.length > 0 && read * 2 >= raw.length) {
+      const exempt = new Set(chainConfig('solana').quoteTokens.map((t) => t.address));
+      const kept = dedupeSymbols(raw.filter((x) => ownBuyable(x.row, flags.get(x.row.address), exempt)));
+      const start = (q.page - 1) * q.size;
+      const a = wrap(kept.slice(start, start + q.size).map((x) => x.row), kept.length, raw.length);
+      return { ...a, note: `${a.note} Only tokens that can be bought now are listed, by Aretia's own checks: $${BUYABLE_MIN_LIQUIDITY_USD.toLocaleString('en-US')}+ of liquidity in the pool's SOL or dollar side, no freeze authority on the token, and no wash-trading signs. ${kept.length} of the ${raw.length} best-ranked pools pass.` };
+    }
+  }
   if (ranking && q.chain === 'solana' && (q.kind === 'top' || q.kind === 'trending') && q.sort === 'rank' && !q.bullish) {
     // Order and choice from Jupiter's own top-traded or trending list; each row is Aretia's own reading of the token's deepest pool.
     const ranked = await ranking(q.kind, q.kind === 'top' ? 'h24' : q.window);
@@ -395,9 +430,7 @@ export async function readList(reader: Reader, q: ListQuery, now: number, tradab
   }
   if (tradable && q.chain === 'solana') {
     // Only what can be bought now: the best-ranked pools are checked with Jupiter and the list is paged from what passes.
-    const raw = usesCandidates(q)
-      ? rankCandidates(q, await toRows((await reader.get(candidatePath(q, now), false)).rows as PoolRecord[]))
-      : dedupeTokens((await toRows((await reader.get(sqlPath({ ...q, page: 1, size: SOLANA_READ }, now), false)).rows as PoolRecord[])).filter((x) => !isUnsafeLooking(x.row, x.rec)));
+    const raw = await solanaRaw();
     const examined = limitPerSymbol(raw, PER_SYMBOL).slice(0, SOLANA_CHECK);
     const checked = await tradable(examined.map((x) => x.row.address));
     // Jupiter could not be reached: the list is shown as it was, not emptied.

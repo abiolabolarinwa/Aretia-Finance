@@ -257,4 +257,28 @@ describe('Solana token supply', () => {
     expect(store.tokens.get(`solana:${addr(40)}`)).toMatchObject({ totalSupply: '1000000000000', supplyAt: NOW });
     expect(store.tokens.get(`solana:${addr(41)}`)).toMatchObject({ totalSupply: null, supplyAt: NOW });
   });
+
+  it('records, in the same read, whether each mint can still create tokens or freeze accounts (null when the mint was not read)', async () => {
+    const accs = new Map<string, Acc>();
+    const plain = mintAccount(6);
+    const withFreeze = mintAccount(6);
+    new DataView(withFreeze.buffer).setUint32(46, 1, true); // a freeze authority is set
+    withFreeze.set(Uint8Array.from({ length: 32 }, () => 7), 50);
+    const withBoth = mintAccount(6);
+    new DataView(withBoth.buffer).setUint32(0, 1, true); // a mint authority is set
+    withBoth.set(Uint8Array.from({ length: 32 }, () => 8), 4);
+    new DataView(withBoth.buffer).setUint32(46, 1, true);
+    withBoth.set(Uint8Array.from({ length: 32 }, () => 9), 50);
+    accs.set(addr(50), { owner: 'tok', data: plain });
+    accs.set(addr(51), { owner: 'tok', data: withFreeze });
+    accs.set(addr(52), { owner: 'tok', data: withBoth });
+    const { read } = node(accs);
+    const store = new InMemoryMiStore();
+    for (const a of [addr(50), addr(51), addr(52), addr(53)]) await store.upsertToken({ key: `solana:${a}`, chain: 'solana', address: a, symbol: 'X', name: 'X', decimals: 6, firstSeenAt: 1, firstTradeAt: null, launchboxKey: null });
+    await refreshSupplies({ chain: chainConfig('solana'), read, store, now: () => NOW, budgetMs: 10_000 });
+    expect(store.tokens.get(`solana:${addr(50)}`)!.mintFlags).toBe(0); // neither authority: nothing can be created or frozen
+    expect(store.tokens.get(`solana:${addr(51)}`)!.mintFlags).toBe(2); // can freeze
+    expect(store.tokens.get(`solana:${addr(52)}`)!.mintFlags).toBe(3); // can create and freeze
+    expect(store.tokens.get(`solana:${addr(53)}`)!.mintFlags).toBeNull(); // not readable: unknown, not "safe"
+  });
 });

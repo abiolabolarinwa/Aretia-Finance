@@ -41,7 +41,7 @@ export interface MiStore {
   /** Tokens of one chain whose supply was never read or was last tried before `olderThanMs`, never-tried first, then the oldest. */
   tokensNeedingSupply(chain: MiChain, olderThanMs: number, limit: number): Promise<MiToken[]>;
   /** Records a token's supply (null: unreadable) and when it was tried. Replaces what was there: a supply can change. */
-  setTokenSupply(key: string, supply: string | null, at: number): Promise<void>;
+  setTokenSupply(key: string, supply: string | null, at: number, mintFlags?: number | null): Promise<void>;
   searchTokens(text: string, limit: number): Promise<MiToken[]>;
   /**
    * The addresses of the base tokens of one chain's active pools, deepest liquidity first, each once: the tokens people can trade, in the
@@ -179,11 +179,12 @@ export class InMemoryMiStore implements MiStore {
       .slice(0, limit)
       .map((t) => ({ ...t }));
   }
-  async setTokenSupply(key: string, supply: string | null, at: number): Promise<void> {
+  async setTokenSupply(key: string, supply: string | null, at: number, mintFlags?: number | null): Promise<void> {
     const t = this.tokens.get(key);
     if (t) {
       t.totalSupply = supply;
       t.supplyAt = at;
+      if (mintFlags !== undefined) t.mintFlags = mintFlags;
     }
   }
   async searchTokens(text: string, limit: number): Promise<MiToken[]> {

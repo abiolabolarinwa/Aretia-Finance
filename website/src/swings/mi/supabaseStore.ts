@@ -27,7 +27,7 @@ const TRADE_LIGHT = 'chain,pool,id,block,time,side,base_amount,quote_amount,pric
 const clampLimit = (v: number, max = 1000): number => Math.max(1, Math.min(max, Math.floor(v)));
 export const MAX_OFFSET = 5_000;
 
-const tokenFromRow = (r: Row): MiToken => ({ key: String(r.key), chain: r.chain as MiChain, address: String(r.address), symbol: String(r.symbol ?? ''), name: String(r.name ?? ''), decimals: nz(r.decimals), firstSeenAt: nz(r.first_seen_at), firstTradeAt: n(r.first_trade_at), launchboxKey: (r.launchbox_key as string | null) ?? null, totalSupply: r.total_supply === null || r.total_supply === undefined ? null : String(r.total_supply), supplyAt: n(r.supply_at) });
+const tokenFromRow = (r: Row): MiToken => ({ key: String(r.key), chain: r.chain as MiChain, address: String(r.address), symbol: String(r.symbol ?? ''), name: String(r.name ?? ''), decimals: nz(r.decimals), firstSeenAt: nz(r.first_seen_at), firstTradeAt: n(r.first_trade_at), launchboxKey: (r.launchbox_key as string | null) ?? null, totalSupply: r.total_supply === null || r.total_supply === undefined ? null : String(r.total_supply), supplyAt: n(r.supply_at), mintFlags: n(r.mint_flags) });
 const tokenToRow = (t: MiToken, now: number): Row => ({ key: t.key, chain: t.chain, address: t.address, symbol: t.symbol, name: t.name, decimals: t.decimals, first_seen_at: t.firstSeenAt, first_trade_at: t.firstTradeAt, launchbox_key: t.launchboxKey, updated_at: now });
 
 export const poolFromRow = (r: Row): MiPool => ({
@@ -159,8 +159,15 @@ export class SupabaseMiStore implements MiStore {
     }
     return [...seen].slice(0, max);
   }
-  async setTokenSupply(key: string, supply: string | null, at: number): Promise<void> {
-    await this.call(`mi_tokens?key=eq.${encodeURIComponent(key)}`, { method: 'PATCH', headers: { prefer: 'return=minimal' }, body: JSON.stringify({ total_supply: supply, supply_at: at }) });
+  async setTokenSupply(key: string, supply: string | null, at: number, mintFlags?: number | null): Promise<void> {
+    const patch = (body: Record<string, unknown>): Promise<unknown> => this.call(`mi_tokens?key=eq.${encodeURIComponent(key)}`, { method: 'PATCH', headers: { prefer: 'return=minimal' }, body: JSON.stringify(body) });
+    if (mintFlags === undefined) return void (await patch({ total_supply: supply, supply_at: at }));
+    try {
+      await patch({ total_supply: supply, supply_at: at, mint_flags: mintFlags });
+    } catch {
+      // The database has not got the mint_flags column yet (migration 0025 not applied): the supply is still recorded.
+      await patch({ total_supply: supply, supply_at: at });
+    }
   }
   async searchTokens(text: string, limit: number): Promise<MiToken[]> {
     const t = text.trim().toLowerCase().replace(/[^a-z0-9 ._:-]/g, '');

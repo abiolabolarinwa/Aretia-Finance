@@ -238,7 +238,7 @@ interface RawAccount {
 }
 
 /** getMultipleAccounts that keeps each account's owner (the other helper returns the data alone). */
-async function accountsWithOwner(rpc: Read, keys: readonly string[]): Promise<Map<string, { owner: string; data: Uint8Array }>> {
+export async function accountsWithOwner(rpc: Read, keys: readonly string[]): Promise<Map<string, { owner: string; data: Uint8Array }>> {
   const out = new Map<string, { owner: string; data: Uint8Array }>();
   for (let i = 0; i < keys.length; i += 100) {
     const slice = keys.slice(i, i + 100);

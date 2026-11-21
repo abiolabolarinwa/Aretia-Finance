@@ -112,3 +112,13 @@ What this does not do: it does not replay creations heard while the worker or th
 
 Tested with a fake chain and a fake Multicall3 (`worker/worker.test.ts`). **Not yet run against a live node or in Docker.** A first run
 needs a dedicated BNB node (`MI_RPC_BNB`); the public ones will throttle a multi-day walk.
+
+## Solana: pools that already existed (`MI_SOLANA_SEED=1`)
+
+The index learns of a pool the moment it is created, but pools made before it was watching (BONK's, WIF's, every long-established token's) were never seen, so Top and Trending missed them. The `solana:seed` task fills that in. Off unless `MI_SOLANA_SEED=1`.
+
+- Raydium (AMM v4, CPMM, CLMM), Orca and Meteora DLMM publish the pools they hold, deepest first. Those lists are only hints about which addresses to look at (`solana/venueLists.ts`).
+- Every address is read from the chain before it is accepted (`solana/known.ts`): a hundred accounts per `getMultipleAccounts`, the owner program checked, the account size checked, the account parsed with that venue's layout. A wrong or missing entry in a list costs one wasted read, never a wrong number. A pool made before the index was watching has no known creation time, so its age is shown as a dash, not guessed.
+- Its swaps are then followed by the adapter's ordinary runs, as for a pool heard being created (the balance gate keeps that cheap).
+- Settings: `MI_SOLANA_SEED_MIN_TVL` (default 3000: a pool holding less is not listed; Meteora DLMM alone has about 137,000 pools, nearly all empty), `MI_SOLANA_SEED_PER_RUN` (default 25 pools per run, one run every 20 s, so about 2,000 an hour, deepest first), `MI_SOLANA_SEED_MAX_PER_VENUE` (default 6000), `MI_SOLANA_SEED_EVERY_SECONDS`. The lists are read again every six hours (a minute later if a venue failed). The worker logs a `seed:` line each minute with how many were listed, looked at, added, already known, skipped and gone.
+- Not covered: PumpSwap, Meteora DAMM v2 and DBC have no list that was checked, so pools of those made before the index watched are still missing; they need a scan of the program's accounts (`getProgramAccounts`), which the free public nodes refuse and a metered one charges heavily for. Pools whose quote is not SOL or a dollar coin are stored as unsupported, as before.

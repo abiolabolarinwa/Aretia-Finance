@@ -6,6 +6,7 @@
  *   <adapter>:backfill   the creation backfill, only when MI_BACKFILL_DAYS > 0; default adapters: the V2/V3 adapters of BNB Chain
  *   <solana adapter>:discover / :refresh   discovery of existing Solana pools and their liquidity refresher, only when MI_SOLANA_DISCOVERY is set
  *   solana:listen       new Solana pools heard as they are created (websocket), only when MI_SOLANA_LISTEN names venues (solana/listener.ts)
+ *   solana:seed     pools that already existed: each venue's list of its deepest pools, every one read from the chain before it is accepted, only when MI_SOLANA_SEED=1 (solana/venueLists.ts, known.ts)
  *   <chain>:supply       the token supply refresher (for the Markets list's fully diluted value), one per chain, on unless MI_SUPPLY=0
  */
 import { chainConfig, type MiChainConfig } from '../chains.js';
@@ -36,6 +37,8 @@ import { MULTICALL_CHAINS } from '../reserves.js';
 import type { MiStore } from '../store.js';
 import type { MiPool } from '../types.js';
 import type { WorkerTask } from './loop.js';
+import { findCandidates, type Candidate } from '../solana/venueLists.js';
+import { registerKnownPools } from '../solana/known.js';
 
 export interface TaskDeps {
   env: RunnerEnv;
@@ -204,6 +207,59 @@ export function buildTasks(d: TaskDeps): WorkerTask[] {
           d.log(`listen: ${s.connected ? 'connected' : 'not connected'}, ${s.heard} creation(s) heard, ${sum.registered} pool(s) registered, ${sum.retried} retried, ${sum.failed} given up, ${Math.round(s.bytes / 1024)} KB received`);
         }
         return { ok: error === null, error, caughtUp: true };
+      },
+    });
+  }
+
+  // Pools that already existed: the venues' lists of their deepest pools are only hints; each address is read from the chain (owner program checked,
+  // account parsed) before the index accepts it. A hundred accounts per read, a few new pools per run, deepest first. Off unless MI_SOLANA_SEED=1.
+  if (d.env.MI_SOLANA_SEED === '1') {
+    const chain = chainConfig('solana', d.env);
+    const rpc = d.readFor ? d.readFor(chain) : makeRead(chain.rpcUrls, { fetchImpl: d.fetchImpl, concurrency: 3 });
+    const nativeUsd = solUsdReader(rpc, d.now);
+    const cache = new Map<string, TokenFacts | null>();
+    const minTvl = int(d.env.MI_SOLANA_SEED_MIN_TVL, 3_000, 100, 10_000_000);
+    const perRun = int(d.env.MI_SOLANA_SEED_PER_RUN, 25, 1, 100);
+    const relistMs = 6 * 3_600_000;
+    let list: { at: number; candidates: Candidate[]; cursor: number; failed: string[]; perSource: Record<string, number> } | null = null;
+    const sum = { registered: 0, known: 0, skipped: 0, missing: 0 };
+    let loggedAt = 0;
+    tasks.push({
+      id: 'solana:seed',
+      chain: 'solana',
+      lane: 'solana-seed',
+      idleMs: int(d.env.MI_SOLANA_SEED_EVERY_SECONDS, 20, 5, 3_600) * 1000,
+      run: async (budgetMs) => {
+        const now = d.now();
+        if (!list || (list.cursor >= list.candidates.length && now - list.at >= relistMs)) {
+          const found = await findCandidates({ fetchImpl: d.fetchImpl ?? fetch, signal: AbortSignal.timeout(60_000), minTvlUsd: minTvl, maxPerSource: int(d.env.MI_SOLANA_SEED_MAX_PER_VENUE, 6_000, 100, 50_000) });
+          // A venue that failed is tried again in a minute, not in six hours.
+          list = { at: found.failed.length > 0 ? now - relistMs + 60_000 : now, candidates: found.candidates, cursor: 0, failed: found.failed, perSource: found.perSource };
+        }
+        const deadline = now + Math.min(budgetMs, 25_000);
+        let error: string | null = null;
+        try {
+          // Pools already in the index cost one lookup, so they are skipped through quickly; the run stops after a batch that added pools.
+          for (;;) {
+            if (list.cursor >= list.candidates.length || d.now() >= deadline) break;
+            const chunk = list.candidates.slice(list.cursor, list.cursor + perRun).map((c) => c.address);
+            const r = await registerKnownPools({ chain, rpc, store: d.store, rules, now: d.now, launch: d.launch ?? null, nativeUsd }, chunk, cache, emptyReport('solana:seed'));
+            list.cursor += chunk.length;
+            sum.registered += r.registered;
+            sum.known += r.known;
+            sum.skipped += r.skipped;
+            sum.missing += r.missing;
+            if (r.registered > 0) break;
+          }
+        } catch (e) {
+          error = e instanceof Error ? e.message : 'known pools could not be registered';
+        }
+        if (d.log && d.now() - loggedAt >= 60_000) {
+          loggedAt = d.now();
+          const per = Object.entries(list.perSource).map(([k, v]) => `${k} ${v}`).join(', ');
+          d.log(`seed: ${list.candidates.length} pool(s) listed (${per}${list.failed.length > 0 ? `; failed: ${list.failed.join(', ')}` : ''}) at $${minTvl.toLocaleString('en-US')}+, ${list.cursor} looked at, ${sum.registered} added, ${sum.known} already known, ${sum.skipped} skipped, ${sum.missing} gone`);
+        }
+        return { ok: error === null, error, caughtUp: list.cursor >= list.candidates.length };
       },
     });
   }

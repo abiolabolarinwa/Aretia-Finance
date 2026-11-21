@@ -308,24 +308,39 @@ export const resetSupplyColumnMemory = (): void => {
   flagsColumnMissingUntil = 0;
 };
 
+/** The database says a column is not there (PostgREST answers 400); any other failure is a dropped connection or a busy server, not a missing column. */
+const isMissingColumn = (e: unknown): boolean => e instanceof Error && /answered 400\b/.test(e.message);
+
 /** The token rows of up to fifty keys, with the supply and mint-flag columns when the database has them (an older one is asked again in five minutes). */
 async function readTokenRows(reader: Reader, keys: readonly string[], now: number): Promise<{ rows: unknown[] }> {
+  // A request that fails for any reason but a missing column is tried once more: one dropped request among the forty a list needs must not look
+  // like a missing column and switch the mint flags off for five minutes.
+  const ask = async (path: string): Promise<{ rows: unknown[] }> => {
+    try {
+      return await reader.get(path, false);
+    } catch (e) {
+      if (isMissingColumn(e)) throw e;
+      return reader.get(path, false);
+    }
+  };
   if (supplyColumnMissingUntil <= now && flagsColumnMissingUntil <= now) {
     try {
-      return await reader.get(tokenPath(keys, true, true), false);
-    } catch {
+      return await ask(tokenPath(keys, true, true));
+    } catch (e) {
+      if (!isMissingColumn(e)) throw e;
       flagsColumnMissingUntil = now + 300_000;
     }
   }
   if (supplyColumnMissingUntil <= now) {
     try {
-      return await reader.get(tokenPath(keys, true), false);
-    } catch {
+      return await ask(tokenPath(keys, true));
+    } catch (e) {
+      if (!isMissingColumn(e)) throw e;
       // The database has not got the supply column yet (migration 0022 not applied): list without market caps, and do not ask again for a while.
       supplyColumnMissingUntil = now + 300_000;
     }
   }
-  return reader.get(tokenPath(keys), false);
+  return ask(tokenPath(keys));
 }
 
 /**
@@ -381,9 +396,12 @@ export async function readList(reader: Reader, q: ListQuery, now: number, tradab
     }
     const tokens = new Map<string, TokenInfo>();
     const all = [...keys];
-    for (let i = 0; i < all.length; i += 50) {
-      const got = await readTokenRows(reader, all.slice(i, i + 50), now);
-      for (const t of got.rows as { key: string; symbol: string; name: string; decimals: number; total_supply?: string | null; mint_flags?: number | null }[]) tokens.set(t.key, t);
+    const groups: string[][] = [];
+    for (let i = 0; i < all.length; i += 50) groups.push(all.slice(i, i + 50));
+    // Five lookups at a time: a list of a thousand pools needs about forty, and one after another each is a round trip to the data server.
+    for (let i = 0; i < groups.length; i += 5) {
+      const gotten = await Promise.all(groups.slice(i, i + 5).map((g) => readTokenRows(reader, g, now)));
+      for (const got of gotten) for (const t of got.rows as { key: string; symbol: string; name: string; decimals: number; total_supply?: string | null; mint_flags?: number | null }[]) tokens.set(t.key, t);
     }
     const out: { row: MarketRow; rec: PoolRecord }[] = [];
     for (const rec of records) {

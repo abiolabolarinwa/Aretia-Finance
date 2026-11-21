@@ -142,6 +142,53 @@ describe('Solana lists by the own rule', () => {
     expect(d2.paths.find((p) => p.startsWith('mi_pools'))).toContain('liquidity_usd=gte.25000'); // a higher floor the reader chose is kept
   });
 
+  it('one failed token lookup among many does not switch the mint flags off: it is tried again, and only a real missing column does that', async () => {
+    const pools = [1, 2, 3].map((i) => pool(i));
+    const flags = { [mint(1)]: 0, [mint(2)]: 0, [mint(3)]: 0 };
+    const d = db(pools, flags);
+    let failed = false;
+    const flaky: Reader = {
+      get: async (path, count) => {
+        if (path.startsWith('mi_tokens') && !failed) {
+          failed = true;
+          throw new Error('fetch failed'); // a dropped connection, not a 400
+        }
+        return d.reader.get(path, count);
+      },
+    };
+    const a = await readList(flaky, q(), NOW, undefined, undefined, true);
+    expect(a.note).toContain("Aretia's own checks");
+    expect(a.rows).toHaveLength(3);
+    // and the next list still asks for the flags (they were not marked missing)
+    const again = db(pools, flags);
+    await readList(again.reader, q({ kind: 'liquidity' }), NOW + 1_000, undefined, undefined, true);
+    expect(again.paths.some((p) => p.startsWith('mi_tokens') && p.includes('mint_flags'))).toBe(true);
+  });
+
+  it('a lookup that keeps failing is an error, not a fallback that hides it', async () => {
+    const down: Reader = { get: async () => { throw new Error('fetch failed'); } };
+    await expect(readList(down, q(), NOW, undefined, undefined, true)).rejects.toThrow('fetch failed');
+  });
+
+  it('asks for a list of a thousand pools five lookups at a time', async () => {
+    const pools = Array.from({ length: 300 }, (_, i) => pool(i));
+    let running = 0;
+    let most = 0;
+    const d = db(pools, {});
+    const slow: Reader = {
+      get: async (path, count) => {
+        if (!path.startsWith('mi_tokens')) return d.reader.get(path, count);
+        running++;
+        most = Math.max(most, running);
+        await new Promise((r) => setTimeout(r, 5));
+        running--;
+        return d.reader.get(path, count);
+      },
+    };
+    await readList(slow, q(), NOW, undefined, undefined, true);
+    expect(most).toBe(5);
+  });
+
   it('is not used when switched off', async () => {
     const pools = [1, 2].map((i) => pool(i));
     const flags = { [mint(1)]: 2, [mint(2)]: 2 }; // both can freeze: the own rule would drop both

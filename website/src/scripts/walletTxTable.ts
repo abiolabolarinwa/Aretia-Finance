@@ -12,6 +12,7 @@ import type { ChainId } from '../swings/core/types.js';
 import { fetchTrades, formatAmount, formatTradeUsd, timeAgo, traderLink, txLink, type Trade, type TradeSide } from '../swings/charts/trades.js';
 import { formatPrice } from '../swings/market/types.js';
 import { fetchIndexedTrades } from '../swings/mi/clientRows.js';
+import { renderCharts } from './walletTxCharts.js';
 
 const REFRESH_MS = 1_000;
 
@@ -34,6 +35,9 @@ export interface TradesTable {
 }
 
 type Filter = 'all' | 'buy' | 'sell';
+type View = 'table' | 'charts';
+/** The view the person last chose, kept while they move from one token to the next. */
+let rememberedView: View = 'table';
 
 function node<K extends keyof HTMLElementTagNameMap>(tag: K, cls = '', text?: string): HTMLElementTagNameMap[K] {
   const n = document.createElement(tag);
@@ -51,6 +55,7 @@ export function mountTrades(host: HTMLElement, o: TradesOptions, deps: { fetchIm
   let rows: Trade[] | null = null;
   let problem: string | null = null;
   let filter: Filter = 'all';
+  let view: View = rememberedView;
   let disposed = false;
   let loading = false;
   /** Consecutive failed reads, and the time before which the next read is not tried. */
@@ -77,7 +82,23 @@ export function mountTrades(host: HTMLElement, o: TradesOptions, deps: { fetchIm
     buttons.set(value, b);
     chips.append(b);
   }
-  head.append(chips, node('span', 'wapp-tx__note wapp__fine', 'Last 24 hours, up to 300 trades'));
+  // Beside All / Buys / Sells: the trades as a table, or as charts (buys against sells, sizes, value over time, who traded).
+  const views = node('div', 'wapp__seg wapp-tx__views');
+  views.setAttribute('role', 'group');
+  views.setAttribute('aria-label', 'View');
+  const viewButtons = new Map<View, HTMLButtonElement>();
+  for (const [value, label] of [['table', 'Table'], ['charts', 'Charts']] as const) {
+    const b = node('button', 'wapp__chip wapp__chip--btn', label);
+    b.type = 'button';
+    b.addEventListener('click', () => {
+      view = value;
+      rememberedView = value;
+      draw();
+    });
+    viewButtons.set(value, b);
+    views.append(b);
+  }
+  head.append(chips, views, node('span', 'wapp-tx__note wapp__fine', 'Last 24 hours, up to 300 trades'));
   const scroll = node('div', 'wapp-tx__scroll');
   // Lenis (smooth scrolling) would swallow the mouse wheel here; this list scrolls by itself.
   scroll.setAttribute('data-lenis-prevent', '');
@@ -102,9 +123,12 @@ export function mountTrades(host: HTMLElement, o: TradesOptions, deps: { fetchIm
 
   function draw(): void {
     for (const [value, b] of buttons) b.setAttribute('aria-pressed', String(value === filter));
+    for (const [value, b] of viewButtons) b.setAttribute('aria-pressed', String(value === view));
+    scroll.classList.toggle('is-charts', view === 'charts');
     if (rows === null) return message(problem ?? 'Loading trades…');
     const shown = filter === 'all' ? rows : rows.filter((r) => r.kind === filter);
     if (shown.length === 0) return message(rows.length === 0 ? 'No trades in the last 24 hours.' : `No ${filter === 'buy' ? 'buys' : 'sells'} in these trades.`);
+    if (view === 'charts') return renderCharts(scroll, shown, { chain: o.chain, ...(o.quoteSymbol ? { quoteSymbol: o.quoteSymbol } : {}) });
     const table = node('table', 'wapp-tx__table');
     const thead = node('thead');
     const hr = node('tr');

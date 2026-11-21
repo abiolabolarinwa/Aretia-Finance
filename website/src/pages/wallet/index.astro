@@ -1042,6 +1042,37 @@ const sendTips = [
   .wapp-tx__filters { gap: 6px; }
   .wapp-tx__filters .wapp__chip { padding: 4px 10px; }
   .wapp-tx__note { margin-left: auto; }
+  .wapp-tx__views { gap: 6px; }
+  .wapp-tx__views .wapp__chip { padding: 4px 10px; }
+  .wapp-tx__scroll.is-charts { max-height: none; overflow: visible; border: 0; background: transparent; }
+  /* ---- Transactions: Charts view ---- */
+  .wapp-txc { --tx-up: #12924f; --tx-down: #d6362b; display: grid; grid-template-columns: repeat(auto-fit, minmax(270px, 1fr)); gap: 12px; }
+  :root[data-theme='dark'] .wapp-txc { --tx-up: #3ddc84; --tx-down: #ff6b6b; }
+  .wapp-txc__card { min-width: 0; padding: 14px; border: 1px solid var(--color-border); border-radius: 12px; background: var(--color-surface); }
+  .wapp-txc__h { margin: 0; font-size: 14px; font-weight: 650; color: var(--color-strong); }
+  .wapp-txc__sub { margin: 2px 0 10px; }
+  .wapp-txc__row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+  .wapp-txc__donut { flex: none; width: 124px; height: 124px; }
+  .wapp-txc__track { stroke: var(--color-surface-3); }
+  .wapp-txc__big { font-size: 21px; font-weight: 700; fill: var(--color-strong); }
+  .wapp-txc__small { font-size: 9px; fill: var(--color-faint); }
+  .wapp-txc__buy { stroke: var(--tx-up); }
+  .wapp-txc__sell { stroke: var(--tx-down); }
+  .wapp-txc__buy-fill { fill: var(--tx-up); }
+  .wapp-txc__sell-fill { fill: var(--tx-down); }
+  .wapp-txc__c0 { stroke: #6366f1; } .wapp-txc__c1 { stroke: #d4a017; } .wapp-txc__c2 { stroke: #14b8a6; } .wapp-txc__c3 { stroke: #ec4899; } .wapp-txc__c4 { stroke: #38bdf8; }
+  .wapp-txc__c-rest { stroke: var(--color-faint); }
+  .wapp-txc__bars { display: block; width: 100%; height: 118px; }
+  .wapp-txc__axis { stroke: var(--color-border-strong); stroke-width: 1; }
+  .wapp-txc__tick { font-size: 9px; fill: var(--color-faint); }
+  .wapp-txc__legend { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; min-width: 0; font-size: 12.5px; color: var(--color-text); }
+  .wapp-txc__legend li { display: flex; align-items: center; gap: 7px; min-width: 0; }
+  .wapp-txc__dot { flex: none; width: 9px; height: 9px; border-radius: 50%; background: var(--color-faint); stroke: none; }
+  .wapp-txc__dot.wapp-txc__buy { background: var(--tx-up); }
+  .wapp-txc__dot.wapp-txc__sell { background: var(--tx-down); }
+  .wapp-txc__dot.wapp-txc__c0 { background: #6366f1; } .wapp-txc__dot.wapp-txc__c1 { background: #d4a017; } .wapp-txc__dot.wapp-txc__c2 { background: #14b8a6; } .wapp-txc__dot.wapp-txc__c3 { background: #ec4899; } .wapp-txc__dot.wapp-txc__c4 { background: #38bdf8; }
+  .wapp-txc__link { color: var(--color-accent); text-decoration: none; }
+  .wapp-txc__link:hover { text-decoration: underline; }
   .wapp-tx__scroll { max-height: 340px; overflow: auto; border: 1px solid var(--color-border); border-radius: 10px; background: var(--color-bg); }
   .wapp-tx__empty { margin: 0; padding: 18px 14px; }
   .wapp-tx__table { width: 100%; border-collapse: collapse; font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; }

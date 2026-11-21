@@ -9,6 +9,7 @@ import { supabaseBase, supabaseHeaders } from '../src/swings/tokens/supabaseAuth
 import { isMiChain } from '../src/swings/mi/chains.js';
 import { LIST_KINDS, LIST_SORTS, LIST_WINDOWS, MAX_RESULT, PAGE_SIZES, postgrestReader, readList, type ListAnswer, type ListKind, type ListQuery, type ListSort, type ListWindow } from '../src/swings/mi/marketList.js';
 import type { TokensInput, TokensOutput } from './_swingsTokens.js';
+import { jupiterCheck } from '../src/swings/mi/solana/tradable.js';
 
 const FRESH_MS = 30_000;
 const STALE_MS = 3_600_000;
@@ -59,7 +60,7 @@ export async function handleMarketIndex(input: TokensInput): Promise<TokensOutpu
   if (hit && input.now - hit.at < FRESH_MS) return ok(hit.answer, false);
   if (overLimit(`marketix:${input.ip}`, input.now)) return hit ? ok(hit.answer, true) : json(429, { error: 'rate-limit' }, { ...base, 'retry-after': '30' });
   try {
-    const answer = await readList(postgrestReader(url, supabaseHeaders(key), input.fetchImpl, AbortSignal.timeout(DEADLINE_MS)), q, input.now);
+    const answer = await readList(postgrestReader(url, supabaseHeaders(key), input.fetchImpl, AbortSignal.timeout(DEADLINE_MS)), q, input.now, (input.env as { MI_SOLANA_BUYABLE?: string }).MI_SOLANA_BUYABLE === '0' ? undefined : jupiterCheck(input.fetchImpl, () => input.now, AbortSignal.timeout(DEADLINE_MS)));
     if (answers.size > 500) answers.clear();
     answers.set(cacheKey, { at: input.now, answer });
     return ok(answer, false);

@@ -31,6 +31,10 @@ describe('a transaction a node says it cannot find', () => {
 
   it('still fails the run for a real outage, so an outage is never mistaken for a missing transaction', async () => {
     await expect(readTx(async () => { throw new RpcError('every node is down', 'transport'); }, SIG(1))).rejects.toThrow('every node is down');
+    // A "Transaction … not found" is a missing transaction even when it arrives filed as a transport error or as a plain Error.
+    expect(await readTx(async () => { throw new RpcError(`Transaction ${SIG(1)} not found`, 'transport'); }, SIG(1))).toBeNull();
+    expect(await readTx(async () => { throw new Error(`Transaction ${SIG(1)} not found`); }, SIG(1))).toBeNull();
+    await expect(readTx(async () => { throw new RpcError('Method not found', 'transport'); }, SIG(1))).rejects.toThrow('Method not found');
     await expect(readTx(async () => { throw new RpcError('invalid params', 'node-error'); }, SIG(1))).rejects.toThrow('invalid params');
   });
 

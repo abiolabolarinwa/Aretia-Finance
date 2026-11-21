@@ -102,7 +102,11 @@ export async function readTx(rpc: Read, signature: string, commitment: Commitmen
       const tx = (await rpc('getTransaction', [signature, opts])) as TxJson | null;
       if (tx) return tx;
     } catch (e) {
-      if (!(e instanceof RpcError) || e.kind !== 'node-error' || !TX_MISSING.test(e.message)) throw e;
+      // "Transaction <signature> not found" is a node saying it has not seen the transaction yet, whichever way the pool filed the error: it must not
+      // fail the whole venue's run (and, with the stalest pool read first, the same pool would then be tried first every time).
+      const message = e instanceof Error ? e.message : '';
+      const saysMissing = /^transaction.*not found/i.test(message);
+      if (!saysMissing && (!(e instanceof RpcError) || e.kind !== 'node-error' || !TX_MISSING.test(message))) throw e;
     }
   }
   return null;

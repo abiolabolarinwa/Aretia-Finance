@@ -297,9 +297,9 @@ describe('fully diluted value and traders in a Markets row', () => {
     const a = await readList(reader, q({ kind: 'liquidity', sort: 'rank' }), NOW);
     expect(a.rows).toHaveLength(1);
     expect(a.rows[0]!.capUsd).toBeNull();
-    expect(paths.filter((p) => p.startsWith('mi_tokens'))).toHaveLength(2); // tried with the supply, then without
+    expect(paths.filter((p) => p.startsWith('mi_tokens'))).toHaveLength(3); // tried with the supply and the mint flags, with the supply alone, then without
     await readList(reader, q({ kind: 'liquidity', sort: 'rank' }), NOW + 1000);
-    expect(paths.filter((p) => p.startsWith('mi_tokens') && p.includes('total_supply'))).toHaveLength(1); // not asked again for a while
+    expect(paths.filter((p) => p.startsWith('mi_tokens') && p.includes('total_supply'))).toHaveLength(2); // the two first tries only: not asked again for a while
     resetSupplyColumnMemory();
   });
 });

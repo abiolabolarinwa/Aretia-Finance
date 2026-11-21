@@ -13,6 +13,7 @@ import { RpcError, type Read } from './rpc.js';
 import type { MiStore } from './store.js';
 import { parseMint } from './solana/accounts.js';
 import { accounts } from './solana/engine.js';
+import { flagsOf } from './solana/buyable.js';
 
 export interface SupplyReport {
   chain: string;
@@ -58,12 +59,16 @@ export async function refreshSupplies(d: SupplyDeps): Promise<SupplyReport> {
     for (let i = 0; i < tokens.length && d.now() < deadline; i += size) {
       const group = tokens.slice(i, i + size);
       let supplies: (bigint | null)[];
+      /** Solana: what each mint still allows (null: not read). */
+      let flags: (number | null)[] = [];
       if (solana) {
         const got = await accounts(d.read, group.map((t) => t.address));
-        supplies = group.map((t) => {
+        const mints = group.map((t) => {
           const bytes = got.get(t.address);
-          return bytes ? (parseMint(bytes)?.supply ?? null) : null;
+          return bytes ? parseMint(bytes) : null;
         });
+        supplies = mints.map((m) => m?.supply ?? null);
+        flags = mints.map((m) => (m ? flagsOf(m.mintAuthority, m.freezeAuthority) : null));
       } else {
         // The chain's own coin has no totalSupply(): it is recorded as unreadable, not asked about.
         const asked = group.map((t) => (ZERO.test(t.address) ? null : t.address));
@@ -77,7 +82,7 @@ export async function refreshSupplies(d: SupplyDeps): Promise<SupplyReport> {
         await Promise.all(
           group.slice(k, k + 10).map(async (t, j) => {
             const s = supplies[k + j] ?? null;
-            await d.store.setTokenSupply(t.key, s === null ? null : s.toString(), at);
+            await d.store.setTokenSupply(t.key, s === null ? null : s.toString(), at, solana ? (flags[k + j] ?? null) : undefined);
             if (s === null) r.unreadable++;
             else r.read++;
           }),

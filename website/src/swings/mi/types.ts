@@ -33,6 +33,8 @@ export interface MiToken {
   totalSupply?: string | null;
   /** ms the supply was last read or tried; null/absent: never. */
   supplyAt?: number | null;
+  /** Solana only: bit 1 = the mint can still create tokens, bit 2 = it can still freeze accounts; null/absent: not read (migration 0025). */
+  mintFlags?: number | null;
 }
 
 export interface MiPool {

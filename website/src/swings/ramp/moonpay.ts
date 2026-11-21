@@ -15,6 +15,8 @@ export interface RampApiCatalog {
   countries: { code: string; name: string; buy: boolean; sell: boolean }[];
   fiats: string[];
   tokens: { chain: string; symbol: string; contract: string; sell: boolean }[];
+  /** Set by the server when the provider is in its test (sandbox) mode: no real money moves and no real stablecoin is sent. */
+  testMode?: boolean;
 }
 export interface RampApiStatus {
   enabled: boolean;

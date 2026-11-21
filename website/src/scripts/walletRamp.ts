@@ -192,6 +192,9 @@ export function initRamp(root: HTMLElement, evm: EvmSession, solanaAddress: () =
     root.replaceChildren();
     const card = el('div', { class: 'wapp__card' });
     card.append(el('h2', { class: 'wapp__h2', text: 'Buy or sell USDC and USDT for cash' }), el('ol', { class: 'wapp__steps' }, ['Choose your country and amount', 'See your options', 'Finish on the provider\'s page', 'The USDC lands in your wallet'].map((t) => el('li', { text: t }))), el('p', { class: 'wapp__fine', text: 'A licensed provider takes your payment and checks who you are on its own page, so Aretia never sees your card or documents. Aretia never holds your money.' }));
+    if (s.avail && s.avail.catalog.testMode) {
+      card.append(banner('warn', 'Test mode. This is the provider\'s test checkout: no real money is charged and no real USDC or USDT is sent. Buying with real money opens when Aretia\'s live provider account is approved.'));
+    }
     if (s.avail === undefined) {
       void load();
       card.append(el('p', { class: 'wapp__fine', text: 'Checking what is available…' }));

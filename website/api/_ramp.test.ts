@@ -72,6 +72,13 @@ describe('the catalog and the handler', () => {
     expect(c.fiats).toEqual(['usd']);
   });
 
+  it('marks the catalog as test mode while the provider is in its sandbox, and not once it is live', async () => {
+    const sandbox = await call({ action: 'catalog' });
+    expect(JSON.parse(sandbox.body).testMode).toBe(true);
+    const live = await call({ action: 'catalog' }, { ...ENV, MOONPAY_ENV: 'production' });
+    expect(JSON.parse(live.body).testMode).toBeUndefined();
+  });
+
   const signedIn = (owner: string) => `Bearer ${issueSession('session-secret', owner, 5).token}`;
   const call = (body: unknown, env: RampEnv = ENV, authorization: string | null = signedIn(`evm:${EVM}`)) => handleRamp({ method: 'POST', origin: 'https://aretiafinance.org', authorization, ip: '1.2.3.4', contentType: 'application/json', body: JSON.stringify(body), env, fetchImpl: fakeFetch, now: 5 });
 

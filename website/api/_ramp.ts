@@ -324,7 +324,8 @@ export async function handleRamp(input: RampInput): Promise<RampOutput> {
       return json(200, { enabled: true, assets: Object.keys(RAMP_ASSETS), providers, ...(env.MOONPAY_ENV === 'production' ? {} : { keyCheck: keyShape(env) }) }, headers);
     case 'catalog': {
       const catalog = await loadCatalog(input.fetchImpl, input.now);
-      return catalog ? json(200, catalog, headers) : json(502, { error: 'The country list is unavailable right now.' }, headers);
+      // In the provider's sandbox nothing real happens, and the page must say so instead of letting a visitor think a purchase is being made.
+      return catalog ? json(200, env.MOONPAY_ENV === 'production' ? catalog : { ...catalog, testMode: true }, headers) : json(502, { error: 'The country list is unavailable right now.' }, headers);
     }
     case 'session': {
       const provider = providers.find((p) => p.id === req.provider);

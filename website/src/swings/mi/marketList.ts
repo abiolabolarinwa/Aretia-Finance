@@ -39,7 +39,7 @@ export type ListSort = 'rank' | 'liquidity' | 'volume' | 'new' | 'change';
 export const LIST_KINDS: readonly ListKind[] = ['trending', 'top', 'gainers', 'new', 'liquidity'];
 export const LIST_WINDOWS: readonly ListWindow[] = ['m5', 'h1', 'h6', 'h24'];
 export const LIST_SORTS: readonly ListSort[] = ['rank', 'liquidity', 'volume', 'new', 'change'];
-export const PAGE_SIZES: readonly number[] = [50, 100];
+export const PAGE_SIZES: readonly number[] = [50, 100, 200];
 /** The deepest result reachable (page times size). */
 export const MAX_RESULT = 10_000;
 /** Pools below this liquidity are never listed: nobody can trade them in a meaningful size. */

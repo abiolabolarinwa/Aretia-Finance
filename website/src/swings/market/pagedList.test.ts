@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { fetchIndexPage, indexCovers, indexUrl, INDEX_MIN_TOTAL, loadPageSize, pageButtons, resetPageSizeMemory, savePageSize, serverSort, showingText } from './pagedList';
+import { fetchIndexPage, indexCovers, indexUrl, INDEX_MIN_TOTAL, loadPageSize, pageButtons, resetPageSizeMemory, savePageSize, serverSort, showingText, DEFAULT_PAGE_SIZE, PAGE_SIZE_CHOICES } from './pagedList';
+import { BOARD_FILL_TO } from '../../scripts/walletMarketBoard';
+import { parseListQuery } from '../../../api/_swingsMarketIndex';
 import type { MarketRow } from './types';
 
 const reply = (body: unknown, status = 200): typeof fetch => (async () => new Response(JSON.stringify(body), { status })) as unknown as typeof fetch;
@@ -66,15 +68,26 @@ describe('pager numbers', () => {
 
 describe('page size memory', () => {
   const store = () => { const m = new Map<string, string>(); return { getItem: (k: string) => m.get(k) ?? null, setItem: (k: string, v: string) => void m.set(k, v), removeItem: (k: string) => void m.delete(k) }; };
-  it('defaults to 50, remembers 100, and ignores a value that is not a choice', () => {
+  it("defaults to 200, so a network's own tab opens as wide as its column on the board, remembers the visitor's own choice, and ignores a value that is not a choice", () => {
     const s = store();
-    expect(loadPageSize(s)).toBe(50);
+    expect(loadPageSize(s)).toBe(200);
+    expect(DEFAULT_PAGE_SIZE).toBeGreaterThanOrEqual(BOARD_FILL_TO);
     savePageSize(s, 100);
     resetPageSizeMemory();
     expect(loadPageSize(s)).toBe(100);
     resetPageSizeMemory();
+    savePageSize(s, 50);
+    resetPageSizeMemory();
+    expect(loadPageSize(s)).toBe(50); // a visitor who chose fifty keeps it
+    resetPageSizeMemory();
     s.setItem('aretia-market-page-size-v1', '75');
-    expect(loadPageSize(s)).toBe(50);
+    expect(loadPageSize(s)).toBe(200);
+  });
+  it('offers 50, 100 and 200, and the server accepts every one of them', () => {
+    expect([...PAGE_SIZE_CHOICES]).toEqual([50, 100, 200]);
+    for (const n of PAGE_SIZE_CHOICES) expect(parseListQuery({ kind: 'trending', chain: 'solana', window: 'h24', size: String(n) })).not.toBeNull();
+    expect(parseListQuery({ kind: 'trending', chain: 'solana', window: 'h24', size: '150' })).toBeNull();
+    expect(parseListQuery({ kind: 'trending', chain: 'solana', window: 'h24', size: '500' })).toBeNull();
   });
   it('works when storage refuses', () => {
     const broken = { getItem: () => { throw new Error('no'); }, setItem: () => { throw new Error('no'); }, removeItem: () => undefined };

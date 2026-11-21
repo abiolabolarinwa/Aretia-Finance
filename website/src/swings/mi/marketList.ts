@@ -27,6 +27,7 @@ import { adapterById } from './dexes.js';
 import { tokenDto } from './dto.js';
 import { unitsToNumber } from './math.js';
 import type { MiToken } from './types.js';
+import { isBuyable, TRADABLE_MIN_LIQUIDITY_USD, type TradableCheck } from './solana/tradable.js';
 
 export type ListKind = 'trending' | 'top' | 'gainers' | 'new' | 'liquidity';
 export type ListWindow = 'm5' | 'h1' | 'h6' | 'h24';
@@ -303,7 +304,22 @@ export const resetSupplyColumnMemory = (): void => {
   supplyColumnMissingUntil = 0;
 };
 
-export async function readList(reader: Reader, q: ListQuery, now: number): Promise<ListAnswer> {
+/** Solana lists read this many of the best-ranked pools, check them with Jupiter, and page through what is buyable. */
+export const SOLANA_READ = 300;
+
+/** One row per symbol, the best-ranked kept: a list of tokens people can buy does not need five copies of "ANT". The rest are found by search. */
+export function dedupeSymbols<T extends { row: MarketRow }>(list: readonly T[]): T[] {
+  const seen = new Set<string>();
+  return list.filter((x) => {
+    const k = x.row.symbol.trim().toLowerCase();
+    if (k === '') return true;
+    if (seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
+}
+
+export async function readList(reader: Reader, q: ListQuery, now: number, tradable?: TradableCheck): Promise<ListAnswer> {
   const wrap = (rows: MarketRow[], total: number, rankedAmong?: number): ListAnswer => ({ rows, total, page: q.page, size: q.size, pages: Math.max(1, Math.ceil(total / q.size)), ...(rankedAmong === undefined ? {} : { rankedAmong }), note: listNote(q, total, rankedAmong) });
   const toRows = async (records: PoolRecord[]): Promise<{ row: MarketRow; rec: PoolRecord }[]> => {
     const keys = new Set<string>();
@@ -334,6 +350,18 @@ export async function readList(reader: Reader, q: ListQuery, now: number): Promi
     }
     return out;
   };
+  if (tradable && q.chain === 'solana') {
+    // Only what can be bought now: the best-ranked pools are checked with Jupiter and the list is paged from what passes.
+    const raw = usesCandidates(q)
+      ? rankCandidates(q, await toRows((await reader.get(candidatePath(q, now), false)).rows as PoolRecord[]))
+      : dedupeTokens((await toRows((await reader.get(sqlPath({ ...q, page: 1, size: SOLANA_READ }, now), false)).rows as PoolRecord[])).filter((x) => !isUnsafeLooking(x.row, x.rec)));
+    const checked = await tradable(raw.map((x) => x.row.address));
+    // Jupiter could not be reached: the list is shown as it was, not emptied.
+    const kept = checked ? dedupeSymbols(raw.filter((x) => isBuyable(checked.get(x.row.address)))) : raw;
+    const start = (q.page - 1) * q.size;
+    const a = wrap(kept.slice(start, start + q.size).map((x) => x.row), kept.length, raw.length);
+    return checked ? { ...a, note: `${a.note} Only tokens Jupiter can swap now are listed: $${TRADABLE_MIN_LIQUIDITY_USD.toLocaleString('en-US')}+ of liquidity, not flagged as suspicious, no freeze authority. ${kept.length} of the ${raw.length} best-ranked pools pass.` } : a;
+  }
   if (usesCandidates(q)) {
     const got = await reader.get(candidatePath(q, now), false);
     const ranked = rankCandidates(q, await toRows(got.rows as PoolRecord[]));

@@ -18,7 +18,7 @@ Every figure uses the same checks (`common.ts`):
 | Valid change | a change over that very window. A pool that did not trade in the window has none (the index stores no number, never zero), so a stale pool is out |
 | Liquidity | at least $1,000 |
 | Not new | older than the window (at least 15 minutes). A token younger than the window has no price from before it opened and must not read as "rising" because its first price is above zero |
-| Not suspicious | none of: 24-hour volume above 100 times liquidity; 20+ transactions from 10 or fewer accounts; a few accounts each turning the pool's liquidity over more than 5 times a day (volume / accounts / liquidity). The last rule catches a day-old token that did $220M on $2.7M of liquidity from five accounts, which the first two missed |
+| Not suspicious | none of: 24-hour volume above 100 times liquidity; 20+ transactions from 10 or fewer accounts; 100+ transactions at an average of 40 or more per account (a bot looping the pool, however many accounts it uses); a few accounts each turning the pool's liquidity over more than 5 times a day (volume / accounts / liquidity). The last rule catches a day-old token that did $220M on $2.7M of liquidity from five accounts, which the first two missed |
 | One pool per token | the most liquid pool stands for the token. The same address on two networks is two tokens |
 | One entry per pool | the same pool listed twice counts once |
 

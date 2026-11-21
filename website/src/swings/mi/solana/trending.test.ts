@@ -119,6 +119,15 @@ describe('Solana Trending by momentum', () => {
     expect(a.rows.map((r) => r.address)).toEqual([mint(1), mint(2), mint(3)]);
   });
 
+  it("Top and Trending say that volume is only what Aretia has read since it began following each pool; New and By liquidity do not", async () => {
+    const pools = [A, B];
+    const said = (note: string) => note.includes('since it began following each pool');
+    expect(said((await readList(db(pools).reader, q({ kind: 'top', window: 'h24' }), NOW, undefined, undefined, true)).note)).toBe(true);
+    expect(said((await readList(db(pools).reader, q({ kind: 'trending' }), NOW, undefined, undefined, true)).note)).toBe(true);
+    expect(said((await readList(db(pools).reader, q({ kind: 'new', window: 'h24' }), NOW, undefined, undefined, true)).note)).toBe(false);
+    expect(said((await readList(db(pools).reader, q({ kind: 'liquidity', window: 'h24' }), NOW, undefined, undefined, true)).note)).toBe(false);
+  });
+
   it('does not change another network or the bullish filter', async () => {
     const bnb = [A, B].map((p) => ({ ...p, chain: 'bnb' as const }));
     const a = await readList(db(bnb).reader, q({ chain: 'bnb' }), NOW, undefined, undefined, true);

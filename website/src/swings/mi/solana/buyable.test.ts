@@ -121,6 +121,34 @@ describe('Solana lists by the own rule', () => {
     expect(a.rows.map((r) => r.address)).toEqual([mint(1), mint(2), mint(3)]);
   });
 
+  it('reads the flags it is missing from the chain itself, so the own rule works with no indexer pass and no database column, and no outside service is asked', async () => {
+    const pools = [1, 2, 3, 4].map((i) => pool(i));
+    const asked: string[][] = [];
+    const readFlags = async (mints: readonly string[]) => {
+      asked.push([...mints]);
+      return new Map<string, number | null>(mints.map((m) => [m, m === mint(3) ? 2 : 0]));
+    };
+    for (const flags of [undefined, {}]) {
+      resetSupplyColumnMemory();
+      const a = await readList(db(pools, flags).reader, q(), NOW, jupiterCheck, undefined, true, readFlags);
+      expect(a.rows.map((r) => r.address)).toEqual([mint(1), mint(2), mint(4)]); // 3 can freeze
+      expect(a.note).toContain("Aretia's own checks");
+    }
+    expect(jupiterWasAsked.count).toBe(0);
+    expect(asked[0]!.length).toBe(4);
+  });
+
+  it('a mint the chain read cannot answer for stays unknown and is left out, and a failing reader changes nothing else', async () => {
+    const pools = [1, 2, 3, 4].map((i) => pool(i));
+    const flags = { [mint(1)]: 0, [mint(2)]: 0, [mint(3)]: 0, [mint(4)]: null };
+    const a = await readList(db(pools, flags).reader, q(), NOW, undefined, undefined, true, async () => new Map([[mint(4), null]]));
+    expect(a.rows.map((r) => r.address)).toEqual([mint(1), mint(2), mint(3)]);
+    const b = await readList(db(pools, flags).reader, q(), NOW, undefined, undefined, true, async () => {
+      throw new Error('every node is down');
+    });
+    expect(b.rows.map((r) => r.address)).toEqual([mint(1), mint(2), mint(3)]);
+  });
+
   it('falls back to the outside checks while the flags are mostly unread (before the first supply pass, or the column is not there)', async () => {
     const pools = [1, 2, 3, 4].map((i) => pool(i));
     for (const flags of [{ [mint(1)]: 0 }, undefined]) {

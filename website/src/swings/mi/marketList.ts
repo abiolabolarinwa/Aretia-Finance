@@ -30,6 +30,7 @@ import type { MiToken } from './types.js';
 import { isBuyable, TRADABLE_MIN_LIQUIDITY_USD, type TradableCheck } from './solana/tradable.js';
 import type { RankingSource } from './solana/ranking.js';
 import { BUYABLE_MIN_LIQUIDITY_USD, ownBuyable } from './solana/buyable.js';
+import type { MintFlagReader } from './solana/mintFlags.js';
 
 export type ListKind = 'trending' | 'top' | 'gainers' | 'new' | 'liquidity';
 export type ListWindow = 'm5' | 'h1' | 'h6' | 'h24';
@@ -369,7 +370,7 @@ export function poolsOfMintsPath(mints: readonly string[]): string {
   return `mi_pools?select=${POOL_SELECT}&chain=eq.solana&base=in.(${list})&state=eq.active&paused=is.false&liquidity_usd=gte.${DUST_LIQUIDITY_USD}&liquidity_usd=lte.${MAX_PLAUSIBLE_LIQUIDITY_USD}&order=liquidity_usd.desc.nullslast,key.desc&limit=${Math.min(1000, mints.length * 6)}`;
 }
 
-export async function readList(reader: Reader, q: ListQuery, now: number, tradable?: TradableCheck, ranking?: RankingSource, own = false): Promise<ListAnswer> {
+export async function readList(reader: Reader, q: ListQuery, now: number, tradable?: TradableCheck, ranking?: RankingSource, own = false, readFlags?: MintFlagReader): Promise<ListAnswer> {
   const wrap = (rows: MarketRow[], total: number, rankedAmong?: number): ListAnswer => ({ rows, total, page: q.page, size: q.size, pages: Math.max(1, Math.ceil(total / q.size)), ...(rankedAmong === undefined ? {} : { rankedAmong }), note: listNote(q, total, rankedAmong) });
   /** What each token's mint still allows, by address (null: not read), filled as rows are built. */
   const flags = new Map<string, number | null>();
@@ -406,6 +407,15 @@ export async function readList(reader: Reader, q: ListQuery, now: number, tradab
     // Buyable by Aretia's own rule (solana/buyable.ts), in Aretia's own order. Used once the mint flags have been read for most tokens; until
     // then (the column or the first supply pass is not there yet) the checks below stand in.
     const raw = await solanaRaw();
+    // The mints the indexer has not recorded flags for are read from the chain now, so the list does not depend on the indexer's pass having run
+    // (a node that refused requests, a database column not added yet), and does not fall back on an outside service's opinion.
+    if (readFlags) {
+      const missing = raw.map((x) => x.row.address).filter((a) => (flags.get(a) ?? null) === null);
+      if (missing.length > 0) {
+        const got = await readFlags(missing).catch(() => null);
+        if (got) for (const [mint, f] of got) if (f !== null) flags.set(mint, f);
+      }
+    }
     const read = raw.filter((x) => (flags.get(x.row.address) ?? null) !== null).length;
     if (raw.length > 0 && read * 2 >= raw.length) {
       const exempt = new Set(chainConfig('solana').quoteTokens.map((t) => t.address));

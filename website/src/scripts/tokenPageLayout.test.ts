@@ -30,3 +30,11 @@ describe('the token list window', () => {
   });
 });
 
+describe('the token page numbers', () => {
+  const code = readFileSync(new URL('./walletTokenPage.ts', import.meta.url), 'utf8');
+  it('are read again every second while the page is open, and written in place', () => {
+    expect(code).toContain('}, 1000);');
+    expect(code).toContain('fetchPairDetail(lastChain, pool');
+    for (const key of ['price', 'chg24', 'pq', 'liq', 'fdv', 'mcap', 'txns', 'buys', 'sells', 'vol24']) expect(code).toContain(`'${key}'`);
+  });
+});

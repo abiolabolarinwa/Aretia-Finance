@@ -1826,6 +1826,9 @@ const sendTips = [
   .wapp-tp__net { font-size: 12px; color: var(--color-muted); }
   .wapp-tp__headline { display: flex; align-items: baseline; gap: 10px; margin-left: 6px; }
   .wapp-tp__price { font-size: 20px; font-weight: 650; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; color: var(--color-strong); }
+  .wapp-tp__price { transition: color 600ms ease, background 600ms ease; border-radius: 6px; }
+  .wapp-tp__price.is-tick-up { color: #1b8a4b; background: rgba(27, 138, 75, 0.14); }
+  .wapp-tp__price.is-tick-down { color: #d6362b; background: rgba(214, 54, 43, 0.14); }
   .wapp-tp__chg { padding: 2px 8px; font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--color-muted); background: var(--color-bg-alt); border-radius: 999px; }
   .wapp-tp__chg.is-up { color: #1b8a4b; background: rgba(27, 138, 75, 0.1); }
   .wapp-tp__chg.is-down { color: #b3261e; background: rgba(179, 38, 30, 0.1); }

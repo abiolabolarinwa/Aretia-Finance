@@ -54,8 +54,9 @@ function picture(symbol: string, url: string | null): HTMLElement {
   return img;
 }
 
-function stat(label: string, value: string, tone?: 'is-up' | 'is-down'): HTMLElement {
+function stat(label: string, value: string, tone?: 'is-up' | 'is-down', key?: string): HTMLElement {
   const d = el('div', tone ? `wapp-tp__stat ${tone}` : 'wapp-tp__stat');
+  if (key) d.dataset.live = key;
   d.append(el('span', 'wapp-tp__k', label), el('strong', 'wapp-tp__v', value));
   return d;
 }
@@ -136,7 +137,10 @@ export function createTokenPage(finder = new DexScreenerPoolFinder()) {
       if (d) {
         const day = d.change.h24;
         const chg = el('span', `wapp-tp__chg ${day === null ? '' : day >= 0 ? 'is-up' : 'is-down'}`, formatChange(day));
-        headline.append(el('strong', 'wapp-tp__price', formatPrice(d.priceUsd)), chg);
+        const priceEl = el('strong', 'wapp-tp__price', formatPrice(d.priceUsd));
+        priceEl.dataset.live = 'price';
+        chg.dataset.live = 'chg24';
+        headline.append(priceEl, chg);
       }
     }
     const act = el('div', 'wapp-tp__actions');
@@ -156,7 +160,7 @@ export function createTokenPage(finder = new DexScreenerPoolFinder()) {
       const changes = el('div', 'wapp-tp__quad');
       for (const w of WINDOWS) {
         const n = d.change[w];
-        const c = stat(LABEL[w], formatChange(n));
+        const c = stat(LABEL[w], formatChange(n), undefined, `c-${w}`);
         c.classList.add(n === null ? 'is-flat' : n > 0 ? 'is-up' : n < 0 ? 'is-down' : 'is-flat');
         changes.append(c);
       }
@@ -166,10 +170,10 @@ export function createTokenPage(finder = new DexScreenerPoolFinder()) {
       const txns = buys === null || sells === null ? null : buys + sells;
       const stats = root.querySelector<HTMLElement>('[data-tp-stats]');
       if (stats) {
-        stats.replaceChildren(stat(`Price ${d.quoteSymbol}`, nativePrice(d)), stat('Liquidity', compactUsd(d.liquidityUsd)), stat('FDV', compactUsd(d.fdvUsd)), stat('Market cap', compactUsd(d.marketCapUsd)), stat('Txns 24H', compactCount(txns)), stat('Buys', compactCount(buys), 'is-up'), stat('Sells', compactCount(sells), 'is-down'));
+        stats.replaceChildren(stat(`Price ${d.quoteSymbol}`, nativePrice(d), undefined, 'pq'), stat('Liquidity', compactUsd(d.liquidityUsd), undefined, 'liq'), stat('FDV', compactUsd(d.fdvUsd), undefined, 'fdv'), stat('Market cap', compactUsd(d.marketCapUsd), undefined, 'mcap'), stat('Txns 24H', compactCount(txns), undefined, 'txns'), stat('Buys', compactCount(buys), 'is-up', 'buys'), stat('Sells', compactCount(sells), 'is-down', 'sells'));
       }
       const vol = el('div', 'wapp-tp__duo');
-      vol.append(stat('Volume 24H', compactUsd(d.volumeUsd.h24)), stat('Pool age', formatAge(d.ageMs)));
+      vol.append(stat('Volume 24H', compactUsd(d.volumeUsd.h24), undefined, 'vol24'), stat('Pool age', formatAge(d.ageMs)));
       side.append(changes, vol);
       if (d.links.length > 0) {
         const links = el('div', 'wapp-tp__links');
@@ -188,6 +192,70 @@ export function createTokenPage(finder = new DexScreenerPoolFinder()) {
     if (o.riskNote) side.append(el('p', 'wapp-tp__risk', o.riskNote));
     side.append(el('p', 'wapp__fine', 'Anyone can create a token, and Aretia does not endorse the tokens listed. Liquidity can be withdrawn by whoever put it there.'));
   }
+
+  /** Writes a fresh reading into the numbers already on the page, flashing the price when it moved. Nothing is rebuilt, so the chart and the swap card are not touched. */
+  function applyLive(d: PairDetail): void {
+    const text = (key: string, value: string): HTMLElement | null => {
+      const host = root.querySelector<HTMLElement>(`[data-live="${key}"]`);
+      const v = host && host.classList.contains('wapp-tp__stat') ? host.querySelector<HTMLElement>('.wapp-tp__v') : host;
+      if (!v || v.textContent === value) return null;
+      v.textContent = value;
+      return v;
+    };
+    const moved = text('price', formatPrice(d.priceUsd));
+    if (moved) {
+      const prev = Number(moved.dataset.was);
+      moved.classList.remove('is-tick-up', 'is-tick-down');
+      void moved.offsetWidth;
+      if (Number.isFinite(prev) && d.priceUsd !== null && prev !== d.priceUsd) moved.classList.add(d.priceUsd > prev ? 'is-tick-up' : 'is-tick-down');
+    }
+    const price = root.querySelector<HTMLElement>('[data-live="price"]');
+    if (price && d.priceUsd !== null) price.dataset.was = String(d.priceUsd);
+    const day = d.change.h24;
+    text('chg24', formatChange(day));
+    const chgEl = root.querySelector<HTMLElement>('[data-live="chg24"]');
+    if (chgEl) chgEl.className = `wapp-tp__chg ${day === null ? '' : day >= 0 ? 'is-up' : 'is-down'}`;
+    text('pq', nativePrice(d));
+    text('liq', compactUsd(d.liquidityUsd));
+    text('fdv', compactUsd(d.fdvUsd));
+    text('mcap', compactUsd(d.marketCapUsd));
+    const buys = d.buys.h24;
+    const sells = d.sells.h24;
+    text('txns', compactCount(buys === null || sells === null ? null : buys + sells));
+    text('buys', compactCount(buys));
+    text('sells', compactCount(sells));
+    text('vol24', compactUsd(d.volumeUsd.h24));
+    for (const w of WINDOWS) {
+      const n = d.change[w];
+      text(`c-${w}`, formatChange(n));
+      const host = root.querySelector<HTMLElement>(`[data-live="c-${w}"]`);
+      if (host) {
+        host.classList.remove('is-up', 'is-down', 'is-flat');
+        host.classList.add(n === null ? 'is-flat' : n > 0 ? 'is-up' : n < 0 ? 'is-down' : 'is-flat');
+      }
+    }
+  }
+
+  /** Once a second, while the page is open and the tab is shown, the pool's numbers are read again (the chart's own last candle already follows the price every second). */
+  let liveTimer: ReturnType<typeof setInterval> | undefined;
+  function startLive(mine: number, pool: string, ctl: AbortController): void {
+    clearInterval(liveTimer);
+    let busy = false;
+    liveTimer = setInterval(() => {
+      if (mine !== seq || ctl.signal.aborted) return clearInterval(liveTimer);
+      if (busy || document.hidden || root.hidden) return;
+      busy = true;
+      void fetchPairDetail(lastChain, pool, undefined, undefined, ctl.signal)
+        .then((d) => {
+          if (mine === seq) applyLive(d);
+        })
+        .catch(() => undefined)
+        .finally(() => {
+          busy = false;
+        });
+    }, 1000);
+  }
+  let lastChain: ChainId = 'solana';
 
   async function open(o: TokenPageOptions): Promise<void> {
     const mine = ++seq;
@@ -208,6 +276,8 @@ export function createTokenPage(finder = new DexScreenerPoolFinder()) {
       }
       if (mine !== seq) return;
       fill(o, parts, info.pool, detail, problem);
+      lastChain = o.chain;
+      if (detail) startLive(mine, info.pool, ctl);
     } catch (e) {
       if (mine !== seq) return;
       parts.chart.replaceChildren(el('p', 'wapp__fine', e instanceof Error ? e.message : 'No trading pool was found for this token yet. Brand-new tokens can take a few minutes to appear.'));
@@ -223,6 +293,7 @@ export function createTokenPage(finder = new DexScreenerPoolFinder()) {
 
   function close(): void {
     seq++;
+    clearInterval(liveTimer);
     active?.abort();
     tv?.dispose();
     tv = null;

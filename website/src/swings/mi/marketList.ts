@@ -395,10 +395,13 @@ export async function readList(reader: Reader, q: ListQuery, now: number, tradab
   };
   /** The best-ranked Solana pools in the database's own order (or the candidates' ranking), read once however many branches look at them. */
   let rawMemo: { row: MarketRow; rec: PoolRecord }[] | null = null;
+  // Pools under the buyable floor can never pass, so they are not read at all: the window is filled with pools that can, and the tokens whose
+  // freeze flag matters are the ones of those pools (the rest are read last, and must not hold up the switch to the own rule).
+  const floored: ListQuery = { ...q, minLiquidityUsd: Math.max(q.minLiquidityUsd, BUYABLE_MIN_LIQUIDITY_USD) };
   const solanaRaw = async (): Promise<{ row: MarketRow; rec: PoolRecord }[]> =>
     (rawMemo ??= usesCandidates(q)
-      ? rankCandidates(q, await toRows((await reader.get(candidatePath(q, now), false)).rows as PoolRecord[]))
-      : dedupeTokens((await toRows((await reader.get(sqlPath({ ...q, page: 1, size: SOLANA_READ }, now), false)).rows as PoolRecord[])).filter((x) => !isUnsafeLooking(x.row, x.rec))));
+      ? rankCandidates(q, await toRows((await reader.get(candidatePath(floored, now), false)).rows as PoolRecord[]))
+      : dedupeTokens((await toRows((await reader.get(sqlPath({ ...floored, page: 1, size: SOLANA_READ }, now), false)).rows as PoolRecord[])).filter((x) => !isUnsafeLooking(x.row, x.rec))));
   if (own && q.chain === 'solana') {
     // Buyable by Aretia's own rule (solana/buyable.ts), in Aretia's own order. Used once the mint flags have been read for most tokens; until
     // then (the column or the first supply pass is not there yet) the checks below stand in.

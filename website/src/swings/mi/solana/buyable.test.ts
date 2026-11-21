@@ -132,6 +132,16 @@ describe('Solana lists by the own rule', () => {
     expect(jupiterWasAsked.count).toBe(2);
   });
 
+  it('reads only pools that can pass the liquidity floor, so tokens of tiny pools do not hold up the switch', async () => {
+    const pools = [pool(1), pool(2)];
+    const d = db(pools, { [mint(1)]: 0, [mint(2)]: 0 });
+    await readList(d.reader, q({ minLiquidityUsd: 100 }), NOW, undefined, undefined, true);
+    expect(d.paths.find((p) => p.startsWith('mi_pools'))).toContain(`liquidity_usd=gte.${BUYABLE_MIN_LIQUIDITY_USD}`);
+    const d2 = db(pools, { [mint(1)]: 0, [mint(2)]: 0 });
+    await readList(d2.reader, q({ minLiquidityUsd: 25_000 }), NOW, undefined, undefined, true);
+    expect(d2.paths.find((p) => p.startsWith('mi_pools'))).toContain('liquidity_usd=gte.25000'); // a higher floor the reader chose is kept
+  });
+
   it('is not used when switched off', async () => {
     const pools = [1, 2].map((i) => pool(i));
     const flags = { [mint(1)]: 2, [mint(2)]: 2 }; // both can freeze: the own rule would drop both

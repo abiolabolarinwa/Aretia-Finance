@@ -488,3 +488,44 @@ describe('token supply refresher (EVM)', () => {
     expect(r.skipped).toBe('unsupported');
   });
 });
+
+describe('the existing-pools seed task', () => {
+  const orcaAddress = '7qbRF6YsyGuLUVs6Y1q64bdVrfe4ZcUUz1JRdoVNUJnm';
+  const mk = (env: Record<string, string>, fetchImpl?: typeof fetch) => {
+    const calls: string[] = [];
+    const tasks = buildTasks({
+      env,
+      store: new InMemoryMiStore(),
+      now: Date.now,
+      ...(fetchImpl ? { fetchImpl } : {}),
+      readFor: () => (async (method: string) => {
+        calls.push(method);
+        return method === 'getMultipleAccounts' ? { value: [null] } : null;
+      }) as unknown as Read,
+    });
+    return { tasks, calls };
+  };
+  const venues = (orcaRows: unknown[]) => (async (input: string) => {
+    if (input.includes('api.orca.so')) return new Response(JSON.stringify({ data: orcaRows, meta: { cursor: { next: null } } }), { status: 200 });
+    return new Response('no', { status: 503 }); // the other venues are down
+  }) as unknown as typeof fetch;
+
+  it('exists only when MI_SOLANA_SEED is 1, on a lane of its own', () => {
+    expect(mk({}).tasks.some((x) => x.id === 'solana:seed')).toBe(false);
+    expect(mk({ MI_SOLANA_SEED: '0' }).tasks.some((x) => x.id === 'solana:seed')).toBe(false);
+    expect(mk({ MI_SOLANA_SEED: '1' }).tasks.find((x) => x.id === 'solana:seed')!.lane).toBe('solana-seed');
+  });
+
+  it('reads a listed pool from the chain, keeps going when other venues are down, and adds nothing for an account that is not there', async () => {
+    const { tasks, calls } = mk({ MI_SOLANA_SEED: '1' }, venues([{ address: orcaAddress, tvlUsdc: '90000' }]));
+    const r = await tasks.find((x) => x.id === 'solana:seed')!.run(10_000);
+    expect(r).toMatchObject({ ok: true, caughtUp: true });
+    expect(calls.filter((c) => c === 'getMultipleAccounts')).toHaveLength(1); // the listed pool's account, read from the chain
+  });
+
+  it('asks no node at all when the venues list nothing', async () => {
+    const { tasks, calls } = mk({ MI_SOLANA_SEED: '1' }, venues([]));
+    expect(await tasks.find((x) => x.id === 'solana:seed')!.run(10_000)).toMatchObject({ ok: true });
+    expect(calls).toHaveLength(0);
+  });
+});

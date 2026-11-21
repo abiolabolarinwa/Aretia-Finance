@@ -12,6 +12,9 @@
  * lucky trade cannot outrank a busy one, and a floor on the value traded (per window) keeps dust out altogether. For the 24-hour tab, which
  * has no shorter reference of its own, the pace is that of the last six hours against the day. It is a plain formula on the volumes the index
  * already holds, so anyone can recompute it. Nothing here predicts price.
+ *
+ * A score of 0 means "not speeding up" (below the floor, slowing down, or no numbers). Those tokens are not dropped from the list: the list puts the
+ * scored ones first and the rest after them by value traded, so Trending is as long as Top.
  */
 import type { MarketRow } from '../../market/types.js';
 

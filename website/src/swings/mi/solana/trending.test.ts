@@ -92,10 +92,12 @@ describe('Solana Trending by momentum', () => {
   const C = pool(3, 200_000, 20_000, 2_000);
   const D = pool(4, 5_000, 2_000, 500);
 
-  it('puts the token speeding up above the bigger steady one, and leaves out the slowing and the dust', async () => {
+  it('puts the token speeding up above the bigger steady one, then the rest by value traded, so the list is as long as Top', async () => {
     const a = await readList(db([A, B, C, D]).reader, q(), NOW, undefined, undefined, true);
-    expect(a.rows.map((r) => r.address)).toEqual([mint(2), mint(1)]);
-    expect(a.note).toContain('speeding up');
+    // B (pace 7.2) and A (pace 1) are speeding up or steady, best score first; C (slowing) and D (below the floor) follow in the database's order
+    expect(a.rows.map((r) => r.address)).toEqual([mint(2), mint(1), mint(3), mint(4)]);
+    expect(a.total).toBe(4);
+    expect(a.note).toContain('speeding up first (2 now)');
   });
 
   it('is a different list from Top, which stays by value traded over the day', async () => {
@@ -113,8 +115,8 @@ describe('Solana Trending by momentum', () => {
 
   it('on the 24-hour tab ranks by the last six hours against the day', async () => {
     const a = await readList(db([A, B, C]).reader, q({ window: 'h24', minLiquidityUsd: 1000 }), NOW, undefined, undefined, true);
-    // vol24: A 576k, h6 144k -> pace 1; B 100k, h6 40k -> pace 1.6; C 200k, h6 20k -> pace 0.4 (left out)
-    expect(a.rows.map((r) => r.address)).toEqual([mint(1), mint(2)]);
+    // vol24: A 576k, h6 144k -> pace 1; B 100k, h6 40k -> pace 1.6; C 200k, h6 20k -> pace 0.4 (not speeding up: after them)
+    expect(a.rows.map((r) => r.address)).toEqual([mint(1), mint(2), mint(3)]);
   });
 
   it('does not change another network or the bullish filter', async () => {

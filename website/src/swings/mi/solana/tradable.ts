@@ -15,8 +15,10 @@
  */
 
 export const TRADABLE_MIN_LIQUIDITY_USD = 1_000;
-const FREE_ENDPOINT = 'https://lite-api.jup.ag/tokens/v2/search';
-const KEYED_ENDPOINT = 'https://api.jup.ag/tokens/v2/search';
+const FREE_BASE = 'https://lite-api.jup.ag/tokens/v2';
+const KEYED_BASE = 'https://api.jup.ag/tokens/v2';
+/** Jupiter's token service: the keyed one when a key is set (Jupiter's current docs), the free one otherwise. */
+export const jupiterEndpoint = (apiKey?: string): string => (apiKey?.trim() ? KEYED_BASE : FREE_BASE);
 /** Mints per request (the service takes up to a hundred). */
 const BATCH = 100;
 const TTL_MS = 10 * 60_000;
@@ -46,7 +48,7 @@ export function resetTradableMemory(): void {
   pausedUntil = 0;
 }
 
-function parse(v: unknown): { id: string; t: Tradable } | null {
+export function parseToken(v: unknown): { id: string; t: Tradable } | null {
   if (typeof v !== 'object' || v === null) return null;
   const o = v as Record<string, unknown>;
   if (typeof o.id !== 'string') return null;
@@ -83,13 +85,13 @@ export function jupiterCheck(fetchImpl: typeof fetch, now: () => number, signal?
         for (let i = 0; i < need.length; i += BATCH) {
           const batch = need.slice(i, i + BATCH);
           const key = apiKey?.trim();
-          const res = await fetchImpl(`${key ? KEYED_ENDPOINT : FREE_ENDPOINT}?query=${batch.join(',')}`, { signal, headers: { accept: 'application/json', ...(key ? { 'x-api-key': key } : {}) } });
+          const res = await fetchImpl(`${jupiterEndpoint(key)}/search?query=${batch.join(',')}`, { signal, headers: { accept: 'application/json', ...(key ? { 'x-api-key': key } : {}) } });
           if (!res.ok) throw new Error(`Jupiter answered ${res.status}.`);
           const body = (await res.json()) as unknown;
           if (!Array.isArray(body)) throw new Error('Jupiter answered something unexpected.');
           const got = new Map<string, Tradable>();
           for (const item of body) {
-            const p = parse(item);
+            const p = parseToken(item);
             if (p) got.set(p.id, p.t);
           }
           // A mint Jupiter does not return is one it cannot route: remembered as unknown, so it is not asked again for ten minutes.

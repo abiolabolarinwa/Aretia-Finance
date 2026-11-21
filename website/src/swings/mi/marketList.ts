@@ -450,18 +450,23 @@ export async function readList(reader: Reader, q: ListQuery, now: number, tradab
     if (raw.length > 0 && read * 2 >= raw.length) {
       const exempt = new Set(chainConfig('solana').quoteTokens.map((t) => t.address));
       const buyable = raw.filter((x) => ownBuyable(x.row, flags.get(x.row.address), exempt));
-      // Trending: the tokens whose trading is speeding up, best first; a token slowing down or below the floor is not ranked. The best-scored of a symbol stays.
+      // Trending: the tokens whose trading is speeding up come first, best first; every other token that can be bought follows in the database's order (by
+      // value traded), so the list is as long as Top and a tab is never left with a few dozen. The best-placed token of a symbol stays.
+      const scored = momentum ? buyable.map((x) => ({ x, s: trendingScore(x.row, q.window) })) : [];
       const ranked = momentum
-        ? buyable
-            .map((x) => ({ x, s: trendingScore(x.row, q.window) }))
-            .filter((e) => e.s > 0)
-            .sort((a, b) => b.s - a.s)
-            .map((e) => e.x)
+        ? [
+            ...scored
+              .filter((e) => e.s > 0)
+              .sort((a, b) => b.s - a.s)
+              .map((e) => e.x),
+            ...scored.filter((e) => e.s <= 0).map((e) => e.x),
+          ]
         : buyable;
+      const speedingUp = scored.filter((e) => e.s > 0).length;
       const kept = dedupeSymbols(ranked);
       const start = (q.page - 1) * q.size;
       const a = wrap(kept.slice(start, start + q.size).map((x) => x.row), kept.length, raw.length);
-      return { ...a, note: `${a.note} Only tokens that can be bought now are listed, by Aretia's own checks: $${BUYABLE_MIN_LIQUIDITY_USD.toLocaleString('en-US')}+ of liquidity in the pool's SOL or dollar side, no freeze authority on the token, and no wash-trading signs. ${kept.length} of the ${raw.length} best-ranked pools pass.${momentum ? ' Trending ranks the tokens whose trading is speeding up: the value traded in the window, boosted by how much busier it is than the token\'s average pace over the day; a token slowing down is not ranked.' : ''}` };
+      return { ...a, note: `${a.note} Only tokens that can be bought now are listed, by Aretia's own checks: $${BUYABLE_MIN_LIQUIDITY_USD.toLocaleString('en-US')}+ of liquidity in the pool's SOL or dollar side, no freeze authority on the token, and no wash-trading signs. ${kept.length} of the ${raw.length} best-ranked pools pass.${momentum ? ` Trending puts the tokens whose trading is speeding up first (${speedingUp} now): the value traded in the window, boosted by how much busier it is than the token's average pace over the day. The rest follow by value traded.` : ''}` };
     }
   }
   if (ranking && q.chain === 'solana' && (q.kind === 'top' || q.kind === 'trending') && q.sort === 'rank' && !q.bullish) {

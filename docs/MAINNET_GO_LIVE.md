@@ -7,7 +7,7 @@ Written 2026-10-23. This is the one ordered list for taking everything live on m
 | Piece | State | Unaudited? |
 |---|---|---|
 | EVM Aretia Curve (Ethereum, BNB Chain, Polygon) | **Live** at `0x4e85bc5bd6f08fa87ceb749372e34226556837e8` on all three; immutable; `PUBLIC_CURVE_ENABLED=1` in production | **Yes.** A ChainSecurity review is in progress; there is no report yet. The cards keep their notice. |
-| EVM `AretiaCurveRescue`, `AretiaPairSeeder` | Built, tested locally, **not deployed** | Yes |
+| EVM `AretiaCurveRescue`, `AretiaPairSeeder` | Rescue: **deployed on all three chains** (`0xc47c9113…ca50c`, 22 Nov 2026, code verified). Seeder: deployed on BNB and Polygon (`0x5656d13f…e71d7`), **Ethereum not yet**. Wired into the app. Not proven on a real poisoned pair | Yes |
 | EVM `AretiaLaunchFactory` | **BNB Chain: deployed 2026-11-22** at `0x509be9ff85607911c221a252b80308e5ce7f0f56`, checked on chain (the code equals the committed build run with the expected settings, every setting reads back, it holds 0 BNB) and written into `LAUNCH_EVM_CHAINS`. **Polygon: deployed 2026-11-22 at the same address** (the same wallet and transaction count; checked on chain the same way). **Ethereum: deployed 2026-11-22, same address, checked the same way.** A token made by it is NOT accepted by the EVM curve (the curve is immutable and accepts only the older token factory), so on all three chains a new launch is a locked pool, not a curve | Yes |
 | EVM `AretiaPool` | Built, flag off, mainnet addresses null, public testnets not deployed | Yes |
 | Solana Aretia Curve | Built, tested on devnet, **not on mainnet**. Planned id `CCBr6DtydkC83FFoU1Hh3nCdsdsUsqeVsDy8H7UqtVBu` | Yes |

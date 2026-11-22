@@ -52,9 +52,9 @@ describe('supply outside the curve (M-3)', () => {
 });
 
 describe('the rescue helper table and its answers', () => {
-  it('is null on every chain until the helper is deployed, so no chain offers "Graduate anyway" yet', () => {
-    expect(Object.values(EVM_CURVE_RESCUE_ADDRESSES).every((a) => a === null)).toBe(true);
-    expect(evmCurveChain('ethereum')?.rescue ?? null).toBeNull();
+  it('is the deployed helper on all three chains, the same address on each', () => {
+    expect(Object.values(EVM_CURVE_RESCUE_ADDRESSES)).toEqual(Array(3).fill('0xc47c911308460d8809eb8d5117da381a06dca50c'));
+    expect(evmCurveChain('ethereum')?.rescue).toBe('0xc47c911308460d8809eb8d5117da381a06dca50c');
     expect(chain.rescue).toBe(HELPER);
   });
   it('the selectors are the compiled helper’s', () => {

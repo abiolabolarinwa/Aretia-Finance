@@ -139,97 +139,7 @@ describe('live: DirectSolanaProvider end to end (nothing signed or sent)', () =>
   });
 });
 
-import { dammSwapInstruction, MeteoraDammAdapter, METEORA_DAMM_V2_PROGRAM } from './meteoraDamm.js';
 import { buildSwapTransaction } from './builder.js';
-import { POOLS } from '../../data/site.js';
-
-const ACT = '7Ut5njM9ajGDjP83WvJmvrAcfi9JoVYrHSK5x5sSFrTG';
-
-describe('live: Meteora DAMM v2 direct (ACT launch pools), simulation only', () => {
-  it('the program is executable and its authority addresses derive as the program defines', async () => {
-    const info = await rpc<{ value: { executable: boolean } | null }>('getAccountInfo', [METEORA_DAMM_V2_PROGRAM, { encoding: 'base64', dataSlice: { offset: 0, length: 0 } }]);
-    expect(info.value?.executable).toBe(true);
-    const adapter = new MeteoraDammAdapter(web3, rpc, []);
-    expect(adapter.poolAuthority()).toBe('HLnpSz9h2S4hiLQ43rnSD9XkcUThA7B8hQMKmDaiTLcC');
-  });
-
-  it('reads the real ACT/USDC and ACT/SOL pools and orients their tokens and programs', async () => {
-    const adapter = new MeteoraDammAdapter(web3, rpc, POOLS.map((p) => p.address));
-    const usdc = await adapter.getPools({ chain: 'solana', address: ACT }, { chain: 'solana', address: USDC });
-    const sol = await adapter.getPools({ chain: 'solana', address: ACT }, { chain: 'solana', address: SOL });
-    console.log('ACT/USDC', usdc.map((p) => ({ addr: p.ref.address.slice(0, 8), status: p.status, rA: p.reserve0, rB: p.reserve1, progA: p.extra!.programA!.slice(0, 6) })));
-    console.log('ACT/SOL', sol.map((p) => ({ addr: p.ref.address.slice(0, 8), status: p.status, rA: p.reserve0, rB: p.reserve1 })));
-    expect(usdc).toHaveLength(1);
-    expect(sol).toHaveLength(1);
-    expect(usdc[0]!.ref.address).toBe(POOLS[0]!.address);
-    expect(usdc[0]!.extra!.programA).toBe('TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb'); // ACT is Token-2022
-    expect(usdc[0]!.extra!.programB).toBe(TOKEN_PROGRAM_ID);
-    expect(usdc[0]!.status).toBe('active');
-  });
-
-  it('buying ACT with USDC and with SOL: the real program accepts the Aretia-built transaction, and a floor above the output is refused', async () => {
-    const adapter = new MeteoraDammAdapter(web3, rpc, POOLS.map((p) => p.address));
-    const { value } = await rpc<{ value: { blockhash: string } }>('getLatestBlockhash', [{ commitment: 'confirmed' }]);
-    const run = async (pool: Awaited<ReturnType<typeof adapter.getPools>>[number], tokenInMint: string, nativeIn: boolean, amountIn: bigint, minOut: bigint) => {
-      const x = pool.extra!;
-      const programOf = (mint: string): string => (mint === pool.token0.address ? x.programA! : x.programB!);
-      const tokenOut = pool.token0.address === tokenInMint ? pool.token1 : pool.token0;
-      const built = await buildSwapTransaction(web3, {
-        user: PAYER,
-        tokenIn: { chain: 'solana', address: tokenInMint },
-        tokenOut,
-        programIn: programOf(tokenInMint),
-        programOut: programOf(tokenOut.address),
-        amountIn,
-        nativeIn,
-        nativeOut: false,
-        closeWsol: false,
-        recentBlockhash: value.blockhash,
-        swapLabel: 'Meteora DAMM v2 swap.',
-        swapInstruction: (i, o) => dammSwapInstruction(web3, PAYER, pool, i, o, amountIn, minOut),
-      });
-      return simulateSolanaSwap(rpc, built.transaction, { user: PAYER, inAccount: nativeIn ? null : built.inAccount, outAccount: built.outAccount, inputIsSol: nativeIn, outputIsSol: false, amountIn, minOut, overheadLamports: 20_000_000n });
-    };
-    const usdcPool = (await adapter.getPools({ chain: 'solana', address: ACT }, { chain: 'solana', address: USDC }))[0]!;
-    const solPool = (await adapter.getPools({ chain: 'solana', address: ACT }, { chain: 'solana', address: SOL }))[0]!;
-
-    const a = await run(usdcPool, USDC, false, 1_000_000n, 1n);
-    console.log('1 USDC -> ACT (net of ACT transfer fee):', a.verdict.received, 'problems', a.blockers, 'units', a.unitsConsumed);
-    if (a.blockers.length) console.log(a.logs.slice(-6).join('\n'));
-    expect(a.blockers).toEqual([]);
-    expect(a.verdict.received! > 0n).toBe(true);
-    // A floor above what the program delivers must be refused.
-    const refused = await run(usdcPool, USDC, false, 1_000_000n, a.verdict.received! * 2n);
-    expect(refused.blockers.length).toBeGreaterThan(0);
-
-    await new Promise((r) => setTimeout(r, 1500));
-    const b = await run(solPool, SOL, true, 10_000_000n, 1n);
-    console.log('0.01 SOL -> ACT:', b.verdict.received, 'problems', b.blockers);
-    if (b.blockers.length) console.log(b.logs.slice(-6).join('\n'));
-    expect(b.blockers).toEqual([]);
-    expect(b.verdict.received! > 0n).toBe(true);
-  });
-});
-
-describe('live: buying ACT through the Aretia Solana router, end to end (nothing signed or sent)', () => {
-  const provider = () => new DirectSolanaProvider({ web3: async () => web3, rpc, registry: new AretiaDexRegistry(SOLANA_DEXES) });
-  const req = (from: string, to: string, amountIn: bigint) => ({ chain: 'solana' as const, from: { chain: 'solana' as const, address: from }, to: { chain: 'solana' as const, address: to }, amountIn, slippageBps: 100, account: { chain: 'solana' as const, address: PAYER } });
-
-  for (const [label, from, amount] of [['USDC', USDC, 1_000_000n], ['SOL', SOL, 10_000_000n]] as const) {
-    it(`${label} -> ACT: the router finds ACT's real pool, quotes by the program, builds and the program accepts it`, async () => {
-      await new Promise((r) => setTimeout(r, 2000));
-      const p = provider();
-      const quote = await p.getQuote(req(from, ACT, amount));
-      console.log(label, '->', 'ACT quote', quote.expectedOut, 'min', quote.minOut, 'impact bps', quote.priceImpactBps, '|', (quote.raw as { reasons: string[] }).reasons[0]);
-      expect((quote.raw as { legs: { entryId: string }[] }).legs.some((l) => l.entryId === 'meteora-damm-v2')).toBe(true); // ACT's only pools are DAMM v2, whatever the route shape
-      const prepared = await p.buildTransaction(quote);
-      console.log(label, 'prepared ok:', prepared.simulation.ok, prepared.simulation.blockers);
-      expect(prepared.simulation.blockers).toEqual([]);
-      expect(prepared.simulation.ok).toBe(true);
-    });
-  }
-});
-
 import { ORCA_WHIRLPOOL_PROGRAM, OrcaWhirlpoolAdapter, whirlpoolSwapInstruction } from './orcaWhirlpool.js';
 
 describe('live: Orca Whirlpools direct, simulation only', () => {
@@ -282,8 +192,6 @@ describe('live: the Aretia Solana router across venues, hops and splits (nothing
     ['1 SOL', SOL, USDC, 1_000_000_000n],
     ['100 SOL (large: may split)', SOL, USDC, 100_000_000_000n],
     ['2000 SOL (very large)', SOL, USDC, 2_000_000_000_000n],
-    ['0.5 SOL', SOL, ACT, 500_000_000n],
-    ['100 USDC', USDC, ACT, 100_000_000n],
     ['100 USDT', USDT, SOL, 100_000_000n],
   ];
   for (const [label, from, to, amount] of cases) {
@@ -300,23 +208,6 @@ describe('live: the Aretia Solana router across venues, hops and splits (nothing
   }
 });
 
-import { DEFAULT_FEE_CONFIG } from '../core/fee.js';
-
-describe('live: the ACT buyback inside the same transaction (a test configuration; nothing signed or sent)', () => {
-  it('SOL -> USDC with the buyback on: the real programs accept the swap and the ACT arrives at the configured address', async () => {
-    const executor = web3.Keypair.generate().publicKey.toBase58();
-    const fee = { policy: { ...DEFAULT_FEE_CONFIG.policy, enabled: true }, chains: { ...DEFAULT_FEE_CONFIG.chains, solana: { chainId: 'solana' as const, treasuryAddress: executor, buybackExecutorAddress: executor, enabled: true } } };
-    const p = new DirectSolanaProvider({ web3: async () => web3, rpc, registry: new AretiaDexRegistry(SOLANA_DEXES), fee });
-    const q = await p.getQuote({ chain: 'solana', from: { chain: 'solana', address: SOL }, to: { chain: 'solana', address: USDC }, amountIn: 1_000_000_000n, slippageBps: 100, account: { chain: 'solana', address: PAYER } });
-    const raw = q.raw as { buyback: { amount: bigint; expectedOut: bigint; legs: unknown[] }; reasons: string[] };
-    console.log('buyback', raw.buyback.amount, 'lamports ->', raw.buyback.expectedOut, 'ACT (raw), legs', raw.buyback.legs.length, '|', raw.reasons.at(-1));
-    const prepared = await p.buildTransaction(q);
-    console.log('buyback tx ok:', prepared.simulation.ok, prepared.simulation.blockers);
-    expect(raw.buyback.amount).toBe(5_500_000n);
-    expect(prepared.simulation.blockers).toEqual([]);
-  }, 180_000);
-});
-
 import { fetchQuote as jupiterQuote } from '../../scripts/walletSwap.js';
 
 describe('benchmark: Aretia Solana router against Jupiter (quotes only, nothing signed or sent)', () => {
@@ -324,8 +215,6 @@ describe('benchmark: Aretia Solana router against Jupiter (quotes only, nothing 
     ['1 SOL -> USDC', SOL, USDC, 1_000_000_000n],
     ['100 SOL -> USDC', SOL, USDC, 100_000_000_000n],
     ['100 USDT -> SOL', USDT, SOL, 100_000_000n],
-    ['0.5 SOL -> ACT', SOL, ACT, 500_000_000n],
-    ['100 USDC -> ACT', USDC, ACT, 100_000_000n],
   ];
   for (const [label, from, to, amount] of cases) {
     it(label, async () => {

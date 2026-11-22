@@ -7,12 +7,9 @@ import type { ChainId } from '../core/types.js';
 import { majorsOf } from '../charts/pool.js';
 import { reservedNameClaim } from './safeText.js';
 
-/** Aretia's own token (ACT) on Solana. */
-export const ACT_MINT = '7Ut5njM9ajGDjP83WvJmvrAcfi9JoVYrHSK5x5sSFrTG';
-
 /** Well-known tokens beyond each chain's stablecoins and wrapped native coin (charts/pool.ts `majorsOf`). Lower-case. */
 const KNOWN_EXTRA: Readonly<Partial<Record<ChainId, readonly string[]>>> = {
-  solana: [ACT_MINT, '7vfCXTUXx5WJV5JADk17DUJ4ksgau7utNKj4b963voxs' /* Wormhole WETH */, '3NZ9JMVBmGAqocybic2c7LQCJScmgsAZ6vQqTDzcqmJh' /* Wormhole WBTC */, 'cbbtcf3aa214zXHbiAZQwf4122FBYbraNdFqgw4iMij' /* cbBTC */].map((a) => a.toLowerCase()),
+  solana: ['7vfCXTUXx5WJV5JADk17DUJ4ksgau7utNKj4b963voxs' /* Wormhole WETH */, '3NZ9JMVBmGAqocybic2c7LQCJScmgsAZ6vQqTDzcqmJh' /* Wormhole WBTC */, 'cbbtcf3aa214zXHbiAZQwf4122FBYbraNdFqgw4iMij' /* cbBTC */].map((a) => a.toLowerCase()),
   ethereum: ['0x2260fac5e5542a773aa44fbcfedf7c193bc2c599' /* WBTC */, '0xcbb7c0000ab88b473b1f5afd9ef808440eed33bf' /* cbBTC */],
   bnb: ['0x2170ed0880ac9a755fd29b2688956bd959f933f8' /* ETH */, '0x7130d2a12b9bcbfae4f2634d864a1ee1ce3ead9c' /* BTCB */, '0x570a5d26f7765ecb712c0924e4de545b89fd43df' /* SOL */],
   polygon: ['0x7ceb23fd6bc0add59e62ac25578270cff1b9f619' /* WETH */, '0x1bfd67037b42cf73acf2047067bd4f2c47d9bfd6' /* WBTC */, '0x8f3cf7ad23cd3cadbd9735aff958023239c6a063' /* DAI */],

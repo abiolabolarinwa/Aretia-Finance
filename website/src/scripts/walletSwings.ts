@@ -114,7 +114,6 @@ export interface SwingsHost {
   refresh(): Promise<void>;
 }
 
-const ACT_MINT = '7Ut5njM9ajGDjP83WvJmvrAcfi9JoVYrHSK5x5sSFrTG';
 const EXPLORER_TX: Readonly<Record<ChainId, string>> = {
   solana: 'https://solscan.io/tx/',
   ethereum: 'https://etherscan.io/tx/',
@@ -472,7 +471,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
     picked.set(checked.mint, checked);
     s[side] = checked;
     s.picker = null;
-    if (!s.slippageTouched) s.slippageBps = s.marketSlippage?.bps ?? defaultSlippageBps(checked.mint === ACT_MINT || s.from?.mint === ACT_MINT || s.to?.mint === ACT_MINT);
+    if (!s.slippageTouched) s.slippageBps = s.marketSlippage?.bps ?? defaultSlippageBps(false);
     resetQuote();
     if (side === 'to') void loadSafety(chain, checked.mint);
     render();
@@ -1376,7 +1375,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
     const card = swapCard;
     card.replaceChildren();
     // The price chart is public data, so it shows whether or not a wallet is connected or the network is enabled for
-    // trading. It charts the token being bought, else the token being sold, else ACT on Solana (or the network's native
+    // trading. It charts the token being bought, else the token being sold, else SOL on Solana (or the network's native
     // coin elsewhere). A native EVM coin is charted through its wrapped token.
     {
       // A stablecoin's chart is a flat line: when the other token of the pair is not one, that one is charted.
@@ -1385,7 +1384,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
       const target = picked
         ? { address: picked.mint === EVM_NATIVE_ADDRESS ? (WRAPPED_NATIVE as Record<string, string | undefined>)[s.chain] : picked.mint, symbol: picked.symbol, icon: picked.icon ?? null }
         : s.chain === 'solana'
-          ? { address: ACT_MINT, symbol: 'ACT', icon: null }
+          ? { address: SOL_MINT, symbol: 'SOL', icon: null }
           : { address: (WRAPPED_NATIVE as Record<string, string | undefined>)[s.chain], symbol: info.nativeSymbol, icon: null };
       // Opened over the Marketplace, the token's chart is already on the page behind, so the swap window carries none.
       // Drawn beside a token's page (the Swap page, a Marketplace token), the page carries the chart, so this one is not loaded as well.

@@ -1,7 +1,7 @@
 /**
  * Aretia Launch on the web wallet: the rules for opening a liquidity pool for a token, with no network access and no keys.
  *
- * The pool is a Meteora DAMM v2 pool (the same program the Aretia treasury uses for the ACT pools, see scripts/launch-pool). It is
+ * The pool is a Meteora DAMM v2 pool. It is
  * single-sided: only the creator's tokens go in, at a starting price the creator chooses, and nothing goes up the price curve
  * below that start. Buyers pay SOL, which builds the other side of the pool. The creator's own wallet is the pool's creator and
  * owner of the position, and no Aretia program is involved.

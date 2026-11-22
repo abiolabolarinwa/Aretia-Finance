@@ -36,7 +36,7 @@ export interface DexEntry {
   wrappedNative?: string;
   /** Launchpads priced in an ERC-20 rather than the native coin: the token their curves are priced in. */
   quoteAsset?: string;
-  /** Pool addresses Aretia knows for venues whose pools cannot be derived from a pair (for example ACT's own pools). */
+  /** Pool addresses Aretia knows for venues whose pools cannot be derived from a pair. */
   knownPools?: string[];
   /** V3-style venues: the fee tiers (in hundredths of a basis point) their factory may hold pools for. */
   feeTiers?: number[];

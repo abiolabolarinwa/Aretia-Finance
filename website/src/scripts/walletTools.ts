@@ -104,7 +104,6 @@ export const KNOWN_TOKENS: ReadonlyArray<{ symbol: string; mint: string; decimal
   { symbol: 'SOL', mint: 'So11111111111111111111111111111111111111112', decimals: 9 },
   { symbol: 'USDC', mint: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v', decimals: 6 },
   { symbol: 'USDT', mint: 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB', decimals: 6 },
-  { symbol: 'ACT', mint: '7Ut5njM9ajGDjP83WvJmvrAcfi9JoVYrHSK5x5sSFrTG', decimals: 9 },
 ];
 
 /**
@@ -315,7 +314,7 @@ export function autoSlippage(f: SlippageFacts): { bps: number; reason: string | 
   return best ? { bps: best.bps, reason: best.reason } : { bps: 50, reason: null };
 }
 
-/** Jupiter's own default is 0.5%; thin tokens such as ACT get 1% because their price moves more between quote and execution. */
+/** Jupiter's own default is 0.5%; thin tokens get 1% because their price moves more between quote and execution. */
 export function defaultSlippageBps(involvesThinToken: boolean): number {
   return involvesThinToken ? 100 : 50;
 }
@@ -324,7 +323,7 @@ export function defaultSlippageBps(involvesThinToken: boolean): number {
  * How much of the price move is caused by the trade's own size: compares the rate of the full trade
  * with the rate of a trade 1/100th the size from the same pool. Returns a fraction (0.2 = 20%), or
  * null when it cannot be worked out. Used instead of Jupiter's figure, which is meaningless for a
- * token it has no reference price for (it reports 100% for ACT).
+ * token it has no reference price for (it reports 100% for such tokens).
  */
 export function sizeImpact(fullIn: bigint, fullOut: bigint, smallIn: bigint, smallOut: bigint): number | null {
   if (fullIn <= 0n || smallIn <= 0n || smallOut <= 0n || fullOut < 0n) return null;

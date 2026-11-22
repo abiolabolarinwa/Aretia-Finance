@@ -7,7 +7,7 @@
  *   { op: 'logout' }                      record the sign-out
  *   { op: 'sign-out-all' }                end every game session of this wallet, on every device
  *
- * The game is separate from the wallet and from ACT. A game sign-in message says so and is refused by the wallet endpoint (and the
+ * The game is separate from the wallet. A game sign-in message says so and is refused by the wallet endpoint (and the
  * reverse), and a game token (kind "g1") is refused everywhere else. Signing is free and cannot move funds. Nothing here touches a
  * token, a fee or a transaction. The wallet is how a player proves who they are; the permanent key is the internal player id.
  * Needs the same database and migrations 0014 and 0024.

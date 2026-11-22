@@ -11,7 +11,7 @@
  *  - several swaps through the same pool in one transaction (a routed trade) are recorded as one record at their
  *    net, so the price is their volume-weighted average;
  *  - failed transactions are ignored.
- * The amounts are the pool's own, so for a token with a transfer fee (ACT) they are what the pool received or paid,
+ * The amounts are the pool's own, so for a token with a transfer fee they are what the pool received or paid,
  * not what a wallet sent or got.
  */
 import type { ChainId } from '../core/types.js';

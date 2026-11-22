@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { hasLookalikeLetters, isOffensive, isUnsafeName, reservedNameClaim, skeleton } from './safeText.js';
-import { ACT_MINT, impersonationWarning } from './impersonation.js';
+import { impersonationWarning } from './impersonation.js';
 import { InMemoryTokenRepository, TokenRegistryService } from './registry.js';
 import type { TokenRecord } from '../core/types.js';
 
@@ -94,14 +94,12 @@ describe('impersonating names (audit L-15)', () => {
   it('names the well-known token a name claims to be, and nothing for ordinary names', () => {
     expect(reservedNameClaim('ＵＳＤＣ', 'whatever')).toBe('USDC');
     expect(reservedNameClaim('WΕTH', 'x')).toBe('WETH');
-    expect(reservedNameClaim('ACT', 'Some token')).toBe('ACT');
     expect(reservedNameClaim('XYZ', 'Aretia Finance')).toBe('ARETIA');
     expect(reservedNameClaim('PEPE', 'Pepe')).toBeNull();
   });
 
   it('warns only when the address is not the real one', () => {
     expect(impersonationWarning('solana', 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v', 'USDC', 'USD Coin')).toBeNull();
-    expect(impersonationWarning('solana', ACT_MINT, 'ACT', 'Aretia')).toBeNull();
     expect(impersonationWarning('solana', 'Fake1111111111111111111111111111111111111111', 'USDC', 'USD Coin')).toMatch(/not the USDC Aretia knows/);
     expect(impersonationWarning('bnb', '0x' + '12'.repeat(20), 'X', 'Aretia Gold')).toMatch(/Aretia name/);
     expect(impersonationWarning('ethereum', '0xA0b86991c6218b36c1d19d4a2e9eb0ce3606eB48', 'USDC', 'USD Coin')).toBeNull();
@@ -111,7 +109,7 @@ describe('impersonating names (audit L-15)', () => {
 describe('impersonating names, re-audit L-15: small capitals, hooked letters, ₮ and Cyrillic lower case', () => {
   const FAKE = 'Fake1111111111111111111111111111111111111111';
   it('catches every example from the re-audit', () => {
-    for (const [sym, claim] of [['ᴜꜱᴅᴄ', 'USDC'], ['USD₮', 'USDT'], ['USDƇ', 'USDC'], ['USÐC', 'USDC'], ['ɅCT', 'ACT'], ['ꞫTH', 'ETH'], ['uѕdт', 'USDT']] as const) {
+    for (const [sym, claim] of [['ᴜꜱᴅᴄ', 'USDC'], ['USD₮', 'USDT'], ['USDƇ', 'USDC'], ['USÐC', 'USDC'], ['ꞫTH', 'ETH'], ['uѕdт', 'USDT']] as const) {
       expect(reservedNameClaim(sym, 'x'), sym).toBe(claim);
       expect(impersonationWarning('solana', FAKE, sym, 'x'), sym).toMatch(new RegExp(`calls itself ${claim}`));
     }

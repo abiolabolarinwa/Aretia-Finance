@@ -63,7 +63,6 @@ const short = (m: string): string => `${m.slice(0, 4)}…${m.slice(-4)}`;
 const KNOWN_SYMBOLS: Record<string, string> = {
   EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v: 'USDC',
   Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB: 'USDT',
-  '7Ut5njM9ajGDjP83WvJmvrAcfi9JoVYrHSK5x5sSFrTG': 'ACT',
 };
 
 export async function lookMint(web3: typeof Web3, fetchAccount: AccountReader, mint: string): Promise<MintLook> {

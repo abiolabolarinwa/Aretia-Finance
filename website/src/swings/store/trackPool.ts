@@ -4,7 +4,7 @@
  * routers use, so a venue the router can trade is a venue the indexer can follow.
  *
  * Orientation: the quote is the stablecoin if there is one (USDC, then USDT), else wrapped SOL, else the pool's
- * second token. So ACT/USDC is ACT priced in USDC, and SOL/USDC is SOL priced in USDC.
+ * second token. So SOL/USDC is SOL priced in USDC.
  */
 import type * as Web3 from '@solana/web3.js';
 import { SwingsError } from '../core/types.js';

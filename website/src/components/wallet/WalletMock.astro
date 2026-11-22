@@ -28,7 +28,7 @@ const { class: className, compact = false, tilt = true } = Astro.props;
 
     <div class="wm__balance" data-wm-item>
       <div class="wm__label">Total balance</div>
-      <div class="wm__total tnum">12,480.<span>00</span> <em>ACT</em></div>
+      <div class="wm__total tnum">12,480.<span>00</span> <em>USD</em></div>
     </div>
 
     <div class="wm__actions" data-wm-item>
@@ -36,11 +36,6 @@ const { class: className, compact = false, tilt = true } = Astro.props;
     </div>
 
     <ul class="wm__assets">
-      <li data-wm-item>
-        <span class="wm__coin wm__coin--act">ACT</span>
-        <span class="wm__asset"><b>Aretia</b><small>Solana</small></span>
-        <span class="wm__amt tnum">12,480.00</span>
-      </li>
       <li data-wm-item>
         <span class="wm__coin wm__coin--sol">SOL</span>
         <span class="wm__asset"><b>Solana</b><small>Solana</small></span>
@@ -97,7 +92,6 @@ const { class: className, compact = false, tilt = true } = Astro.props;
   .wm__assets { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
   .wm__assets li, .wm__tx { display: grid; grid-template-columns: 32px 1fr auto; align-items: center; gap: 10px; padding: 8px; border-radius: 14px; transition: background-color var(--duration-fast); }
   .wm__coin, .wm__tx-icon { width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; font-size: 9px; font-weight: 700; }
-  .wm__coin--act { background: radial-gradient(circle at 30% 30%, var(--color-gold-bright), var(--color-gold) 60%, #8a6d34); color: #1a1406; }
   .wm__coin--sol { background: linear-gradient(135deg, #9945ff, #14f195); color: #ffffff; }
   .wm__coin--eth { background: #ebebed; color: #666668; }
   .wm__tx-icon { background: var(--color-brand-soft); color: var(--color-brand-bright); font-size: 14px; }

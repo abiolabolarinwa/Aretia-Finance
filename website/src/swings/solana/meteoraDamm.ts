@@ -1,5 +1,5 @@
 /**
- * Direct integration with Meteora DAMM v2 (program cp-amm), the venue ACT's own pools live on.
+ * Direct integration with Meteora DAMM v2 (program cp-amm), a Meteora venue.
  *
  * Pricing here is deliberately NOT re-implemented. DAMM v2 prices through a concentrated range, a base-fee
  * schedule, an optional dynamic fee and a fee mode, and any of those can change with the program. Instead the
@@ -8,8 +8,8 @@
  * cannot drift from the program's maths. (Aretia's own local maths for this venue is a later, separately
  * verified step; it would be checked against this same simulation.)
  *
- * Pool layout and address constants were read from the program source and confirmed against the real
- * ACT/USDC pool on mainnet (see solana.live.ts).
+ * Pool layout and address constants were read from the program source and confirmed against a real
+ * pool on mainnet.
  */
 import type * as Web3 from '@solana/web3.js';
 import { normalizeTokenRef } from '../core/token.js';
@@ -69,7 +69,7 @@ export class MeteoraDammAdapter {
   constructor(
     private readonly web3: typeof Web3,
     private readonly rpc: SolRpc,
-    /** Pool addresses Aretia knows about for this venue (for ACT: the treasury's launch pools). */
+    /** Pool addresses Aretia knows about for this venue. */
     private readonly knownPools: readonly string[],
     private readonly now: () => number = Date.now,
   ) {

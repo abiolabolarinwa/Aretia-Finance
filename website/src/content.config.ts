@@ -8,7 +8,6 @@ export const BLOG_CATEGORIES = [
   'Privacy',
   'Interoperability',
   'Payments',
-  'ACT',
   'Climate Finance',
   'Development',
 ] as const;

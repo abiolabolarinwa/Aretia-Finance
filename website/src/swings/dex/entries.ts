@@ -5,7 +5,6 @@
  *
  * Sources: each protocol's published deployment lists. Nothing here is test data or a placeholder.
  */
-import { POOLS } from '../../data/site.js';
 import type { DexEntry } from '../engine/registry.js';
 
 export const WRAPPED_NATIVE = {
@@ -629,8 +628,8 @@ export const SOLANA_DEXES: readonly DexEntry[] = [
     model: 'concentrated',
     mechanism: 'solana-program',
     router: 'cpamdpZCGKUy5JxQXB4dcpGPiikHawvSWAd6mEn1sGG',
-    // ACT's launch pools, from the one place they are recorded (data/site.ts POOLS). Other DAMM v2 pools are not discovered yet.
-    knownPools: POOLS.map((p) => p.address),
+    // No DAMM v2 pools are listed by hand any more, and other DAMM v2 pools are not discovered yet.
+    knownPools: [],
     status: 'ACTIVE',
     notes: 'Quoted by simulating the swap on the program itself, so it needs the user\'s account. Only the pools listed here are used.',
   },

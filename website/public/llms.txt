@@ -30,7 +30,6 @@
 
 - [Features](https://aretiafinance.org/features): what is built, what is on testnet, what is roadmap.
 - [About](https://aretiafinance.org/about)
-- [FAQ](https://aretiafinance.org/faq)
 - [Verified by Aretia](https://aretiafinance.org/verified): what the badge means and does not mean. It is not an audit or an endorsement.
 - [Featured](https://aretiafinance.org/featured): a labelled placement, not a rating.
 - [Blog](https://aretiafinance.org/blog)

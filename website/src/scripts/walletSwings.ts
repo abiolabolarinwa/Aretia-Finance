@@ -2019,31 +2019,59 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
      * after the tab's own under a divider. A network counts by its different symbols (a symbol is listed once per network), and the liquidity list is read
      * eight pages deep because it lists pools, so one token fills several places. Read after the board is drawn; asked again twice if the index refused.
      */
-    /** The all-tokens list's deeper pages, kept five minutes: they are listed with the rest, with no divider. */
+    /**
+     * The all-tokens list's deeper pages. Each network is read on its own, one page after another (five requests at a time in all, not forty-five),
+     * a page the index refused is asked again after a pause, and what has come in is laid on the board after every few pages, so a slow or failing
+     * network (Solana's pages are the heaviest) shows what it has and carries on, while the others are not held back. Kept five minutes per network.
+     */
+    const deepByChain = new Map<ChainId, { at: number; rows: MarketRow[]; done: boolean }>();
     let lastDeepRows: MarketRow[] = [];
-    let lastDeepAt = 0;
-    /** Pages of 100 pools read for each network in the all-tokens list: three at first, then these in the background (about a thousand pools a network). */
-    const DEEP_PAGES = [4, 5, 6, 7, 8, 9, 10, 11, 12];
-    async function deepenBoard(mine: number, base: MarketRow[], chains: readonly ChainId[]): Promise<void> {
-      if (lastDeepRows.length > 0 && Date.now() - lastDeepAt < 300_000) return;
-      const pages = await Promise.all(chains.flatMap((c) => DEEP_PAGES.map((p) => indexPageRetry({ kind: 'liquidity', chain: c, window: m.window, page: p, size: BOARD_PAGE_SIZE, minLiquidityUsd: Number(f.liquidity), maxAgeHours: autoAge ? 0 : Number(f.age), bullish: f.bullish }))));
-      if (mine !== seq || m.chain !== '' || m.kind !== 'liquidity') return;
-      if (pages.every((g) => g === null)) return;
+    /** The pages after the three read at first: up to about a thousand pools a network, further while the index has them. */
+    const DEEP_FIRST = 4;
+    const DEEP_LAST = 14;
+    const deepRows = (): MarketRow[] => [...deepByChain.values()].flatMap((d) => d.rows);
+    async function deepenChain(mine: number, base: MarketRow[], c: ChainId, lay: () => void): Promise<void> {
+      const held = deepByChain.get(c);
+      if (held && held.done && Date.now() - held.at < 300_000) return;
+      const mineRows: MarketRow[] = [];
       const have = new Set(base.map((r) => rowKey(r.chain, r.address)));
-      const more: MarketRow[] = [];
-      for (const g of pages) {
-        for (const r of g?.rows ?? []) {
+      let done = true;
+      for (let p = DEEP_FIRST; p <= DEEP_LAST; p++) {
+        if (mine !== seq || m.chain !== '' || m.kind !== 'liquidity') return;
+        const req = { kind: 'liquidity' as const, chain: c, window: m.window, page: p, size: BOARD_PAGE_SIZE, minLiquidityUsd: Number(f.liquidity), maxAgeHours: autoAge ? 0 : Number(f.age), bullish: f.bullish };
+        let got = await indexPageRetry(req);
+        if (!got) {
+          await new Promise((r) => setTimeout(r, 2500));
+          got = await indexPageRetry(req);
+        }
+        if (!got) {
+          done = false;
+          break;
+        }
+        // A page past the network's end is answered with its last page: stop there.
+        if (got.page < p) break;
+        for (const r of got.rows) {
           const k = rowKey(r.chain, r.address);
           if (have.has(k)) continue;
           have.add(k);
-          more.push(r);
+          mineRows.push(r);
         }
+        deepByChain.set(c, { at: Date.now(), rows: [...mineRows], done: false });
+        if ((p - DEEP_FIRST) % 3 === 2) lay();
+        if (p >= got.pages) break;
       }
-      lastDeepRows = more;
-      lastDeepAt = Date.now();
-      boardFill = new Set();
-      rows = rateRows([...base, ...more]);
-      if (!page) draw();
+      deepByChain.set(c, { at: Date.now(), rows: mineRows, done });
+      lay();
+    }
+    async function deepenBoard(mine: number, base: MarketRow[], chains: readonly ChainId[]): Promise<void> {
+      const lay = (): void => {
+        if (mine !== seq || m.chain !== '' || m.kind !== 'liquidity') return;
+        lastDeepRows = deepRows();
+        boardFill = new Set();
+        rows = rateRows([...base, ...lastDeepRows]);
+        if (!page) draw();
+      };
+      await Promise.all(chains.map((c) => deepenChain(mine, base, c, lay)));
     }
     async function fillBoard(mine: number, base: MarketRow[], chains: readonly ChainId[], attempt: number): Promise<void> {
       if (m.kind === 'liquidity') return deepenBoard(mine, base, chains);

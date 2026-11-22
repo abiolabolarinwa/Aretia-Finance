@@ -540,15 +540,34 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
   /** The most-traded tokens of the network from Aretia's own index, kept five minutes, so the picker offers more than the essentials. */
   const popular = new Map<string, { at: number; tokens: TokenInfo[] }>();
   let popularLoading = '';
+  /** Networks whose last attempt to read the popular tokens found nothing (the picker then says so, and asks again after a minute). */
+  const popularFailed = new Set<string>();
   function loadPopular(): void {
     const chain = s.chain;
     const hit = popular.get(chain);
-    if ((hit && Date.now() - hit.at < 300_000) || popularLoading === chain || !indexCovers(chain)) return;
+    if ((hit && Date.now() - hit.at < 300_000) || popularLoading === chain) return;
     popularLoading = chain;
-    void fetchIndexPage({ kind: 'top', chain, window: 'h24', page: 1, size: 50, minLiquidityUsd: 50_000 })
-      .then((page) => {
-        popular.set(chain, { at: Date.now(), tokens: (page?.rows ?? []).map((r) => ({ mint: r.address, symbol: r.symbol, name: r.name, decimals: r.decimals ?? 0, icon: r.icon, verified: null })) });
-      })
+    const req = { kind: 'top', chain, window: 'h24', page: 1, size: 50, minLiquidityUsd: 50_000 } as const;
+    void (async () => {
+      // The index first (asked twice: one busy answer is common), then the market feed Markets falls back on; a list read earlier is kept when both fail.
+      let rows: MarketRow[] | null = null;
+      if (indexCovers(chain)) {
+        rows = (await fetchIndexPage(req))?.rows ?? null;
+        if (!rows?.length) {
+          await new Promise((r) => setTimeout(r, 500));
+          rows = (await fetchIndexPage(req))?.rows ?? null;
+        }
+      }
+      if (!rows?.length) rows = await fetchNativeList('top', chain, 'h24', Date.now(), undefined, 1).catch(() => null);
+      if (rows?.length) {
+        popularFailed.delete(chain);
+        popular.set(chain, { at: Date.now(), tokens: rows.slice(0, 50).map((r) => ({ mint: r.address, symbol: r.symbol, name: r.name, decimals: r.decimals ?? 0, icon: r.icon, verified: null })) });
+      } else {
+        popularFailed.add(chain);
+        // Asked again in a minute, with whatever was read before kept meanwhile.
+        popular.set(chain, { at: Date.now() - 240_000, tokens: hit?.tokens ?? [] });
+      }
+    })()
       .catch(() => undefined)
       .finally(() => {
         popularLoading = '';
@@ -587,8 +606,14 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
     const chain = s.chain;
     try {
       const { coin, stables } = essentialTokens(chain);
+      // A fresh page must not open on an error: if a default token cannot be read from the chain just now, the page stays as it was and nothing is said.
+      const before = s.error;
       if (!s.from) await pick('from', coin, chain);
       if (s.chain === chain && !s.to && stables[0]) await pick('to', stables[0], chain);
+      if (s.error !== before && (!s.from || !s.to)) {
+        s.error = before;
+        render();
+      }
     } finally {
       defaulting = false;
     }
@@ -1129,6 +1154,8 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
     if (p.loading) list.append(el('p', { class: 'wapp__fine', text: 'Searching…' }));
     else if (items.length === 0) list.append(el('p', { class: 'wapp__fine', text: 'No tokens found. Names and symbols are not unique: check the address before choosing.' }));
     for (const t of items.slice(0, shown)) list.append(row(t));
+    // When the most-traded tokens could not be read, the list says why it is short instead of looking complete.
+    if (!searching && popularFailed.has(s.chain) && !(popular.get(s.chain)?.tokens.length)) list.append(el('p', { class: 'wapp__fine', text: 'More tokens could not be loaded just now. Search by name, or paste a token address.' }));
     wantLogos(s.chain, items.slice(0, shown));
   }
 

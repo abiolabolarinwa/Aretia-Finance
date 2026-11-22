@@ -1,8 +1,9 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import artifact from '../../../contracts-evm/AretiaLaunchFactory.artifact.json';
 import { keccak256 } from '../swings/core/keccak.js';
 import { SwingsError } from '../swings/core/types.js';
-import { DEFAULT_EVM_FORM, LAUNCH_EVM_CHAINS, MIN_POOL_BPS, chainEnabled, launchEnabled, launchModeOf, launchValueOf, poolTokensOf, validateEvmLaunch, type EvmLaunchConfig, type EvmLaunchForm, type LaunchEvmChain } from './walletLaunchEvmCore.js';
+import { DEFAULT_EVM_FORM, LAUNCH_EVM_CHAINS, MIN_POOL_BPS, chainEnabled, launchEnabled, launchModeOf, launchModesOf, launchValueOf, poolTokensOf, validateEvmLaunch, type EvmLaunchConfig, type EvmLaunchForm, type LaunchEvmChain } from './walletLaunchEvmCore.js';
 import {
   DEX_FACTORY_SELECTOR,
   FEE_RECIPIENT_SELECTOR,
@@ -620,5 +621,71 @@ describe('EvmLaunchFlow, token-only creation', () => {
     expect(m).toContain('You hold about 0.0125 BNB');
     expect(m).toContain("Aretia's fee alone is about 0.014 BNB");
     expect(m).toContain('Add at least 0.0015 BNB');
+  });
+});
+
+describe('the choice between a locked pool and a bonding curve', () => {
+  const lockedOnly: LaunchEvmChain = { ...chain, factory: null };
+  const plainOnly: LaunchEvmChain = { ...chain, launch: { ...chain.launch!, factory: null } };
+  const neither: LaunchEvmChain = { ...chain, factory: null, launch: { ...chain.launch!, factory: null } };
+
+  it('is offered where both factories are set, the locked pool first, and nowhere else', () => {
+    expect(launchModesOf(chain)).toEqual(['locked', 'plain']);
+    expect(launchModesOf(lockedOnly)).toEqual(['locked']);
+    expect(launchModesOf(plainOnly)).toEqual(['plain']);
+    expect(launchModesOf(neither)).toEqual([]);
+  });
+
+  it('takes the path the creator prefers when the network offers it, the locked pool by default, and what is left when it does not', () => {
+    expect(launchModeOf(chain)).toBe('locked');
+    expect(launchModeOf(chain, 'locked')).toBe('locked');
+    expect(launchModeOf(chain, 'plain')).toBe('plain');
+    expect(launchModeOf(lockedOnly, 'plain')).toBe('locked'); // no older factory here
+    expect(launchModeOf(plainOnly, 'locked')).toBe('plain'); // no launch factory here
+    expect(launchModeOf(neither, 'plain')).toBeNull();
+    expect(launchModeOf(neither, 'locked')).toBeNull();
+  });
+
+  it('starts on the locked pool', () => {
+    expect(DEFAULT_EVM_FORM.route).toBe('locked');
+    const v = validateEvmLaunch(form({ poolPct: '', poolCoin: '' }), CREATOR, table);
+    expect(v.ok).toBe(false); // the locked path asks for the pool fields
+  });
+
+  it('with the bonding-curve route, creates the token alone through the older factory: no pool fields, the fee alone', () => {
+    const v = validateEvmLaunch(form({ route: 'plain', poolPct: '', poolCoin: '' }), CREATOR, table);
+    expect(v.ok).toBe(true);
+    if (v.ok) {
+      expect(v.config.mode).toBe('plain');
+      expect(v.config.poolBps).toBe(0);
+      expect(v.config.poolCoinWei).toBe(0n);
+      expect(launchValueOf(v.config)).toBe(chain.feeWei);
+    }
+  });
+
+  it('with the locked route, still asks for the pool and puts the pool coin and the launch fee in the transaction', () => {
+    const v = validateEvmLaunch(form({ route: 'locked' }), CREATOR, table);
+    expect(v.ok).toBe(true);
+    if (v.ok) {
+      expect(v.config.mode).toBe('locked');
+      expect(launchValueOf(v.config)).toBe(FEE + COIN);
+    }
+  });
+
+  it('on a network that offers only one path, the preference changes nothing', () => {
+    const a = validateEvmLaunch(form({ route: 'plain' }), CREATOR, [lockedOnly]);
+    expect(a.ok && a.config.mode).toBe('locked');
+    const b = validateEvmLaunch(form({ route: 'locked', poolPct: '', poolCoin: '' }), CREATOR, [plainOnly]);
+    expect(b.ok && b.config.mode).toBe('plain');
+  });
+
+  it('is drawn only where both paths are offered, as two radio buttons that redraw the form', () => {
+    const src = readFileSync(new URL('./walletLaunchEvm.ts', import.meta.url), 'utf8');
+    expect(src).toContain('launchModesOf(chain).length > 1');
+    expect(src).toContain("setAttribute('role', 'radio')");
+    expect(src).toContain("form = { ...form, route: o.mode };");
+    // every place that decides the path reads the creator's preference
+    expect(src.match(/launchModeOf\(chain, form\.route\)/g)?.length).toBe(3);
+    expect(src).not.toMatch(/launchModeOf\(chain\)/);
   });
 });

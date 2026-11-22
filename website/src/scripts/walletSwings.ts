@@ -77,6 +77,7 @@ import { avatar, createChartPanel } from './walletChart';
 import { createTokenPage } from './walletTokenPage';
 import { cachedLogo, ensureLogos } from '../swings/tokens/logos.js';
 import { WRAPPED_NATIVE } from '../swings/dex/entries.js';
+import { HUB_TOKENS } from '../swings/dex/hubs.js';
 import { summarizeQuote } from '../swings/core/summary.js';
 import { mountSwapSheet, rateLabel, stageFor, type SheetModel } from './walletSwapSheet';
 import { assessMevExposure } from '../swings/core/mev.js';
@@ -519,7 +520,14 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
   }
 
   function quickTokens(): TokenInfo[] {
-    if (isEvm(s.chain)) return [{ mint: EVM_NATIVE_ADDRESS, symbol: CHAINS[s.chain].nativeSymbol, name: `${CHAINS[s.chain].name} native coin`, decimals: CHAINS[s.chain].nativeDecimals, icon: null, verified: true }];
+    if (isEvm(s.chain)) {
+      // The network's own coin, then the stablecoins and wrapped coin the router already trades through (real contracts, checked against the chain by the
+      // live tests), so the list is never just one coin. One row per symbol: Polygon lists two USDC contracts, and the later (native) one is kept.
+      const native: TokenInfo = { mint: EVM_NATIVE_ADDRESS, symbol: CHAINS[s.chain].nativeSymbol, name: `${CHAINS[s.chain].name} native coin`, decimals: CHAINS[s.chain].nativeDecimals, icon: null, verified: true };
+      const bySymbol = new Map<string, TokenInfo>();
+      for (const h of HUB_TOKENS[s.chain] ?? []) if (h.address !== (WRAPPED_NATIVE as Record<string, string | undefined>)[s.chain]) bySymbol.set(h.symbol, { mint: h.address, symbol: h.symbol, name: h.symbol, decimals: h.decimals, icon: null, verified: true });
+      return [native, ...bySymbol.values()];
+    }
     const seen = new Set<string>();
     const out: TokenInfo[] = [];
     for (const h of host.getHoldings() ?? []) {

@@ -30,6 +30,8 @@ export interface TokenPageOptions {
   /** Takes the swap card back out, when the page closes or another token opens. */
   unmountSwap?: () => void;
   onBack(): void;
+  /** True on the Swap page itself, which has no list to go back to: the button is left out. */
+  hideBack?: boolean;
 }
 
 const LABEL: Record<Win, string> = { m5: '5M', h1: '1H', h6: '6H', h24: '24H' };
@@ -101,7 +103,7 @@ export function createTokenPage(finder = new DexScreenerPoolFinder()) {
     // The numbers that matter (prices, liquidity, value, trades) sit in this row, beside the name and price.
     const stats = el('div', 'wapp-tp__stats');
     stats.dataset.tpStats = '';
-    bar.append(back, title, headline, stats, shareButton(tokenShare(o.chain, o.address, o.symbol)));
+    bar.append(...(o.hideBack ? [] : [back]), title, headline, stats, shareButton(tokenShare(o.chain, o.address, o.symbol)));
     const grid = el('div', 'wapp-tp__grid');
     const chart = el('div', 'wapp-tp__chart');
     const side = el('aside', 'wapp-tp__side');

@@ -255,10 +255,10 @@ export function hasWideRange(bars: readonly TvBar[]): boolean {
   return lo > 0 && hi / lo > 1000;
 }
 
-/** The last candle's price follows the pool's live price this often: 60 reads a minute, against the 300 a minute DexScreener allows a visitor. */
-const LIVE_PRICE_MS = 1_000;
-/** The one-second price poll waits while the live stream has delivered a price this recently. */
-const STREAM_QUIET_MS = 3_000;
+/** The last candle's price follows the pool's live price this often: about 86 reads a minute (and about as many for the token page's numbers), against the 300 a minute DexScreener allows a visitor. */
+const LIVE_PRICE_MS = 700;
+/** The price poll waits while the live stream has delivered a price this recently (the stream pushes at most about once a second, so a longer wait would leave the chart behind the board). */
+const STREAM_QUIET_MS = 1_200;
 /** How often an index-served pool's candles are re-read. */
 const INDEX_POLL_MS = 5_000;
 /** After a live reading, the candle data's own close is not trusted over it for this long (candle data runs a little behind). */

@@ -255,7 +255,7 @@ export function createTokenPage(finder = new DexScreenerPoolFinder()) {
         .finally(() => {
           busy = false;
         });
-    }, 1000);
+    }, 700);
   }
   let lastChain: ChainId = 'solana';
 

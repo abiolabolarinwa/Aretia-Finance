@@ -20,6 +20,7 @@ import {
   chainByKey,
   evmDisclosuresOf,
   launchModeOf,
+  launchModesOf,
   launchValueOf,
   poolTokensOf,
   validateEvmLaunch,
@@ -129,7 +130,7 @@ export function createEvmLaunch(host: LaunchEvmHost): { draw(card: HTMLElement, 
     return account && a ? { family: 'evm', address: account, sign: (m) => a.signMessage(m, account) } : null;
   });
   // Pictures and details can be stored where the creator can be proved from the chain: Aretia's own token factory on a main network.
-  const detailsSupported = (chain: LaunchEvmChain | undefined): boolean => !!chain && !chain.testnet && launchModeOf(chain) === 'plain' && (EVM_META_CHAINS as readonly string[]).includes(chain.key);
+  const detailsSupported = (chain: LaunchEvmChain | undefined): boolean => !!chain && !chain.testnet && launchModeOf(chain, form.route) === 'plain' && (EVM_META_CHAINS as readonly string[]).includes(chain.key);
   onDetailsChange((kind) => {
     if (kind === 'image' && stage === 'form') redrawNow();
   });
@@ -195,7 +196,7 @@ export function createEvmLaunch(host: LaunchEvmHost): { draw(card: HTMLElement, 
 
   /** The checklist beside the Review button, from what is typed now. Gas is priced at Review. */
   function formChecklist(chain: LaunchEvmChain): ReturnType<typeof evmChecklist> {
-    const mode = launchModeOf(chain) ?? 'plain';
+    const mode = launchModeOf(chain, form.route) ?? 'plain';
     const pct = /^(\d{1,3})(?:\.(\d{1,2}))?$/.exec(form.poolPct.trim());
     const poolBps = pct ? Number(pct[1]) * 100 + Number((pct[2] ?? '').padEnd(2, '0')) : 7000;
     const coinText = form.poolCoin.trim().startsWith('.') ? `0${form.poolCoin.trim()}` : form.poolCoin.trim();
@@ -203,10 +204,38 @@ export function createEvmLaunch(host: LaunchEvmHost): { draw(card: HTMLElement, 
     return evmChecklist({ symbol: form.symbol.trim().toUpperCase(), supplyText: form.supply.trim(), coin: chain.symbol, mode, testnet: chain.testnet, feeWei: mode === 'locked' ? (chain.launch?.feeWei ?? 0n) : chain.feeWei, poolCoinWei, poolBps: mode === 'locked' ? poolBps : 0, gasWei: null });
   }
 
+  /** Where a network offers both paths: the choice between a locked pool and a bonding curve (or an Aretia Pool), with what each means in a line. */
+  function routeChooser(chain: LaunchEvmChain, chosen: 'locked' | 'plain' | null): HTMLElement {
+    const box = h('div', 'lh__net');
+    box.append(h('p', 'wapp__fine', 'How do you want to launch?'));
+    const chips = h('div', 'lh-chips');
+    chips.setAttribute('role', 'radiogroup');
+    chips.setAttribute('aria-label', 'How to launch');
+    const options: { mode: 'locked' | 'plain'; label: string; text: string }[] = [
+      { mode: 'locked', label: 'Locked pool', text: `Create the token and open its trading pool in one transaction, with the liquidity locked for good. Nobody, including you and Aretia, can pull it out.` },
+      { mode: 'plain', label: 'Bonding curve', text: `Create the token on its own. On the next step you can sell it along a price curve and move it to a pool when it sells out, or open an Aretia Pool for it. The liquidity is not locked until then.` },
+    ];
+    for (const o of options) {
+      const b = h('button', `lh-chip${o.mode === chosen ? ' is-on' : ''}`, o.label);
+      b.type = 'button';
+      b.setAttribute('role', 'radio');
+      b.setAttribute('aria-checked', String(o.mode === chosen));
+      b.dataset.route = o.mode;
+      b.addEventListener('click', () => {
+        if (form.route === o.mode) return;
+        form = { ...form, route: o.mode };
+        redrawNow();
+      });
+      chips.append(b);
+    }
+    box.append(chips, h('p', 'wapp__fine', options.find((o) => o.mode === chosen)?.text ?? ''));
+    return box;
+  }
+
   function drawForm(card: HTMLElement, chain: LaunchEvmChain | undefined): void {
     const account = host.getAccount();
     card.append(h('h2', 'wapp__h2', `Create a token on ${chain?.name ?? 'an Ethereum-style network'}`));
-    const mode = chain ? launchModeOf(chain) : null;
+    const mode = chain ? launchModeOf(chain, form.route) : null;
     const enabled = mode !== null;
     if (chain && mode === 'locked') {
       card.append(h('p', 'wapp__fine', `Create a token and open its trading pool in one transaction. The pool's liquidity is locked for good, so nobody, including you and Aretia, can ever pull it out. Your own wallet signs; Aretia never holds your keys. The flat Aretia fee is ${coinText(chain.launch!.feeWei, chain.symbol)}, sent in the same transaction and shown before you sign, plus the coin you put in the pool and the network's gas.`));
@@ -215,6 +244,7 @@ export function createEvmLaunch(host: LaunchEvmHost): { draw(card: HTMLElement, 
     } else {
       card.append(h('p', 'wapp__banner wapp__banner--warn', `Creating tokens on ${chain?.name ?? 'this network'} is not available yet. It switches on once Aretia’s token factory is deployed there.`));
     }
+    if (chain && launchModesOf(chain).length > 1) card.append(routeChooser(chain, mode));
     if (!account) card.append(h('p', 'wapp__banner wapp__banner--warn', 'Connect an Ethereum-style wallet to create a token.'));
 
     const f = h('form', 'wapp__form wapp-ln__form');

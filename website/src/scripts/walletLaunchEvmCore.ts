@@ -100,11 +100,24 @@ export function launchEnabled(c: LaunchEvmChain, feeAddress: string | null = c.f
  * How a token is created on this network right now:
  *  - 'locked': through the locked-launch factory, which also opens the pool with the liquidity locked, in the same transaction;
  *  - 'plain': through the older token-only factory, which creates the token and nothing else (no pool exists, so there is no liquidity to pull);
- *  - null: not available. The locked path wins wherever its factory is set.
+ *  - null: not available.
+ * A network offers each path whose factory is set, and when it offers both the creator chooses: the locked pool (the default), or the older
+ * token-only path, after which the token can be sold along a bonding curve or put in an Aretia Pool (both accept only tokens from the older factory).
  */
 export type LaunchMode = 'locked' | 'plain';
-export function launchModeOf(c: LaunchEvmChain): LaunchMode | null {
-  return launchEnabled(c) ? 'locked' : chainEnabled(c) ? 'plain' : null;
+
+/** The paths this network offers, the locked pool first. */
+export function launchModesOf(c: LaunchEvmChain): LaunchMode[] {
+  const out: LaunchMode[] = [];
+  if (launchEnabled(c)) out.push('locked');
+  if (chainEnabled(c)) out.push('plain');
+  return out;
+}
+
+/** The path a launch takes: the one preferred when the network offers it, otherwise the first it does offer, or null when it offers none. */
+export function launchModeOf(c: LaunchEvmChain, prefer: LaunchMode = 'locked'): LaunchMode | null {
+  const modes = launchModesOf(c);
+  return modes.includes(prefer) ? prefer : (modes[0] ?? null);
 }
 
 export const chainByKey = (key: string, table: readonly LaunchEvmChain[] = LAUNCH_EVM_CHAINS): LaunchEvmChain | undefined => table.find((c) => c.key === key);
@@ -122,9 +135,11 @@ export interface EvmLaunchForm {
   poolPct: string;
   /** The coin that goes into the locked pool with it, a decimal such as "0.5". At least the network's minimum. */
   poolCoin: string;
+  /** The path the creator prefers: the locked pool, or the token-only path that leads to a bonding curve or an Aretia Pool. Used only where the network offers it. */
+  route: LaunchMode;
 }
 
-export const DEFAULT_EVM_FORM: EvmLaunchForm = { chain: 'bnb', name: '', symbol: '', decimals: '18', supply: '1,000,000,000', poolPct: '70', poolCoin: '' };
+export const DEFAULT_EVM_FORM: EvmLaunchForm = { chain: 'bnb', name: '', symbol: '', decimals: '18', supply: '1,000,000,000', poolPct: '70', poolCoin: '', route: 'locked' };
 
 export interface EvmLaunchConfig {
   chain: LaunchEvmChain;
@@ -165,8 +180,8 @@ export function validateEvmLaunch(form: EvmLaunchForm, creator: string, table: r
 
   const chain = chainByKey(form.chain, table);
   if (!chain) add('chain', 'Choose a network.');
-  else if (launchModeOf(chain) === null) add('chain', `Creating tokens on ${chain.name} is not available yet.`);
-  const mode = chain ? launchModeOf(chain) : null;
+  else if (launchModeOf(chain, form.route) === null) add('chain', `Creating tokens on ${chain.name} is not available yet.`);
+  const mode = chain ? launchModeOf(chain, form.route) : null;
   if (!isEvmAddress(creator)) add('form', 'Connect an Ethereum-style wallet first.');
 
   const name = form.name.trim();

@@ -1,6 +1,6 @@
 /**
- * The loading state of the whole site: the Aretia Finance mark, drawn as its three pieces, which slide together and apart while
- * something loads. The mark is traced from /assets/logo-mark.png. The styles are in styles/global.css (.aretia-mark).
+ * The loading state of the whole site: the Aretia Finance mark, whose mouth opens and shuts while
+ * something loads. The mark is /assets/logo-mark.svg. The styles are in styles/global.css (.aretia-mark).
  *
  * Two ways in:
  *  - `loadingBlock(text)` / `markSvg(size)` for a place that wants a loader on purpose;
@@ -8,18 +8,24 @@
  *    message the pages already show, so every loading state looks the same without each one being rewritten.
  */
 
-/** The three pieces of the mark on a 128-unit square: the upper band, the left chevron and the lower bar. */
-export const MARK_PIECES: readonly { id: 'a' | 'b' | 'c'; d: string }[] = [
-  { id: 'a', d: 'M53 35 56 35 93 72 92 75 88 78 88 79 85 79 49 43 49 39Z' },
-  { id: 'b', d: 'M41 47 44 47 62 65 62 68 46 84 42 85 38 81 38 77 48 68 48 65 36 54 37 51Z' },
-  { id: 'c', d: 'M66 73 70 73 74 77 73 82 53 102 51 102 51 103 48 103 44 99 44 95Z' },
+/**
+ * The mark on a 320-unit square: the outlined square behind, the navy tile in front, and the round shape in two jaws that open and
+ * shut. The jaws are the two halves of a disc split along its middle, each turned about the disc's centre (180, 171).
+ */
+export const MARK_PIECES: readonly { id: 'back' | 'top' | 'bottom'; el: string; attrs: string }[] = [
+  { id: 'back', el: 'rect', attrs: 'x="4" y="4" width="296" height="296"' },
+  { id: 'top', el: 'path', attrs: 'd="M98 171A82 82 0 0 1 262 171Z"' },
+  { id: 'bottom', el: 'path', attrs: 'd="M262 171A82 82 0 0 1 98 171Z"' },
 ];
 
 /** The mark as SVG markup. `size` is in pixels, or any CSS length when a string. */
 export function markSvg(size: number | string = 40): string {
   const s = typeof size === 'number' ? `${size}` : size;
-  const pieces = MARK_PIECES.map((p) => `<path class="aretia-mark__${p.id}" d="${p.d}"/>`).join('');
-  return `<svg class="aretia-mark" viewBox="0 0 128 128" width="${s}" height="${s}" aria-hidden="true" focusable="false"><rect class="aretia-mark__tile" width="128" height="128" rx="28"/>${pieces}</svg>`;
+  const piece = (id: string): string => {
+    const p = MARK_PIECES.find((x) => x.id === id)!;
+    return `<${p.el} class="aretia-mark__${p.id}" ${p.attrs}/>`;
+  };
+  return `<svg class="aretia-mark" viewBox="0 0 320 320" width="${s}" height="${s}" aria-hidden="true" focusable="false">${piece('back')}<rect class="aretia-mark__tile" x="26" y="26" width="290" height="290"/>${piece('top')}${piece('bottom')}</svg>`;
 }
 
 /**

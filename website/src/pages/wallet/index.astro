@@ -32,12 +32,8 @@ const carbonNeeds = [
 // Aretia's own bonding curve stays out of the page until the site is built with PUBLIC_CURVE_ENABLED=1, and does nothing on mainnet even then
 // until it has an audited, deployed program (see docs/BONDING_CURVE.md).
 const curveOn = import.meta.env.PUBLIC_CURVE_ENABLED === '1';
-// Limit orders (docs/ORDER_PROGRAM.md) stay out of the page until the site is built with PUBLIC_ORDERS_ENABLED=1, and do nothing on mainnet even
-// then: the card shows a notice and no form until the order program has an address.
 // Ultimate City Search (docs/ULTIMATE_CITY_SEARCH_PLAN.md) stays out of the page until the site is built with PUBLIC_GAME_ENABLED=1.
 const gameOn = import.meta.env.PUBLIC_GAME_ENABLED === '1';
-const ordersOn = import.meta.env.PUBLIC_ORDERS_ENABLED === '1';
-const ordersEvmOn = import.meta.env.PUBLIC_ORDERS_EVM_ENABLED === '1';
 
 // Aretia's own pool program (docs/ARETIA_POOL.md) stays out of the page until the site is built with PUBLIC_ARETIA_POOL_ENABLED=1, and does
 // nothing on mainnet even then: it has no mainnet program and is unaudited.
@@ -411,27 +407,7 @@ const sendTips = [
                       <div data-curve-root aria-live="polite"></div>
                     </div>
                   )}
-                  <div class="wapp__card lh-nested" data-orders-status>
-                    <span class="wapp__eyebrow">Limit orders</span>
-                    <p class="wapp__fine">Buy or sell a token launched on Aretia only at a price you set, and let a keeper fill the order when the market reaches it.</p>
-                    <p class="wapp__banner wapp__banner--warn"><b>Not live yet.</b> The order program is built and tested but is not deployed on any network and has not been audited. You cannot place an order today, and nothing on this page can move your funds for it.</p>
-                    <dl class="wapp__rows">
-                      <div><dt>Fees</dt><dd>0.58% to cancel · 1.5% on a filled buy · 2% on a filled sell</dd></div>
-                      <div><dt>Smallest order</dt><dd>USD 50 equivalent</dd></div>
-                      <div><dt>Pays with</dt><dd>USDC, USDT, SOL, BNB, ETH or POL, where a pool exists</dd></div>
-                      <div><dt>Privacy</dt><dd>Only you see your orders in the app. They are public on the chain.</dd></div>
-                      <div><dt>Fills</dt><dd>Only while a keeper runs. Cancelling always works.</dd></div>
-                    </dl>
-                  </div>
-                  {ordersOn && (
-                    <div class="wapp__card lh-nested">
-                      <div data-orders-root aria-live="polite"></div>
-                    </div>
-                  )}
                   <div data-evm-curve-root aria-live="polite" hidden></div>
-                  {ordersEvmOn && (
-                    <div class="wapp__card lh-nested" data-evm-orders-root aria-live="polite" hidden></div>
-                  )}
                 </div>
                 <div class="lh-nav lh-nav--split" data-hub-market-nav></div>
               </section>

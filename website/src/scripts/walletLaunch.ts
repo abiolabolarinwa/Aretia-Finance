@@ -467,8 +467,8 @@ export function initLaunch(host: LaunchHost): LaunchApi {
     const out: LaunchNetwork[] = [{ key: 'solana', name: 'Solana', symbol: 'SOL', testnet: false, enabled: true }];
     if (!evm) return out;
     for (const c of LAUNCH_EVM_CHAINS) {
-      // A test network is listed only once its factory is deployed; until then it would be a dead entry.
-      if (c.testnet && !chainEnabled(c)) continue;
+      // The page offers mainnets only. A test network stays in the tables for the owner's own rehearsal scripts, but is never listed here.
+      if (c.testnet) continue;
       out.push({ key: c.key, name: c.name.replace(/ \(test\)$/, ''), symbol: c.symbol, testnet: c.testnet, enabled: chainEnabled(c) });
     }
     return out;

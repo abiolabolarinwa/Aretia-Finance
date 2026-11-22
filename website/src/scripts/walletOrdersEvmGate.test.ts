@@ -5,12 +5,9 @@ import { EVM_ORDERS_ADDRESSES, evmOrdersChain } from './walletOrdersEvmCore';
 const read = (rel: string) => readFileSync(new URL(rel, import.meta.url), 'utf8');
 
 describe('the page keeps EVM limit orders off', () => {
-  it('only contains the card when built with PUBLIC_ORDERS_EVM_ENABLED=1', () => {
+  it('has no card or switch on the wallet page, and the launch code creates the orders card only behind its own flag', () => {
     const page = read('../pages/wallet/index.astro');
-    const at = page.indexOf('data-evm-orders-root');
-    expect(at).toBeGreaterThan(-1);
-    expect(page.slice(page.lastIndexOf('{ordersEvmOn', at), at)).toContain('{ordersEvmOn && (');
-    expect(page).toContain("import.meta.env.PUBLIC_ORDERS_EVM_ENABLED === '1'");
+    for (const gone of ['data-evm-orders-root', 'ordersEvmOn', 'PUBLIC_ORDERS_EVM_ENABLED']) expect(page, gone).not.toContain(gone);
     expect(read('./walletLaunchEvm.ts')).toContain("import.meta.env.PUBLIC_ORDERS_EVM_ENABLED === '1' ? createEvmOrders(");
   });
 

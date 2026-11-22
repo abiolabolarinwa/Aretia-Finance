@@ -7,23 +7,12 @@ import { CURVE_FEE_BPS, KEEPER_SHARE_BPS, ORDERS_PROGRAM_ID_DEVNET, ORDERS_PROGR
 const read = (rel: string) => readFileSync(new URL(rel, import.meta.url), 'utf8');
 
 describe('the page keeps limit orders off mainnet', () => {
-  it('only contains the card when built with PUBLIC_ORDERS_ENABLED=1', () => {
+  it('puts nothing about limit orders on the wallet page: no card, no mount point, no switch, no copy', () => {
+    // Orders are not deployed on any network and are not part of the product for now, so the page does not show an unfinished feature.
     const page = read('../pages/wallet/index.astro');
-    const at = page.indexOf('data-orders-root');
-    expect(at).toBeGreaterThan(-1);
-    expect(page.slice(page.lastIndexOf('{ordersOn', at), at)).toContain('{ordersOn && (');
-    expect(page).toContain("import.meta.env.PUBLIC_ORDERS_ENABLED === '1'");
-  });
-
-  it('always shows an honest status card that has no form, button or script', () => {
-    const page = read('../pages/wallet/index.astro');
-    const start = page.indexOf('data-orders-status');
-    expect(start).toBeGreaterThan(-1);
-    const block = page.slice(start, page.indexOf('{ordersOn && (', start));
-    expect(block).toContain('Not live yet.');
-    expect(block).toContain('has not been audited');
-    expect(block).not.toMatch(/<(button|input|form|script|a )/);
-    expect(block).not.toMatch(/\baudited by\b/i);
+    for (const gone of ['data-orders-root', 'data-orders-status', 'data-evm-orders-root', 'ordersOn', 'ordersEvmOn', 'PUBLIC_ORDERS_ENABLED', 'PUBLIC_ORDERS_EVM_ENABLED', 'Limit orders', 'Not live yet']) {
+      expect(page, gone).not.toContain(gone);
+    }
   });
 
   it('shows a notice and sends nothing while there is no program', () => {

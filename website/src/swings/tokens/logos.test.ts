@@ -17,7 +17,6 @@ describe('native coin logos', () => {
     expect(nativeLogo('bnb', EVM_NATIVE_ADDRESS)).toBe('/assets/chains/bnb.png');
     expect(nativeLogo('base', EVM_NATIVE_ADDRESS.toUpperCase().replace('0X', '0x'))).toBe('/assets/chains/ethereum.png');
     expect(nativeLogo('solana', BONK)).toBeNull();
-    expect(nativeLogo('solana', '7Ut5njM9ajGDjP83WvJmvrAcfi9JoVYrHSK5x5sSFrTG')).toBe('/assets/logo-mark.png');
     expect(cachedLogo('polygon', EVM_NATIVE_ADDRESS)).toBe('/assets/chains/polygon.png');
   });
 });

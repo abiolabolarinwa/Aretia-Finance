@@ -1,7 +1,6 @@
 ---
 import Base from '../../layouts/Base.astro';
 import ProductLogo from '../../components/brand/ProductLogo.astro';
-import { ACT } from '../../data/site';
 import { CHAINS } from '../../swings/core/types';
 // The browser keeps wallet.js for hours, so its address changes with every build: a fix reaches readers at once, not after the cache runs out.
 const walletJsVersion = process.env.CF_PAGES_COMMIT_SHA ?? process.env.VERCEL_GIT_COMMIT_SHA ?? String(Date.now());
@@ -52,13 +51,12 @@ const sendTips = [
   'Before it asks your wallet, the page simulates the transaction on a public RPC. A failed simulation blocks the send.',
   'The addresses and amounts involved, and any .sns name you type, are sent to a public Solana RPC.',
   'Sending a token to an address that has no account for it opens one, paid in SOL by you (about 0.002 SOL).',
-  `ACT carries a ${ACT.transferFee.totalPercent}% transfer fee on every move, so the recipient gets slightly less than you send.`,
 ];
 ---
 
 <Base
   title="Wallet"
-  description="Aretia web wallet: connect the Solana wallet you already use to see your balances and activity and trade ACT. Aretia never holds your keys."
+  description="Aretia web wallet: connect the Solana wallet you already use to see your balances and activity and trade. Aretia never holds your keys."
   walletConnect
   ctaBands={false}
   footer={false}
@@ -429,7 +427,7 @@ const sendTips = [
             <span class="wapp__eyebrow">Aretia Carbon Credit</span>
             <h2 class="wapp__h2">Carbon credits on-chain, under the registry’s control</h2>
             <p class="wapp__fine">We are building software that would let a carbon registry put credits it has authorised onto a blockchain, with every step checked and reconciled. The registry stays in charge: its record is always the one that counts.</p>
-            <p class="wapp__banner wapp__banner--warn"><b>Not live.</b> This is sandbox software running on simulated data. No carbon registry is a customer, partner or approver of this work, nothing here is a real carbon credit, and it has not been audited. ACT is a separate token and is not a carbon credit.</p>
+            <p class="wapp__banner wapp__banner--warn"><b>Not live.</b> This is sandbox software running on simulated data. No carbon registry is a customer, partner or approver of this work, nothing here is a real carbon credit, and it has not been audited.</p>
             <span class="wapp__eyebrow">How a credit would move</span>
             <ol class="wapp__list">
               {carbonSteps.map((step) => <li>{step}</li>)}
@@ -940,7 +938,7 @@ const sendTips = [
     [data-wapp].wapp[data-view='swings'] > .wapp-mp:not([hidden]) { display: flex; flex-direction: column; position: sticky; top: 0; z-index: 35; align-self: start; height: 100vh; box-sizing: border-box; overflow-y: auto; gap: 10px; padding: 16px; background: var(--color-bg); border-left: 1px solid var(--color-border); }
   }
   @media (min-width: 1680px) {
-    /* With the panel docked, the top bar (ACT price and wallet) ends where the list ends, opposite the search box, instead of sitting over the panel. */
+    /* With the panel docked, the top bar (wallet) ends where the list ends, opposite the search box, instead of sitting over the panel. */
     body:has([data-wapp][data-view='swings'] > .wapp-mp:not([hidden])) .nav--wallet { right: 360px; }
   }
   .wapp-mt__main { min-width: 0; display: grid; gap: 10px; }

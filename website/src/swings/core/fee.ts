@@ -6,7 +6,7 @@
  * any other token (selling it) carries no fee. So the fee always arrives in an asset that is easy to sell, and swapping between two
  * of those assets (USDC to SOL, say) pays it too. It is taken out of the amount the user enters, so what the user spends is exactly
  * what they typed: the fee, plus the rest, which is what is swapped. The only other Aretia charge is the Move USDC fee below
- * (`MOVE_FEE_BPS`, 0.1% of every Circle CCTP move, taken in USDC on the source chain); the old ACT buyback has been removed.
+ * (`MOVE_FEE_BPS`, 0.1% of every Circle CCTP move, taken in USDC on the source chain).
  *
  * `DEFAULT_FEE_CONFIG` is the neutral baseline (off) that tests and any code without an explicit choice get.
  * `liveFeeConfig` is what the product runs: on for every network, for swaps paid with those assets. Solana's fee goes to the owner's existing fee wallet. An

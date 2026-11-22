@@ -10,9 +10,6 @@ import { SOLANA_NATIVE_ADDRESS, EVM_NATIVE_ADDRESS, type ChainId } from '../core
 import { DEXSCREENER_CHAIN, GECKO_NETWORK } from '../charts/pool.js';
 
 const WRAPPED_SOL = 'So11111111111111111111111111111111111111112';
-/** Aretia's own token uses Aretia's own mark; no outside service has a picture for it. */
-const ACT_MINT = '7Ut5njM9ajGDjP83WvJmvrAcfi9JoVYrHSK5x5sSFrTG';
-const ACT_LOGO = '/assets/logo-mark.png';
 
 /** The picture of each network's own coin (the layer-2 networks all use ether). */
 export const NATIVE_COIN_LOGO: Readonly<Record<ChainId, string>> = {
@@ -28,7 +25,7 @@ export const logoKey = (chain: ChainId, address: string): string => `${chain}:${
 
 /** The picture for a network's own coin, or null if the address is not that coin. */
 export function nativeLogo(chain: ChainId, address: string): string | null {
-  if (chain === 'solana') return address === ACT_MINT ? ACT_LOGO : address === WRAPPED_SOL || address === SOLANA_NATIVE_ADDRESS ? NATIVE_COIN_LOGO.solana : null;
+  if (chain === 'solana') return address === WRAPPED_SOL || address === SOLANA_NATIVE_ADDRESS ? NATIVE_COIN_LOGO.solana : null;
   return address.toLowerCase() === EVM_NATIVE_ADDRESS.toLowerCase() ? NATIVE_COIN_LOGO[chain] : null;
 }
 

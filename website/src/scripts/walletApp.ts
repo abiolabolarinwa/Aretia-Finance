@@ -1,4 +1,3 @@
-import { ACT as ACT_INFO } from '../data/site';
 import { EVM_ACCOUNT_EVENT } from './walletEvmEvent';
 import { routeHash } from './tokenPageCore';
 import type { initSwings } from './walletSwings';
@@ -46,7 +45,7 @@ import { BASE_FEE_LAMPORTS, fromSmallestUnit, isSolanaAddress, shieldFindings, t
  *   - Solana RPC getTokenAccountsByOwner  every token account the address owns, read from the chain, so a token
  *                               Jupiter's list leaves out (or a Jupiter outage) does not hide a holding
  *   - Jupiter  tokens/v2/search names, icons and prices for those mints
- *   - DexScreener tokens/v1     price for mints Jupiter has no price for (e.g. ACT)
+ *   - DexScreener tokens/v1     price for mints Jupiter has no price for
  *   - Solana RPC (via /api/rpc, public fallback)  recent signatures for the Activity tab, the
  *                               account read behind Shield, and everything Send needs
  *
@@ -1180,10 +1179,7 @@ export function initWalletApp(): void {
     card.append(el('strong', { text: 'Review before you sign' }), rowsList(rows));
     if (notice) card.append(banner('warn', notice));
 
-    if (plan.mint === ACT_INFO.mint) {
-      const received = Number(plan.amountText) * (1 - ACT_INFO.transferFee.totalPercent / 100);
-      card.append(banner('info', `ACT withholds a ${ACT_INFO.transferFee.totalPercent}% transfer fee, so the recipient receives about ${formatAmount(received)} ACT.`));
-    } else if (plan.mayCharge) {
+    if (plan.mayCharge) {
       card.append(banner('info', 'This token may withhold a transfer fee of its own, so the recipient may receive slightly less.'));
     }
     if (plan.blockers.length === 0) for (const f of shieldFindings(plan.recipient, address, plan.to)) card.append(banner(f.severity === 'warning' ? 'warn' : 'info', f.message));
@@ -1310,7 +1306,7 @@ export function initWalletApp(): void {
   });
 
   // ---- shield tab
-  // The network chip and Refresh live in the site's top bar, before the ACT price, whenever that bar has room
+  // The network chip and Refresh live in the site's top bar, whenever that bar has room
   // for them (it hides its right-hand side on narrow screens, so there they stay at the top of the page).
   function placeChips(): void {
     const chips = $<HTMLElement>('.wapp__chips');

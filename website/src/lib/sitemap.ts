@@ -7,7 +7,7 @@ import { CHAIN_IDS } from '../swings/core/types.js';
 export const SITE = 'https://aretiafinance.org';
 
 /** Paths of the pages worth finding, in the order they are listed. `/` is only a jump to Markets, so Markets and the home page are listed instead. */
-export const PUBLIC_PAGES: readonly string[] = ['/wallet', '/home', '/about', '/features', '/faq', '/featured', '/verified', '/carboncredit', '/advertise', '/blog', '/learn', ...CHAIN_IDS.map((c) => `/chains/${c}`), '/support', '/contact', '/privacy', '/terms'];
+export const PUBLIC_PAGES: readonly string[] = ['/wallet', '/home', '/about', '/features', '/featured', '/verified', '/carboncredit', '/advertise', '/blog', '/learn', ...CHAIN_IDS.map((c) => `/chains/${c}`), '/support', '/contact', '/privacy', '/terms'];
 
 export interface SitemapPost {
   id: string;

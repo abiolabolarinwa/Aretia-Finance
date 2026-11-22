@@ -2,7 +2,7 @@
  * Cross-chain interfaces. INTERFACES ONLY: nothing here can move funds, and no bridge is registered.
  *
  * The future flow is: source chain -> bridge/cross-chain provider -> destination chain -> destination DEX.
- * Providers (Wormhole NTT for ACT, aggregators, intent solvers) will implement CrossChainProvider and
+ * Providers (Wormhole NTT, aggregators, intent solvers) will implement CrossChainProvider and
  * plug into a CrossChainRouter without the same-chain router or the UI changing. Wormhole NTT is
  * testnet-only today, so cross-chain execution stays off until its path has had its own review.
  */

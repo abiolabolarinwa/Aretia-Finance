@@ -137,7 +137,7 @@ export function skeleton(text: string | null | undefined): string {
 }
 
 /** Symbols of tokens people already know, which an unlisted address may not take without a warning. */
-export const RESERVED_SYMBOLS: readonly string[] = ['ACT', 'USDC', 'USDT', 'DAI', 'USDG', 'SOL', 'WSOL', 'ETH', 'WETH', 'BTC', 'WBTC', 'BTCB', 'CBBTC', 'BNB', 'WBNB', 'POL', 'MATIC', 'WMATIC', 'WPOL', 'ARETIA'];
+export const RESERVED_SYMBOLS: readonly string[] = ['USDC', 'USDT', 'DAI', 'USDG', 'SOL', 'WSOL', 'ETH', 'WETH', 'BTC', 'WBTC', 'BTCB', 'CBBTC', 'BNB', 'WBNB', 'POL', 'MATIC', 'WMATIC', 'WPOL', 'ARETIA'];
 /** Names (and words inside names) of the same, as skeletons. */
 const RESERVED_NAMES: readonly string[] = ['USDCOIN', 'TETHER', 'TETHERUSD', 'SOLANA', 'WRAPPEDSOL', 'ETHEREUM', 'ETHER', 'WRAPPEDETHER', 'BITCOIN', 'WRAPPEDBITCOIN', 'WRAPPEDBTC', 'BINANCECOIN', 'WRAPPEDBNB', 'POLYGON', 'ARETIACOIN', 'ARETIATOKEN'];
 const RESERVED_SYMBOL_SKELETONS = new Set(RESERVED_SYMBOLS.map(skeleton));

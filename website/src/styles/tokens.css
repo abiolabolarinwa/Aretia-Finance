@@ -2,7 +2,7 @@
   /* Color: monochrome. White canvas, neutral greys and near-blacks, with indigo
      (#3730a3) kept for small accents only: links, focus rings, the active nav
      state and key highlights. Big surfaces are black, white or grey. Gold is
-     reserved for the ACT / fee layer; green is kept only for ok/live status.
+     kept for the fee layer; green is kept only for ok/live status.
      The --color-mint-* names are historical: they are now neutral greys. */
   --color-bg: #ffffff;
   --color-bg-alt: #f6f6f7;

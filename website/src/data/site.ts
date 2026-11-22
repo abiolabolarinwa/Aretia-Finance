@@ -73,65 +73,6 @@ export const PRODUCTS: Product[] = [
   },
 ];
 
-export const ACT = {
-  ticker: 'ACT',
-  network: 'Solana',
-  standard: 'SPL Token-2022',
-  mint: '7Ut5njM9ajGDjP83WvJmvrAcfi9JoVYrHSK5x5sSFrTG',
-  totalSupply: 1_000_000_000,
-  mintAuthority: 'Revoked: supply can never increase',
-  freezeAuthority: 'Revoked: no wallet can be frozen',
-  projectRegistrationFee: 5_000,
-  treasuryMultisig: 'GtKGE6mQRjpFgb6k4yuQdfgM38qQL5WufSK6wQbryZnA',
-  /** Token-2022 transfer fee, withheld by the token program on every transfer. */
-  transferFee: {
-    totalPercent: 1.5,
-    /**
-     * Set only while a fee change is scheduled on-chain but not yet in effect
-     * (Token-2022 applies a fee change two epochs after approval). While set,
-     * the nav shows a notice and fee figures say when the new rate starts.
-     * The 1.5% rate took effect at Solana epoch 1048 (2 Oct 2026), so it is unset.
-     */
-    scheduled: undefined as { fromEpoch: number; previousPercent: number } | undefined,
-    note: 'Withheld on-chain by the Token-2022 program on every transfer (150 basis points). The treasury multisig collects the withheld fees and splits them as below.',
-    split: [
-      { label: 'Climate Treasury', percent: 1, detail: 'Catalyst fund for climate projects, held in a 2-of-3 multisig' },
-      { label: 'Management fee', percent: 0.5, detail: 'Treasury operations: verification, reporting, monitoring' },
-    ],
-  },
-  utilities: [
-    { name: 'Transfer fee', status: 'live' as Status, detail: 'Every ACT transfer funds the Climate Treasury and treasury operations.' },
-    { name: 'Staking', status: 'in-development' as Status, detail: 'Lock ACT to build a Capital Access Score.' },
-    { name: 'Project registration', status: 'live' as Status, detail: `Project developers pay a ${(5000).toLocaleString('en-US')} ACT fee to apply for catalyst funding.` },
-    { name: 'Aretia service fees', status: 'roadmap' as Status, detail: 'ACT as the fee layer across Wallet, Pay and Shield.' },
-  ],
-};
-
-/**
- * ACT's launch pools (Meteora DAMM v2), created by the treasury multisig on
- * 2 Oct 2026. Single-sided: each opened with only ACT, at the floor price, so
- * nothing can trade below it. Liquidity is permanently locked (verified
- * on-chain: unlocked liquidity 0 in both positions).
- */
-export const POOLS: { pair: string; address: string; floor: string; explorer: string; position: string; chart?: string }[] = [
-  {
-    pair: 'ACT/USDC',
-    address: '6n8Mvd7xmZs66E5VLGQGvtE31gbKMcTL4S97W4oV6ivX',
-    floor: '0.005 USDC per ACT',
-    explorer: 'https://solscan.io/account/6n8Mvd7xmZs66E5VLGQGvtE31gbKMcTL4S97W4oV6ivX',
-    position: 'Eq6MKa5gfBSC1U4jqctxsQsWTX7k3KRHyFSLC4UpA4u4',
-    // DexScreener lists a pool once it has traded; ACT/SOL has not yet, so it has no chart link.
-    chart: 'https://dexscreener.com/solana/6n8Mvd7xmZs66E5VLGQGvtE31gbKMcTL4S97W4oV6ivX',
-  },
-  {
-    pair: 'ACT/SOL',
-    address: 'ECJYQzo2YfWTChEnNsaThC5Aeng1hxfbfNG8DQVgkSkb',
-    floor: 'about $0.005 per ACT in SOL, fixed in SOL at creation',
-    explorer: 'https://solscan.io/account/ECJYQzo2YfWTChEnNsaThC5Aeng1hxfbfNG8DQVgkSkb',
-    position: '4UUQtS99JhXbbpwSjN2kppKS18ZaaZCUGPUGjyJMyq9b',
-  },
-];
-
 export const CLIMATE = {
   functionalAllocation: [
     { label: 'Climate mitigation', percent: 60 },
@@ -156,7 +97,6 @@ export const DEVELOPERS = [
   { title: 'EVM provider', status: 'built' as Status, detail: 'EIP-1193 provider, discoverable through EIP-6963 alongside other installed wallets.' },
   { title: 'Solana Wallet Standard', status: 'built' as Status, detail: 'Connect, sign transactions, sign-and-send and sign messages through the standard Solana wallet interface.' },
   { title: 'Pluggable bridge providers', status: 'built' as Status, detail: 'A provider-agnostic bridge interface: integrations hand back unsigned transactions; they never hold keys.' },
-  { title: 'Verifiable token', status: 'live' as Status, detail: 'ACT is a standard SPL Token-2022 mint: supply, authorities and fee configuration are readable on-chain.' },
   { title: 'Public APIs & SDKs', status: 'roadmap' as Status, detail: 'Developer APIs for Aretia services.' },
 ];
 
@@ -166,15 +106,11 @@ export const LINKS = {
   // The wallet extension is not yet published to the Chrome Web Store, so
   // every "launch" CTA points to a waitlist capture, not a live product.
   walletWaitlist: '/wallet/about#waitlist',
-  buyAct: '/buy',
   whitepaper: '/whitepaper',
   github: 'https://github.com/abiolabolarinwa/Aretia-Finance',
   telegram: 'https://t.me/+MWgiRISNMWM2NmI0',
   discord: 'https://discord.gg/fDXvn2nHf',
   x: 'https://x.com/AretiaFinance',
-  explorerMint: `https://solscan.io/token/7Ut5njM9ajGDjP83WvJmvrAcfi9JoVYrHSK5x5sSFrTG`,
-  // ACT/USDC pool chart; DexScreener lists a pool once it has traded.
-  dexscreener: 'https://dexscreener.com/solana/6n8Mvd7xmZs66E5VLGQGvtE31gbKMcTL4S97W4oV6ivX',
   // Shares the project-application Formspree form for now (messages are
   // tagged "Website contact" in the subject). Swap for a dedicated form ID.
   contactForm: 'https://formspree.io/f/xaeypjob',

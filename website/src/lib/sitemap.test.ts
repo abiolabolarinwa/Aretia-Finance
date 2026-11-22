@@ -5,9 +5,9 @@ import { buildSitemap, PUBLIC_PAGES, SITE } from './sitemap.js';
 
 describe('sitemap', () => {
   it('lists the public pages and the posts with their dates, and nothing private', () => {
-    const xml = buildSitemap([{ id: 'act-transfer-fee-on-chain', date: new Date('2026-03-04T00:00:00Z') }]);
+    const xml = buildSitemap([{ id: 'example-post', date: new Date('2026-03-04T00:00:00Z') }]);
     expect(xml).toContain(`<loc>${SITE}/wallet</loc>`);
-    expect(xml).toContain(`<loc>${SITE}/blog/act-transfer-fee-on-chain</loc><lastmod>2026-03-04</lastmod>`);
+    expect(xml).toContain(`<loc>${SITE}/blog/example-post</loc><lastmod>2026-03-04</lastmod>`);
     for (const hidden of ['owner-admin', '/404', '/search', '/api']) expect(xml).not.toContain(hidden);
     expect(xml.startsWith('<?xml')).toBe(true);
   });

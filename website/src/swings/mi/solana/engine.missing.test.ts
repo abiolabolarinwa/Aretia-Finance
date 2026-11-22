@@ -5,7 +5,7 @@ import { DEFAULT_RULES } from '../lifecycle.js';
 import { RpcError, type Read } from '../rpc.js';
 import { InMemoryMiStore } from '../store.js';
 import type { MiPool } from '../types.js';
-import { followPool, pastGrace, readTx, stackOrigin, TX_ATTEMPTS, TX_GRACE_SECONDS } from './engine.js';
+import { followPool, pastGrace, readTx, signaturesFor, stackOrigin, TX_ATTEMPTS, TX_GRACE_SECONDS } from './engine.js';
 
 const SIG = (n: number) => String(n).padStart(88, '1');
 const NOW = 1_800_000_000_000;
@@ -79,5 +79,24 @@ describe('stackOrigin', () => {
     const e = new Error('x');
     e.stack = ['Error: x', '    at readTx (C:\\app\\src\\engine.ts:102:25)', '    at async followPool (/app/worker.mjs:9:3)', '    at third (/a.ts:1:1)'].join('\n');
     expect(stackOrigin(e)).toBe('readTx (engine.ts:102:25) < async followPool (worker.mjs:9:3)');
+  });
+});
+
+describe('signaturesFor', () => {
+  it('repeats the read without `until` when the nodes do not know that signature, and fails on anything else', async () => {
+    const calls: Record<string, unknown>[] = [];
+    const rpc = (async (_m: string, p: unknown[]) => {
+      const params = p[1] as Record<string, unknown>;
+      calls.push(params);
+      if (params.until) throw new RpcError(`Transaction ${SIG(7)} not found`, 'node-error');
+      return [{ signature: SIG(8), slot: 1, err: null }];
+    }) as unknown as Read;
+    const got = await signaturesFor(rpc, 'addr', { limit: 5, until: SIG(7) });
+    expect(got).toHaveLength(1);
+    expect(calls).toHaveLength(2);
+    expect(calls[1]).toEqual({ limit: 5 });
+    const down = (async () => { throw new RpcError('every node is down', 'transport'); }) as unknown as Read;
+    await expect(signaturesFor(down, 'addr', { limit: 5, until: SIG(7) })).rejects.toThrow('every node is down');
+    await expect(signaturesFor(rpc, 'addr', { limit: 5, until: SIG(7), before: SIG(1) }).then(() => 'ok')).resolves.toBe('ok');
   });
 });

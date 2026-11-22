@@ -51,9 +51,9 @@ export const POOL_DEXES: readonly PoolDex[] = [
  * and left dust in (review finding M-4), which the router cannot. While null, such a token gets a plain explanation instead.
  */
 export const EVM_PAIR_SEEDER_ADDRESSES: Readonly<Partial<Record<LaunchEvmChainKey, string | null>>> = {
-  ethereum: null,
-  bnb: null,
-  polygon: null,
+  ethereum: null, // not deployed yet
+  bnb: '0x5656d13f6fb57a212a4e3dd805036ce8d43e71d7',
+  polygon: '0x5656d13f6fb57a212a4e3dd805036ce8d43e71d7',
 };
 
 export const dexFor = (key: string, table: readonly PoolDex[] = POOL_DEXES): PoolDex | undefined => table.find((d) => d.key === key);

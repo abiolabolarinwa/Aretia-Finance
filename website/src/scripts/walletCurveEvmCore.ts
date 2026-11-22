@@ -27,14 +27,14 @@ export const EVM_CURVE_ADDRESSES: Readonly<Partial<Record<LaunchEvmChainKey, str
 };
 
 /**
- * The deployed AretiaCurveRescue (contracts-evm/AretiaCurveRescue.sol) for each chain's curve, lower-case. NULL UNTIL DEPLOYED: the owner
- * deploys it per chain (docs/BONDING_CURVE_EVM.md, "Deploying the rescue helper and the pair seeder"), checks it, then writes it here.
+ * The deployed AretiaCurveRescue (contracts-evm/AretiaCurveRescue.sol) for each chain's curve, lower-case. Deployed 22 Nov 2026 on all three chains (code checked byte for byte): the owner
+ * deployed it per chain (docs/BONDING_CURVE_EVM.md, "Deploying the rescue helper and the pair seeder"), checks it, then writes it here.
  * While null, a graduation blocked by a pre-made pair is explained and only the 7-day unwind is offered.
  */
 export const EVM_CURVE_RESCUE_ADDRESSES: Readonly<Partial<Record<LaunchEvmChainKey, string | null>>> = {
-  ethereum: null,
-  bnb: null,
-  polygon: null,
+  ethereum: '0xc47c911308460d8809eb8d5117da381a06dca50c',
+  bnb: '0xc47c911308460d8809eb8d5117da381a06dca50c',
+  polygon: '0xc47c911308460d8809eb8d5117da381a06dca50c',
 };
 
 export const EVM_MIN_TARGET_WEI = 10n ** 16n;

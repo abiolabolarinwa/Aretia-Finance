@@ -53,10 +53,11 @@ describe('the chain table', () => {
       for (const a of [c.launch!.dexFactory, c.launch!.wrapped]) expect(a).toMatch(/^0x[0-9a-f]{40}$/);
     }
     // BNB Chain's launch factory is deployed (22 November 2026, checked on chain: the code is the committed build and every setting reads back as written here).
-    expect(LAUNCH_EVM_CHAINS.filter((c) => launchEnabled(c)).map((c) => c.key)).toEqual(['bnb']);
-    expect(LAUNCH_EVM_CHAINS.find((c) => c.key === 'bnb')!.launch!.factory).toBe('0x509be9ff85607911c221a252b80308e5ce7f0f56');
-    // So BNB Chain launches locked, one transaction; Ethereum and Polygon create token-only through the older factory until their launch factories are written in.
-    expect(LAUNCH_EVM_CHAINS.filter((c) => !c.testnet).map((c) => launchModeOf(c))).toEqual(['locked', 'plain', 'plain']);
+    expect(LAUNCH_EVM_CHAINS.filter((c) => launchEnabled(c)).map((c) => c.key)).toEqual(['bnb', 'polygon']);
+    // Polygon's launch factory is at the same address (the same wallet, the same transaction count), also deployed on 22 November 2026 and checked on chain.
+    for (const k of ['bnb', 'polygon']) expect(LAUNCH_EVM_CHAINS.find((c) => c.key === k)!.launch!.factory).toBe('0x509be9ff85607911c221a252b80308e5ce7f0f56');
+    // So BNB Chain and Polygon launch locked, in one transaction; Ethereum creates token-only through the older factory until its launch factory is written in.
+    expect(LAUNCH_EVM_CHAINS.filter((c) => !c.testnet).map((c) => launchModeOf(c))).toEqual(['locked', 'plain', 'locked']);
     expect(launchModeOf(chain)).toBe('locked');
     expect(launchModeOf({ ...chain, launch: { ...chain.launch!, factory: null } })).toBe('plain');
     expect(launchModeOf({ ...chain, factory: null, launch: { ...chain.launch!, factory: null } })).toBeNull();

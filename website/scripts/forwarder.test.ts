@@ -180,3 +180,45 @@ describe('the API forwarder lets the native apps call it, and only them', () => 
     });
   });
 });
+
+describe('the API forwarder keeps shared answers at the edge, even though Vercel removes s-maxage', () => {
+  const env = { API_ORIGIN: 'https://api.example', CF_PROXY_SECRET: 's' };
+  it('keeps an answer by the x-aretia-edge-ttl header and serves the next visitor from the edge, for a few seconds in a browser', async () => {
+    const cache = fakeCache();
+    (globalThis as unknown as { caches: unknown }).caches = { default: cache };
+    const real = globalThis.fetch;
+    let calls = 0;
+    try {
+      globalThis.fetch = (async () => {
+        calls++;
+        return new Response('{"data":[1]}', { status: 200, headers: { 'cache-control': 'public, max-age=5', 'x-aretia-edge-ttl': '30' } });
+      }) as typeof fetch;
+      const url = 'https://x.org/api/v1/pools/top?chain=solana';
+      expect((await onRequest({ request: new Request(url), env })).status).toBe(200);
+      const again = await onRequest({ request: new Request(url), env });
+      expect(calls).toBe(1);
+      expect(again.headers.get('cache-control')).toBe('public, max-age=5');
+      expect(await again.json()).toEqual({ data: [1] });
+    } finally {
+      globalThis.fetch = real;
+    }
+  });
+  it('never keeps a no-store answer or one with no lifetime', async () => {
+    const cache = fakeCache();
+    (globalThis as unknown as { caches: unknown }).caches = { default: cache };
+    const real = globalThis.fetch;
+    let calls = 0;
+    try {
+      globalThis.fetch = (async () => {
+        calls++;
+        return new Response('{}', { status: 200, headers: { 'cache-control': 'no-store', 'x-aretia-edge-ttl': '30' } });
+      }) as typeof fetch;
+      const url = 'https://x.org/api/v1/status';
+      await onRequest({ request: new Request(url), env });
+      await onRequest({ request: new Request(url), env });
+      expect(calls).toBe(2);
+    } finally {
+      globalThis.fetch = real;
+    }
+  });
+});

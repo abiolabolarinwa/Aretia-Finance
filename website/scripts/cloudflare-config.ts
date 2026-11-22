@@ -18,7 +18,7 @@ export function cloudflareFiles(vercel: VercelConfig): { headers: string; redire
   const redirects = [...vercel.redirects.map((r) => `${r.source} ${r.destination} ${r.permanent ? 301 : 302}`), ...pageRewrites].join('\n') + '\n';
   const headers =
     vercel.headers
-      .map((h) => `${h.source === '/(.*)' ? '/*' : h.source}\n${h.headers.map((x) => `  ${x.key}: ${x.value}`).join('\n')}`)
+      .map((h) => `${h.source.replace(/\(\.\*\)$/, '*')}\n${h.headers.map((x) => `  ${x.key}: ${x.value}`).join('\n')}`)
       .join('\n\n') + '\n';
   return { headers, redirects };
 }

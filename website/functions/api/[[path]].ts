@@ -42,6 +42,31 @@ const candleRows = (body: unknown): CandleRow[] => {
   return Array.isArray(list) ? (list.filter((r) => Array.isArray(r) && r.length >= 6 && Number.isFinite(Number(r[0]))) as CandleRow[]) : [];
 };
 
+/**
+ * How many seconds an answer may be kept at this edge, or 0 for none. Vercel strips s-maxage before an answer leaves it, so the API repeats
+ * the number in x-aretia-edge-ttl (api/swings-data.ts); without that header nothing was ever kept here. A no-store answer is never kept.
+ */
+const MAX_EDGE_TTL = 900;
+function edgeTtl(res: Response): number {
+  const cc = res.headers.get('cache-control') ?? '';
+  if (/no-store|private/.test(cc)) return 0;
+  const n = Number(res.headers.get('x-aretia-edge-ttl') ?? /s-maxage=(\d+)/.exec(cc)?.[1] ?? 0);
+  return Number.isFinite(n) && n > 0 ? Math.min(MAX_EDGE_TTL, Math.floor(n)) : 0;
+}
+/** A copy to keep: the same answer, told to live ttl seconds in the cache. */
+function toKeep(res: Response, ttl: number): Response {
+  const h = new Headers(res.headers);
+  h.set('cache-control', `public, max-age=${ttl}`);
+  h.delete('content-length');
+  return new Response(res.body, { status: res.status, headers: h });
+}
+/** A kept answer handed to a visitor: browsers still keep it only a few seconds. */
+function fromKept(hit: Response): Response {
+  const out = new Response(hit.body, hit);
+  out.headers.set('cache-control', 'public, max-age=5');
+  return out;
+}
+
 /** The Market Indexer's public read API: every GET under it is shared data, and the answer says how long it may be kept (s-maxage). */
 const edgeCacheable = (pathname: string): boolean => EDGE_CACHED.has(pathname) || pathname === '/api/v1' || pathname.startsWith('/api/v1/');
 
@@ -64,7 +89,7 @@ async function handle(context: { request: Request; env: Env; waitUntil?: (p: Pro
   if (edge) {
     try {
       const hit = await edge.match(cacheKey);
-      if (hit) return hit;
+      if (hit) return fromKept(hit);
     } catch {
       // fall through to the API
     }
@@ -110,7 +135,7 @@ async function handle(context: { request: Request; env: Env; waitUntil?: (p: Pro
     return new Response(JSON.stringify({ error: 'The API could not be reached', detail: e instanceof Error ? e.message.slice(0, 200) : 'unknown' }), { status: 503, headers: { 'content-type': 'application/json', 'cache-control': 'no-store' } });
   }
   // The API answers a list it could not read as 200 with no rows and an error, so the older copy kept here is better.
-  if (incoming.pathname === LAST_GOOD && res.status === 200 && !(res.headers.get('cache-control') ?? '').includes('s-maxage')) {
+  if (incoming.pathname === LAST_GOOD && res.status === 200 && edgeTtl(res) === 0) {
     const failed = await res.clone().json().then((b: { error?: unknown }) => typeof b?.error === 'string').catch(() => false);
     if (failed) {
       const old = await oldCopy();
@@ -122,7 +147,7 @@ async function handle(context: { request: Request; env: Env; waitUntil?: (p: Pro
     if (old) return old;
   }
   // Keep the last good Marketplace list for a day, for the times the source or the API fails.
-  if (edge && incoming.pathname === LAST_GOOD && res.status === 200 && /s-maxage=\d+/.test(res.headers.get('cache-control') ?? '')) {
+  if (edge && incoming.pathname === LAST_GOOD && res.status === 200 && edgeTtl(res) > 0) {
     try {
       const copy = res.clone();
       const keepLast = copy.text().then((text) => edge.put(lastKey, new Response(text, { headers: { 'content-type': 'application/json', 'cache-control': `public, max-age=${LAST_GOOD_SECONDS}`, 'x-aretia-saved': String(Date.now()) } }))).catch(() => undefined);
@@ -133,7 +158,7 @@ async function handle(context: { request: Request; env: Env; waitUntil?: (p: Pro
     }
   }
   // Keep the last good candles of this pool and candle size for a day (never an old or index-built answer, never an empty one).
-  const candleKeep = edge && res.status === 200 && /s-maxage=\d+/.test(res.headers.get('cache-control') ?? '') ? candlesKey(incoming) : null;
+  const candleKeep = edge && res.status === 200 && edgeTtl(res) > 0 ? candlesKey(incoming) : null;
   if (edge && candleKeep) {
     try {
       const copy = res.clone();
@@ -152,9 +177,10 @@ async function handle(context: { request: Request; env: Env; waitUntil?: (p: Pro
     }
   }
   // Only an answer Vercel marked as shareable (a stale or refused one says no-store) is kept.
-  if (edge && res.status === 200 && /s-maxage=\d+/.test(res.headers.get('cache-control') ?? '')) {
+  const ttl = edge && res.status === 200 ? edgeTtl(res) : 0;
+  if (edge && ttl > 0) {
     try {
-      const keep = edge.put(cacheKey, res.clone()).catch(() => undefined);
+      const keep = edge.put(cacheKey, toKeep(res.clone(), ttl)).catch(() => undefined);
       if (context.waitUntil) context.waitUntil(keep);
       else await keep;
     } catch {

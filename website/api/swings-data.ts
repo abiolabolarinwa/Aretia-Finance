@@ -102,5 +102,8 @@ export default async function handler(req: Req, res: Res): Promise<void> {
   else if (route === 'launchbox-run') out = await handleLaunchboxRun(common);
   else out = { status: 404, body: '{"error":"not-found"}', headers: { 'content-type': 'application/json', 'cache-control': 'no-store' } };
   for (const [name, value] of Object.entries(out.headers)) res.setHeader(name, value);
+  // Vercel removes s-maxage from what it sends on, so the Cloudflare forwarder is told the shared lifetime in a header of its own.
+  const shared = /s-maxage=(\d+)/.exec(out.headers['cache-control'] ?? '')?.[1];
+  if (shared) res.setHeader('x-aretia-edge-ttl', shared);
   res.status(out.status).send(out.body);
 }

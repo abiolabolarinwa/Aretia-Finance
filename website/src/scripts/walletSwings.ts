@@ -519,28 +519,79 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
     s.notice = null;
   }
 
-  function quickTokens(): TokenInfo[] {
-    if (isEvm(s.chain)) {
-      // The network's own coin, then the stablecoins and wrapped coin the router already trades through (real contracts, checked against the chain by the
-      // live tests), so the list is never just one coin. One row per symbol: Polygon lists two USDC contracts, and the later (native) one is kept.
-      const native: TokenInfo = { mint: EVM_NATIVE_ADDRESS, symbol: CHAINS[s.chain].nativeSymbol, name: `${CHAINS[s.chain].name} native coin`, decimals: CHAINS[s.chain].nativeDecimals, icon: null, verified: true };
+  /** The tokens every swap starts from: the network's coin and its stablecoins, real contracts, one row per symbol (Polygon lists two USDC contracts; the later, native one is kept). */
+  function essentialTokens(chain: ChainId): { coin: TokenInfo; stables: TokenInfo[] } {
+    if (isEvm(chain)) {
+      const coin: TokenInfo = { mint: EVM_NATIVE_ADDRESS, symbol: CHAINS[chain].nativeSymbol, name: `${CHAINS[chain].name} native coin`, decimals: CHAINS[chain].nativeDecimals, icon: null, verified: true };
       const bySymbol = new Map<string, TokenInfo>();
-      for (const h of HUB_TOKENS[s.chain] ?? []) if (h.address !== (WRAPPED_NATIVE as Record<string, string | undefined>)[s.chain]) bySymbol.set(h.symbol, { mint: h.address, symbol: h.symbol, name: h.symbol, decimals: h.decimals, icon: null, verified: true });
-      return [native, ...bySymbol.values()];
+      for (const h of HUB_TOKENS[chain] ?? []) if (h.address !== (WRAPPED_NATIVE as Record<string, string | undefined>)[chain]) bySymbol.set(h.symbol, { mint: h.address, symbol: h.symbol, name: h.symbol, decimals: h.decimals, icon: null, verified: true });
+      // USDC first, then USDT, then any other (Robinhood lists only USDG).
+      const rank = (t: TokenInfo): number => (t.symbol === 'USDC' ? 0 : t.symbol === 'USDT' ? 1 : 2);
+      const stables = [...bySymbol.values()].sort((a, b) => rank(a) - rank(b));
+      return { coin, stables };
     }
-    const seen = new Set<string>();
+    const known = (symbol: string): TokenInfo => {
+      const k = KNOWN_TOKENS.find((t) => t.symbol === symbol)!;
+      return { mint: k.mint, symbol: k.symbol, name: k.symbol, decimals: k.decimals, icon: null, verified: true };
+    };
+    return { coin: known('SOL'), stables: [known('USDC'), known('USDT')] };
+  }
+
+  /** The most-traded tokens of the network from Aretia's own index, kept five minutes, so the picker offers more than the essentials. */
+  const popular = new Map<string, { at: number; tokens: TokenInfo[] }>();
+  let popularLoading = '';
+  function loadPopular(): void {
+    const chain = s.chain;
+    const hit = popular.get(chain);
+    if ((hit && Date.now() - hit.at < 300_000) || popularLoading === chain || !indexCovers(chain)) return;
+    popularLoading = chain;
+    void fetchIndexPage({ kind: 'top', chain, window: 'h24', page: 1, size: 50, minLiquidityUsd: 50_000 })
+      .then((page) => {
+        popular.set(chain, { at: Date.now(), tokens: (page?.rows ?? []).map((r) => ({ mint: r.address, symbol: r.symbol, name: r.name, decimals: r.decimals ?? 0, icon: r.icon, verified: null })) });
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        popularLoading = '';
+        if (s.picker && s.chain === chain) renderPicker();
+      });
+  }
+
+  function quickTokens(): TokenInfo[] {
+    const { coin, stables } = essentialTokens(s.chain);
     const out: TokenInfo[] = [];
-    for (const h of host.getHoldings() ?? []) {
-      if (h.decimals === null || seen.has(h.mint)) continue;
-      seen.add(h.mint);
-      out.push({ mint: h.mint, symbol: h.symbol, name: h.name, decimals: h.decimals, icon: h.icon, verified: null });
+    const seen = new Set<string>();
+    const add = (t: TokenInfo): void => {
+      const key = t.mint.toLowerCase();
+      if (seen.has(key)) return;
+      seen.add(key);
+      out.push(t);
+    };
+    add(coin);
+    for (const t of stables) add(t);
+    if (!isEvm(s.chain)) {
+      for (const h of host.getHoldings() ?? []) if (h.decimals !== null) add({ mint: h.mint, symbol: h.symbol, name: h.name, decimals: h.decimals, icon: h.icon, verified: null });
+      for (const k of KNOWN_TOKENS) add({ mint: k.mint, symbol: k.symbol, name: k.symbol, decimals: k.decimals, icon: null, verified: true });
     }
-    for (const k of KNOWN_TOKENS) {
-      if (seen.has(k.mint)) continue;
-      seen.add(k.mint);
-      out.push({ mint: k.mint, symbol: k.symbol, name: k.symbol, decimals: k.decimals, icon: null, verified: true });
-    }
+    // Then the most-traded tokens of the index. A token that borrows the name of a coin or stablecoin listed above is left out of this list (it can still
+    // be found by address): the picker must never put a look-alike of USDC beside the real one.
+    const taken = new Set(out.map((t) => t.symbol.toUpperCase()));
+    for (const t of popular.get(s.chain)?.tokens ?? []) if (!taken.has(t.symbol.toUpperCase())) add(t);
     return out;
+  }
+
+  /** The network's coin to pay and a stablecoin to receive, chosen for a fresh Swap page (nothing already chosen is changed). */
+  let defaulting = false;
+  async function applyDefaultPair(): Promise<void> {
+    if (defaulting || activeTab !== 'swap' || s.from || s.to || s.picker) return;
+    defaulting = true;
+    const chain = s.chain;
+    try {
+      const { coin, stables } = essentialTokens(chain);
+      if (!s.from) await pick('from', coin, chain);
+      if (s.chain === chain && !s.to && stables[0]) await pick('to', stables[0], chain);
+    } finally {
+      defaulting = false;
+    }
   }
 
   async function searchFor(query: string): Promise<TokenInfo[]> {
@@ -1062,6 +1113,8 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
     };
     const searching = p.query.trim().length >= 2;
     const items = searching ? p.results : quickTokens();
+    if (!searching) loadPopular();
+    const shown = searching ? 20 : 40;
     chips.replaceChildren();
     if (!searching) {
       for (const t of items.slice(0, 5)) {
@@ -1075,8 +1128,8 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
     list.replaceChildren(el('small', { class: 'wapp-pk__group', text: searching ? 'Search results' : 'Popular and held tokens' }));
     if (p.loading) list.append(el('p', { class: 'wapp__fine', text: 'Searching…' }));
     else if (items.length === 0) list.append(el('p', { class: 'wapp__fine', text: 'No tokens found. Names and symbols are not unique: check the address before choosing.' }));
-    for (const t of items.slice(0, 20)) list.append(row(t));
-    wantLogos(s.chain, items.slice(0, 20));
+    for (const t of items.slice(0, shown)) list.append(row(t));
+    wantLogos(s.chain, items.slice(0, shown));
   }
 
   // ------------------------------------------------------------------ network rail (logos beside the sidebar)
@@ -1098,6 +1151,8 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
     markets.setChain(id);
     renderRail();
     render();
+    // On the Swap page a new network starts with its coin and a stablecoin, as a fresh page does.
+    void applyDefaultPair();
   }
 
   function renderRail(): void {
@@ -1297,7 +1352,9 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
     // trading. It charts the token being bought, else the token being sold, else ACT on Solana (or the network's native
     // coin elsewhere). A native EVM coin is charted through its wrapped token.
     {
-      const picked = s.to ?? s.from;
+      // A stablecoin's chart is a flat line: when the other token of the pair is not one, that one is charted.
+      const stable = (t: TokenInfo | null): boolean => !!t && ['USDC', 'USDT', 'USDG', 'DAI'].includes(t.symbol);
+      const picked = s.to && !stable(s.to) ? s.to : s.from && !stable(s.from) ? s.from : (s.to ?? s.from);
       const target = picked
         ? { address: picked.mint === EVM_NATIVE_ADDRESS ? (WRAPPED_NATIVE as Record<string, string | undefined>)[s.chain] : picked.mint, symbol: picked.symbol, icon: picked.icon ?? null }
         : s.chain === 'solana'
@@ -2916,7 +2973,10 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
     document.querySelectorAll<HTMLElement>('[data-sw-tab]').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.swTab === name)));
     root!.querySelectorAll<HTMLElement>('[data-sw-panel]').forEach((p) => (p.hidden = p.dataset.swPanel !== name));
     if (name === 'markets') markets.ensureLoaded();
-    if (name === 'swap') render();
+    if (name === 'swap') {
+      render();
+      void applyDefaultPair();
+    }
   }
   document.querySelectorAll<HTMLElement>('[data-sw-tab]').forEach((b) => b.addEventListener('click', () => showTab(b.dataset.swTab ?? 'new')));
 

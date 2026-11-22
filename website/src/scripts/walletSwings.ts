@@ -209,6 +209,12 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
   const swapSide = el('div', { class: 'wapp__trade-side' }, [swapChartCard]);
   const swapGrid = el('div', { class: 'wapp__grid wapp__grid--trade' }, [swapCard, swapSide]);
   swapPanel.append(swapGrid);
+  // The Swap page wears the token page's layout (the token's numbers across the top, its chart on the left, the swap on the right): which tab is
+  // showing, the box that holds that page, and which token it was last opened for.
+  let activeTab = '';
+  let stageEl: HTMLElement | null = null;
+  let stagePage: ReturnType<typeof createTokenPage> | null = null;
+  let stageKey = '';
   const history = new SwapHistory(browserStorage());
   const account = new AccountClient(browserStorage());
   const favourites = new FavouriteStore(browserStorage());
@@ -1290,12 +1296,19 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
           ? { address: ACT_MINT, symbol: 'ACT', icon: null }
           : { address: (WRAPPED_NATIVE as Record<string, string | undefined>)[s.chain], symbol: info.nativeSymbol, icon: null };
       // Opened over the Marketplace, the token's chart is already on the page behind, so the swap window carries none.
-      if (target.address && !swapDialogOpen()) {
+      // Drawn beside a token's page (the Swap page, a Marketplace token), the page carries the chart, so this one is not loaded as well.
+      if (target.address && !swapDialogOpen() && !swapEmbedded) {
         swapChartCard.hidden = false;
         swapChart.show(s.chain, target.address, target.symbol, target.icon);
       } else {
         swapChartCard.hidden = true;
         swapChart.hide();
+      }
+      // After this draw has finished: opening the page puts the swap card into it, which draws the card again.
+      if (target.address) {
+        const stageChain = s.chain;
+        const stageToken = { address: target.address, symbol: target.symbol, name: picked?.name ?? '', icon: target.icon };
+        queueMicrotask(() => syncSwapStage(stageChain, stageToken));
       }
     }
 
@@ -2883,6 +2896,13 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
   // The two lists (Find Tokens, Marketplace) are tabs; Swap is its own page and shows the same swap panel.
   function showTab(name: string): void {
     releaseSwap();
+    activeTab = name;
+    // The Swap page's token page is opened again for whichever token the swap has, each time the tab is shown, and put away when it is left.
+    stageKey = '';
+    if (name !== 'swap' && stageEl) {
+      stagePage?.close();
+      stageEl.hidden = true;
+    }
     const intro = root!.querySelector<HTMLElement>('[data-sw-intro]');
     if (intro) intro.textContent = TAB_INTRO[name] ?? '';
     document.querySelectorAll<HTMLElement>('[data-sw-tab]').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.swTab === name)));
@@ -2912,6 +2932,37 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
     if (!s.slippageTouched) s.slippageBps = defaultSlippageBps(false);
     if (swapHome) swapHome.insertBefore(swapPanel, swapNext);
     swapPanel.hidden = true;
+  }
+  /** On the Swap page, opens the token page for the token the swap is about, with the swap card in its side panel. Does nothing off that page, or while the same token is already open. */
+  function syncSwapStage(chain: ChainId, t: { address: string; symbol: string; name: string; icon: string | null }): void {
+    if (activeTab !== 'swap' || swapDialogOpen()) return;
+    const key = `${chain}:${t.address}`;
+    if (key === stageKey) return;
+    stageKey = key;
+    if (!stageEl || !stagePage) {
+      stagePage = createTokenPage();
+      stageEl = el('div', { class: 'wapp__stack' }, [stagePage.element]);
+      swapHome?.insertBefore(stageEl, swapPanel);
+    }
+    stageEl.hidden = false;
+    void stagePage.open({
+      chain,
+      address: t.address,
+      symbol: t.symbol,
+      name: t.name,
+      icon: t.icon,
+      riskNote: null,
+      hideBack: true,
+      onBack: () => undefined,
+      onSwap: () => undefined,
+      mountSwap: (host) => {
+        swapEmbedded = true;
+        host.append(swapPanel);
+        swapPanel.hidden = false;
+        render();
+      },
+      unmountSwap: releaseSwap,
+    });
   }
   function embedSwap(host: HTMLElement, r: MarketRow, rec: { logo?: string | null; decimals?: number | null } | undefined): void {
     closeSwapDialog();

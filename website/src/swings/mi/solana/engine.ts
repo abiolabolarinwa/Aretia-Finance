@@ -94,6 +94,23 @@ export function stackOrigin(e: Error): string {
     .join(' < ');
 }
 
+/**
+ * The signatures of an address, newest first. When the read stops at a signature (`until`: where the last read ended) and the nodes answer
+ * "Transaction <signature> not found" (they do not know that signature, as when they lag or have dropped it), the read is repeated without it:
+ * a window of the newest signatures, which the trade store de-duplicates, instead of the same failure on every run (the stalest pool is tried
+ * first, so one such cursor otherwise fails its whole venue for good).
+ */
+export async function signaturesFor(rpc: Read, address: string, params: Record<string, unknown>): Promise<SigInfo[]> {
+  try {
+    return (await rpc('getSignaturesForAddress', [address, params])) as SigInfo[];
+  } catch (e) {
+    if (!params.until || !(e instanceof Error) || !/not found/i.test(e.message)) throw e;
+    const { until: _lost, ...rest } = params;
+    void _lost;
+    return (await rpc('getSignaturesForAddress', [address, rest])) as SigInfo[];
+  }
+}
+
 /** A signature that was skipped, kept as a note in the adapter's health so a missing trade is visible and can be re-read by hand. */
 export interface SkippedTx {
   signature: string;
@@ -187,7 +204,7 @@ export async function runSolanaAdapter(d: SolDeps): Promise<RunReport> {
         const params: Record<string, unknown> = { limit: d.sigPage ?? 40, commitment: 'finalized' };
         if (known[anchor]) params.until = known[anchor];
         if (before) params.before = before;
-        const sigs = (await d.rpc('getSignaturesForAddress', [anchor, params])) as SigInfo[];
+        const sigs = await signaturesFor(d.rpc, anchor, params);
         if (!Array.isArray(sigs)) throw new RpcError('malformed signatures', 'node-error');
         if (sigs.length > 0 && !newestSeen.has(anchor)) newestSeen.set(anchor, sigs[0]!.signature);
         for (const s of sigs) {
@@ -444,7 +461,7 @@ export async function followPool(d: SolDeps, pool: MiPool, report: RunReport): P
   const limit = d.swapSigs ?? 50;
   const params: Record<string, unknown> = { limit, commitment: d.commitment ?? 'finalized' };
   if (until) params.until = until;
-  const sigs = (await d.rpc('getSignaturesForAddress', [pool.quoteVault!, params])) as SigInfo[];
+  const sigs = await signaturesFor(d.rpc, pool.quoteVault!, params);
   if (!Array.isArray(sigs)) throw new RpcError('malformed signatures', 'node-error');
   const { trades, unavailable, skipped } = await tradesFromSignatures(d, pool, sigs, report);
   const stored = await d.store.putTrades(d.spec.id, trades);

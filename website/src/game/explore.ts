@@ -43,8 +43,26 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls = '', text = ''):
 const fmt = (ms: number): string => `${Math.max(0, Math.ceil(ms / 1000))}s`;
 const pad = (b: [number, number, number, number], d = 0.05): [number, number, number, number] => [b[0] - d, b[1] - d, b[2] + d, b[3] + d];
 
+/**
+ * The map's stylesheet is fetched only when a map opens. Imported as a module (import 'maplibre-gl/dist/maplibre-gl.css') the build
+ * links it into every page that can reach this file, so the wallet page downloaded 71 KB of map styles that most visitors never use.
+ */
+export async function loadMapStyles(): Promise<void> {
+  const { default: href } = await import('maplibre-gl/dist/maplibre-gl.css?url');
+  if (document.querySelector(`link[data-maplibre-css]`)) return;
+  await new Promise<void>((resolve) => {
+    const link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = href;
+    link.dataset.maplibreCss = '';
+    link.onload = () => resolve();
+    link.onerror = () => resolve();
+    document.head.append(link);
+  });
+}
+
 export async function mountExplore(host: HTMLElement, city: City, api: ExploreApi): Promise<{ destroy(): void }> {
-  const [maplibre] = await Promise.all([import('maplibre-gl'), import('maplibre-gl/dist/maplibre-gl.css')]);
+  const [maplibre] = await Promise.all([import('maplibre-gl'), loadMapStyles()]);
 
   let state: ExploreState = await api.state();
   let offset = state.serverNow - Date.now();

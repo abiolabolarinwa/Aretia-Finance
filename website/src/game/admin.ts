@@ -2,6 +2,7 @@
  * The administrator's console, shown only to a signed-in wallet the server reports as an administrator. The server checks again on
  * every call, so showing or hiding this page protects nothing by itself. Built with textContent, never innerHTML.
  */
+import { loadMapStyles } from './explore';
 import { allCities, cityById, SCENES } from './cities.js';
 import { placementProblem } from './exclusions.js';
 import { DIFFICULTIES, TREASURE_CLASSES } from './rarity.js';
@@ -268,7 +269,7 @@ export function mountAdmin(host: HTMLElement, call: Call): { destroy(): void } {
     pane.append(c, t);
     const info = cityById(state.city)!;
     const ml = await import('maplibre-gl');
-    await import('maplibre-gl/dist/maplibre-gl.css');
+    await loadMapStyles();
     map = new ml.Map({ container: box, style: 'https://tiles.openfreemap.org/styles/liberty', center: info.center, zoom: 12, maxBounds: [info.bounds[0] - 0.05, info.bounds[1] - 0.05, info.bounds[2] + 0.05, info.bounds[3] + 0.05] });
     map.addControl(new ml.NavigationControl(), 'top-right');
     const dot = (color: string): HTMLElement => { const d = el('div'); d.style.cssText = `width:14px;height:14px;border-radius:50%;background:${color};border:2px solid #fff`; return d; };

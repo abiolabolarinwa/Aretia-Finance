@@ -2514,7 +2514,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
       const swapButton = el('button', { class: 'wapp__btn wapp__btn--primary', text: 'Swap', attrs: { type: 'button', 'data-markets-swap': '' } });
       swapButton.addEventListener('click', openSwapDialog);
       bar.append(swapButton);
-      const kinds: [Kind, string, string][] = [['favourites', '★ Favourites', 'Tokens you have starred'], ['liquidity', 'All', 'Every token Aretia knows on each network, largest pools first, including pools with no trade yet'], ['trending', 'Trending', 'Busiest right now'], ['rising', 'Rising', 'Tokens whose number of buyers is growing, top ten on every network'], ['top', 'Top', 'Most traded in 24 hours'], ['gainers', 'Gainers', 'Biggest price rises'], ['new', 'New', 'Tokens Aretia has just detected, with a trading pool']];
+      const kinds: [Kind, string, string][] = [['favourites', '★ Favourites', 'Tokens you have starred'], ['liquidity', 'All', 'Every token Aretia knows on each network, the most recently traded first, then pools with no trade yet'], ['trending', 'Trending', 'Busiest right now'], ['rising', 'Rising', 'Tokens whose number of buyers is growing, top ten on every network'], ['top', 'Top', 'Most traded in 24 hours'], ['gainers', 'Gainers', 'Biggest price rises'], ['new', 'New', 'Tokens Aretia has just detected, with a trading pool']];
       const kindBox = el('div', { class: 'wapp__seg', attrs: { role: 'group', 'aria-label': 'List' } });
       for (const [k, label, tip] of kinds) {
         kindBox.append(chip(label, m.kind === k, () => {

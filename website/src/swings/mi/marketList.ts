@@ -141,7 +141,10 @@ function baseFilters(q: ListQuery, now: number): string[] {
 export function sqlPath(q: ListQuery, now: number): string {
   const dir = q.sort === 'rank' ? undefined : q.dir;
   let order: string;
-  if (q.sort === 'liquidity' || (q.sort === 'rank' && q.kind === 'liquidity')) order = `liquidity_usd.${dir ?? 'desc'}.nullslast,key.desc`;
+  if (q.sort === 'liquidity') order = `liquidity_usd.${dir ?? 'desc'}.nullslast,key.desc`;
+  // All, in its own order: the pools that traded most recently first, so the board moves with trading. Pools with no trade yet come last, largest first.
+  // (Ordering by liquidity alone left the same big pools at the top whether or not anyone was trading them.)
+  else if (q.sort === 'rank' && q.kind === 'liquidity') order = `last_trade_at.desc.nullslast,liquidity_usd.desc.nullslast,key.desc`;
   else if (q.sort === 'new' || (q.sort === 'rank' && q.kind === 'new')) order = `created_at.${dir ?? 'desc'}.nullslast,key.desc`;
   else order = `vol24_usd.${dir ?? 'desc'}.nullslast,key.desc`;
   return `mi_pools?select=${POOL_SELECT}&${baseFilters(q, now).join('&')}&order=${order}&limit=${q.size}&offset=${(q.page - 1) * q.size}`;

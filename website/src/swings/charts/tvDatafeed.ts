@@ -358,7 +358,7 @@ export function createPoolDatafeed(
      * A push source for the pool's price in dollars (Aretia's live market stream), used to move the last candle the moment the index writes a
      * new price, at most once a second. Returns a function that stops it. Only dollar prices of the first token come from it.
      */
-    liveSource?: (onPrice: (usd: number) => void) => () => void;
+    liveSource?: (onPrice: (usd: number) => void, side: 'base' | 'quote') => () => void;
     /** False while the chart is on a part of the page nobody can see (a collapsed panel): live reads then pause, as they do for a hidden tab. */
     visible?: () => boolean;
     /** Called after each first load with what the chart is showing: its source, a note, or why it has nothing. */
@@ -784,13 +784,15 @@ export function createPoolDatafeed(
         if (hidden() || !(p > 0)) return;
         const slot = Math.floor(now() / 1000 / res.seconds) * res.seconds * 1000;
         const bar = applyLivePrice(current, p, slot);
+        // A price the candle takes (even an unchanged one) shows the source is delivering, so the slower poll stays quiet.
         if (!bar) return;
         streamAt = now();
         liveAt = streamAt;
         push(bar);
       };
       streamStops.get(uid)?.();
-      if (deps.liveSource && currency === 'usd' && side === 'base') streamStops.set(uid, deps.liveSource(onStreamPrice));
+      // The source gets the side of the pool the chart shows: it prices the charted token itself, so it serves either side.
+      if (deps.liveSource && currency === 'usd') streamStops.set(uid, deps.liveSource(onStreamPrice, side));
       if (livePriceMs > 0) priceTimers.set(uid, setInterval(() => (now() - streamAt < STREAM_QUIET_MS ? undefined : price()), livePriceMs));
 
       // Every so often: the real candles, which carry the volume and correct anything the live readings missed.

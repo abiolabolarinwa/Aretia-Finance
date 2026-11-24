@@ -12,6 +12,10 @@ import { holdLowPriority } from '../swings/charts/geckoGate.js';
 import { createLiveStream } from './walletLiveStream.js';
 import { currentTheme, type Theme } from './walletTheme.js';
 import { createPoolDatafeed, SUPPORTED_RESOLUTIONS, type ChartStatus, type TvDatafeed } from '../swings/charts/tvDatafeed.js';
+import { createChainPricer, dexscreenerUsd, publicRpc } from '../swings/charts/chainPrice.js';
+
+/** How long the chart waits after one read of the pool before the next (a read takes about 0.15 to 0.5 s, so a price arrives about every 0.7 s). */
+const CHAIN_READ_MS = 400;
 
 const LIBRARY_PATH = '/charting_library/';
 const LIBRARY_SCRIPT = `${LIBRARY_PATH}charting_library.standalone.js`;
@@ -131,17 +135,55 @@ export function mountTvChart(
         ...(onStatus ? { onStatus } : {}),
         // A chart in a panel that is not showing (zero size) makes no live reads.
         visible: () => host.getClientRects().length > 0,
-        // The index's live stream pushes this pool's new price as it is written (at most once a second), so the last candle moves without waiting for a poll.
-        liveSource: (onPrice) => {
+        // The last candle follows the pool's price from two live sources. First the pool itself, read from the chain through a public node every
+        // fraction of a second (exact, and it does not wait for any service to catch up); it covers the main pool types on Solana and the
+        // Ethereum-style networks. While it is delivering, it is the only source, so an older price from elsewhere never pulls the candle back.
+        // Second, for any pool it cannot read, the index's live stream, which pushes the pool's new price as it is written (at most once a second).
+        liveSource: (onPrice, side) => {
           const key = `${o.chain}:${o.chain === 'solana' ? o.pool : o.pool.toLowerCase()}`;
+          let chainAt = 0;
           const stream = createLiveStream({
             url: String(import.meta.env.PUBLIC_MARKET_STREAM_URL ?? 'https://data.aretiafinance.org/stream'),
             onUpdates: (list) => {
+              if (side !== 'base' || Date.now() - chainAt < 3_000) return;
               for (const u of list) if (u.key === key && typeof u.p_usd === 'number' && u.p_usd > 0) onPrice(u.p_usd);
             },
           });
-          stream.setKeys([key]);
-          return () => stream.stop();
+          if (side === 'base') stream.setKeys([key]);
+          let stopped = false;
+          let timer: ReturnType<typeof setTimeout> | undefined;
+          if (o.target) {
+            const deps = { rpc: publicRpc(o.chain), usdOf: dexscreenerUsd() };
+            void createChainPricer({ chain: o.chain, pool: o.pool, target: o.target }, deps).then((read) => {
+              if (!read || stopped) return;
+              let failures = 0;
+              const loop = async (): Promise<void> => {
+                if (stopped) return;
+                // Nothing is read while the tab or the chart is hidden.
+                if (!document.hidden && host.getClientRects().length > 0) {
+                  try {
+                    const p = await read();
+                    if (p !== null && !stopped) {
+                      failures = 0;
+                      chainAt = Date.now();
+                      onPrice(p);
+                    } else failures++;
+                  } catch {
+                    failures++;
+                  }
+                }
+                // A node that keeps refusing is left alone; the other sources carry the chart.
+                if (failures >= 8) return;
+                timer = setTimeout(() => void loop(), CHAIN_READ_MS);
+              };
+              void loop();
+            });
+          }
+          return () => {
+            stopped = true;
+            clearTimeout(timer);
+            stream.stop();
+          };
         },
       },
     ),

@@ -927,6 +927,9 @@ const sendTips = [
   .wapp-mp { scrollbar-width: none; -ms-overflow-style: none; overscroll-behavior: contain; }
   .wapp-mp::-webkit-scrollbar { display: none; }
   .wapp-mt__row.is-selected td { background: var(--color-brand-soft); }
+  /* While the list is still loading (or short) the white card runs down to the bottom of the window, with no grey strip under it. */
+  [data-wapp].wapp[data-view='swings'] .wapp__main { padding-bottom: 0; }
+  [data-wapp].wapp[data-view='swings'] .wapp-mt__card { min-height: calc(100dvh - var(--nav-height) - 16px); }
   @media (min-width: 1680px) {
     [data-wapp].wapp[data-view='swings'] { grid-template-columns: var(--wapp-side) 56px minmax(0, 1fr) 360px; }
     /* The list (and the chart above it) run right up to the docked panel, with no empty strip between them. */

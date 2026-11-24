@@ -75,7 +75,8 @@ describe('paths', () => {
   it('New and By liquidity do not need trades and use their own order', () => {
     expect(sqlPath(q({ kind: 'new' }), NOW)).not.toContain('vol24_usd=gt.0');
     expect(sqlPath(q({ kind: 'new' }), NOW)).toContain('order=created_at.desc');
-    expect(sqlPath(q({ kind: 'liquidity' }), NOW)).toContain('order=liquidity_usd.desc');
+    expect(sqlPath(q({ kind: 'liquidity' }), NOW)).toContain('order=last_trade_at.desc.nullslast,liquidity_usd.desc');
+    expect(sqlPath(q({ kind: 'liquidity', sort: 'liquidity' }), NOW)).toContain('order=liquidity_usd.desc');
   });
   it('ranked lists hold only pools that traded in the last 24 hours', () => {
     expect(sqlPath(q({ kind: 'trending' }), NOW)).toContain(`last_trade_at=gte.${NOW - 86_400_000}`);

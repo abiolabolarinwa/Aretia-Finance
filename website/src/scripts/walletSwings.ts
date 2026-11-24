@@ -1856,6 +1856,12 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
     let gathering = false;
     let gatherCount = 0;
     let gatherDrawnAt = 0;
+    /** When the list on screen was saved, while it stands in for a list that is still loading (null otherwise). */
+    let previewAt: number | null = null;
+    /** The key a network's list is saved under for the next visit. Kept apart from the older "last good list" copies. */
+    const previewKey = (): string => listKey({ kind: `fast-${m.kind}`, chain: m.chain, window: m.window, page: 0 });
+    /** Single-network lists only: the all-networks board is built column by column and is not previewed. */
+    const previewable = (): boolean => isRanked(m.kind) && m.chain !== '';
     /** When the list on screen was loaded, if it is the last saved one because the market service could not be reached. */
     let staleAt: number | null = null;
     /** The list on screen is Aretia's own market index, because the outside market service has nothing right now. */
@@ -2114,6 +2120,15 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
         gathering = isRanked(m.kind);
         gatherCount = 0;
         error = null;
+        // The last list this person saw for this view is drawn at once, marked as such, while the full list is gathered.
+        previewAt = null;
+        if (rows === null && previewable()) {
+          const kept = readList(browserStorage(), previewKey(), Date.now());
+          if (kept && kept.rows.length > 0) {
+            rows = rateRows(kept.rows);
+            previewAt = kept.at;
+          }
+        }
         draw();
       }
       try {
@@ -2254,6 +2269,9 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
       }
       loading = false;
       gathering = false;
+      previewAt = null;
+      // The finished list is kept (the first page of it) so the next visit to this view opens on it.
+      if (!error && staleAt === null && rows !== null && rows.length > 0 && previewable()) saveList(browserStorage(), previewKey(), rows, Date.now());
       // A refresh never redraws over an open token page: moving its chart frame would reload the chart.
       if (silent && page) return;
       draw();
@@ -2277,7 +2295,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
         layDeeper();
         gatherCount = rows?.length ?? gatherCount;
         // The loading state shows the count; it is redrawn a few times a second, not for every page.
-        if (gathering && !page && Date.now() - gatherDrawnAt > 400) {
+        if (gathering && previewAt === null && !page && Date.now() - gatherDrawnAt > 400) {
           gatherDrawnAt = Date.now();
           draw();
         }
@@ -2611,6 +2629,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
       /** On a wide screen the list, its pager and its notes scroll inside this region while the side panel stays put. */
       let inMain: HTMLElement | null = null;
       if (staleAt !== null && rows !== null && !error) card.append(banner('info', `The market service is busy, so this is the list from ${ago(staleAt, Date.now())}. Aretia keeps trying and will refresh it by itself.`));
+      if (previewAt !== null && rows !== null && !error) card.append(banner('info', `Showing the list as it was ${ago(previewAt, Date.now())} while the latest loads.`));
       if (fromIndex && rows !== null && !error) card.append(banner('info', 'The outside market service is busy, so this list is read from Aretia’s own market index. It is shorter, and Aretia will switch back by itself.'));
       if (error) {
         card.append(banner('warn', error));
@@ -2618,7 +2637,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
         again.addEventListener('click', () => void load());
         card.append(again);
       }
-      else if (rows === null || gathering) card.append(loadingBlock(gathering && gatherCount > 0 ? `Loading all tokens… ${gatherCount.toLocaleString('en-US')} so far` : 'Loading the list…', 72, true));
+      else if (rows === null || (gathering && previewAt === null)) card.append(loadingBlock(gathering && gatherCount > 0 ? `Loading all tokens… ${gatherCount.toLocaleString('en-US')} so far` : 'Loading the list…', 72, true));
       else if (m.kind === 'favourites' && favourites.list().length === 0) card.append(el('p', { class: 'wapp__fine', text: 'No favourites yet. Tap the ☆ beside any token to keep it here.' }));
       else if (shownRows.length === 0 && (rows?.length ?? 0) > 0 && f.age !== '0' && !autoAge) {
         card.append(el('p', { class: 'wapp__fine', text: `None of the ${rows?.length ?? 0} tokens in this list were created in that time. Age here means how long ago the pool was created.` }));

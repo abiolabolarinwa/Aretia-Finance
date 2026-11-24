@@ -6,6 +6,9 @@
  */
 import { CHAINS, type ChainId } from '../swings/core/types.js';
 import { normalizeTokenRef } from '../swings/core/token.js';
+import { marketsHash, routeHash } from './walletRoute.js';
+
+export { marketsHash, routeHash };
 import { fromSmallestUnit } from './walletTools.js';
 import type { MintFacts } from './walletLaunchChain.js';
 import { extensionClass, extensionLabel, judgeExtensions } from '../swings/tokens/token2022.js';
@@ -53,8 +56,6 @@ export function parseSwapHash(hash: string): { chain: ChainId; address: string }
   return ref ? { chain: ref.chain, address: ref.address } : null;
 }
 
-/** Markets with a token open: "#/swings/<chain>/<address>", so the address is in the link and the link opens the same token. */
-export const marketsHash = (chain: ChainId, address: string): string => `#/swings/${chain}/${CHAINS[chain].kind === 'evm' ? address.toLowerCase() : address}`;
 
 /** "#/swings/<chain>/<address>" to the token it names, or null for plain Markets and anything else. */
 export function parseMarketsHash(hash: string): { chain: ChainId; address: string } | null {
@@ -69,18 +70,6 @@ export const isMarketsHash = (hash: string): boolean => hash === '#/swings' || h
 
 /** The clean path for a token open in Markets: "/wallet/<chain>/<address>". */
 export const walletTokenPath = (chain: ChainId, address: string): string => `/wallet/${chain}/${CHAINS[chain].kind === 'evm' ? address.toLowerCase() : address}`;
-
-/**
- * Where the wallet page is, as the hash its router reads. A hash in the address wins ("#/send"); with none, a clean token
- * path ("/wallet/<chain>/<address>") means Markets with that token, which is the same as "#/swings/<chain>/<address>".
- */
-export function routeHash(pathname: string, hash: string): string {
-  if (hash && hash !== '#') return hash;
-  const m = /^\/wallet\/([a-z]+)\/([A-Za-z0-9]+)\/?$/.exec(pathname);
-  if (!m) return hash;
-  const ref = normalizeTokenRef(m[1], m[2]);
-  return ref ? marketsHash(ref.chain, ref.address) : hash;
-}
 
 export const shortAddress = (a: string): string => (a.length > 14 ? `${a.slice(0, 6)}…${a.slice(-4)}` : a);
 

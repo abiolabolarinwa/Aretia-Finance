@@ -1,5 +1,5 @@
 import { EVM_ACCOUNT_EVENT } from './walletEvmEvent';
-import { routeHash } from './tokenPageCore';
+import { routeHash } from './walletRoute';
 import type { initSwings } from './walletSwings';
 import type { LaunchCluster } from './walletLaunchCluster';
 import { isEvmNativeMint, loadEvmHoldings, type EvmHolding, type ExtraToken } from './walletEvmHoldings';
@@ -14,10 +14,9 @@ import { EvmSession, publicRead } from '../swings/chains/evmSession.js';
 import { checkEvmRecipient, EVM_EXPLORER_TX, maxNativeSend, planEvmSend, sendEvmTransfer, waitForEvmReceipt, type EvmSendPlan } from './walletEvmSend';
 import { CHAIN_IDS, CHAINS, isChainId, type ChainId } from '../swings/core/types.js';
 import { initWalletLock } from './walletLock';
-import { initRadar } from './walletRadar';
 import { initNotifications } from './walletNotifications';
 import { initWalletConnectSolana } from './solanaWc';
-import { initReferrals } from './walletReferrals';
+import type { initReferrals } from './walletReferrals';
 import type { initShield } from './walletShield';
 import { AddressBook } from '../swings/shield/addressBook.js';
 import { loadTrades, type TradeRow } from './walletTrades';
@@ -461,8 +460,17 @@ export function initWalletApp(): void {
   };
   let showUnpriced = readShowUnpriced();
   let loadToken = 0;
-  initRadar();
-  let referrals: ReturnType<typeof initReferrals> | null = null;
+  // The Radar and Referrals tabs are downloaded after the first screen is drawn (or when their tab is opened first), not with the page.
+  const radarLoad = lazyApi<boolean>(async () => {
+    (await import('./walletRadar')).initRadar();
+    return true;
+  });
+  const referralsLoad = lazyApi<ReturnType<typeof initReferrals>>(async () => {
+    const root = document.querySelector<HTMLElement>('[data-referrals]');
+    if (!root) return { onShow() {} };
+    return (await import('./walletReferrals')).initReferrals(root);
+  });
+  const referrals = { onShow: (): void => void referralsLoad.run((r) => r.onShow()) };
   // Ultimate City Search is its own module, downloaded only when its page is opened.
   const gameLoad = lazyApi<{ onShow(): void }>(async () => {
     const host = document.querySelector<HTMLElement>('[data-game-root]');
@@ -654,7 +662,7 @@ export function initWalletApp(): void {
   window.addEventListener(EVM_ACCOUNT_EVENT, (e) => {
     const account = (e as CustomEvent<string | null>).detail;
     if (account !== evmAccount) void loadEvm(account);
-    if (currentView() === 'referrals') referrals?.onShow();
+    if (currentView() === 'referrals') referrals.onShow();
   });
 
   /** The side card and the count on the dashboard: wallet name, token count and the Ethereum-style account when one is connected. */
@@ -1331,7 +1339,8 @@ export function initWalletApp(): void {
       const strip = document.querySelector<HTMLElement>('[data-rising]');
       if (strip) void import('./walletDashRising').then((m) => m.loadRising(strip));
     }
-    if (view === 'referrals') referrals?.onShow();
+    if (view === 'radar') radarLoad.warm();
+    if (view === 'referrals') referrals.onShow();
     if (view === 'ultimate-city-search') void gameLoad.run((g) => g.onShow());
     if (view === 'activity') swings.onActivityShow();
     if (view === 'launchbox') launchTools.onShowLaunchBox();
@@ -1400,8 +1409,6 @@ export function initWalletApp(): void {
   initNotifications();
   // Inside the Aretia app only: lets phone wallets connect through WalletConnect (no effect on the website).
   initWalletConnectSolana();
-  const referralsRoot = document.querySelector<HTMLElement>('[data-referrals]');
-  referrals = referralsRoot ? initReferrals(referralsRoot) : null;
 
   function clearSessionOutputs(): void {
     for (const sel of ['[data-send-review]']) $(sel)?.replaceChildren();
@@ -1426,7 +1433,7 @@ export function initWalletApp(): void {
     launchTools.onWalletChange();
     renderChrome();
     // The Referrals page shows the connected wallet's own link and numbers, so it is drawn again for the new one.
-    if (currentView() === 'referrals') referrals?.onShow();
+    if (currentView() === 'referrals') referrals.onShow();
     void refresh();
   }
   const wire = () => {

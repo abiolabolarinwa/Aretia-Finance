@@ -2618,7 +2618,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
         again.addEventListener('click', () => void load());
         card.append(again);
       }
-      else if (rows === null || gathering) card.append(loadingBlock(gathering && gatherCount > 0 ? `Loading all tokens… ${gatherCount.toLocaleString('en-US')} so far` : 'Loading the list…'));
+      else if (rows === null || gathering) card.append(loadingBlock(gathering && gatherCount > 0 ? `Loading all tokens… ${gatherCount.toLocaleString('en-US')} so far` : 'Loading the list…', 72, true));
       else if (m.kind === 'favourites' && favourites.list().length === 0) card.append(el('p', { class: 'wapp__fine', text: 'No favourites yet. Tap the ☆ beside any token to keep it here.' }));
       else if (shownRows.length === 0 && (rows?.length ?? 0) > 0 && f.age !== '0' && !autoAge) {
         card.append(el('p', { class: 'wapp__fine', text: `None of the ${rows?.length ?? 0} tokens in this list were created in that time. Age here means how long ago the pool was created.` }));

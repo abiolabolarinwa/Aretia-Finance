@@ -158,6 +158,7 @@ html.motion-ok [data-reveal='scale'] { transform: scale(0.96); }
 }
 .aretia-loading--block { display: grid; justify-items: center; gap: 12px; padding: 36px 16px; text-align: center; color: var(--color-muted, #6b6b73); font-size: 0.875rem; }
 .aretia-loading--block .aretia-mark { vertical-align: baseline; }
+.aretia-loading--fill { align-content: center; min-height: max(320px, calc(100vh - 380px)); gap: 16px; font-size: 0.95rem; }
 .aretia-loading--row { display: flex; align-items: center; gap: 10px; }
 .aretia-loading--inline { display: inline-flex; align-items: center; gap: 0.5em; }
 .aretia-loading--inline .aretia-mark { vertical-align: baseline; }

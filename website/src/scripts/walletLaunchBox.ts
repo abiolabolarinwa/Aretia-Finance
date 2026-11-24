@@ -525,7 +525,7 @@ export function initLaunchBox(o: LaunchBoxOptions): { onShow(): void } {
       sortSelect.value = `${cur.key}:${cur.dir}`;
     }
     if (!data) {
-      listHost.append(failed ? empty('Launch Box could not be loaded', 'Check your connection and try again in a moment.', false) : loadingBlock('Loading Launch Box…'));
+      listHost.append(failed ? empty('Launch Box could not be loaded', 'Check your connection and try again in a moment.', false) : loadingBlock('Loading Launch Box…', 72, true));
       return;
     }
     if (data.setup !== 'ok') {

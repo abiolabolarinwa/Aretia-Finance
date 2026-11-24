@@ -32,9 +32,10 @@ export function markSvg(size: number | string = 40): string {
  * A loading placeholder for a whole area: the mark above a line of text, centred, announced to screen readers as a status.
  * Used where a list or chart has nothing to show yet.
  */
-export function loadingBlock(text = 'Loading…', size = 44): HTMLElement {
+/** `fill` makes the block take the height of the area it is in and centre itself there, for a whole page or list with nothing yet to show. */
+export function loadingBlock(text = 'Loading…', size = 44, fill = false): HTMLElement {
   const box = document.createElement('div');
-  box.className = 'aretia-loading aretia-loading--block';
+  box.className = fill ? 'aretia-loading aretia-loading--block aretia-loading--fill' : 'aretia-loading aretia-loading--block';
   box.setAttribute('role', 'status');
   box.insertAdjacentHTML('afterbegin', markSvg(size));
   const label = document.createElement('span');

@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { sidebarItemFor, tokenOpenMode } from './walletNav';
+import { rememberView, sidebarItemFor, tokenOpenMode, viewToResume } from './walletNav';
 
 describe('sidebarItemFor', () => {
   it('keeps Markets marked while the Swap page is open', () => {
@@ -46,5 +46,28 @@ describe('the wallet page', () => {
 
   it('still lets other buttons open the Swap page (for example the dashboard\'s Swap button)', () => {
     expect(page).toContain('data-nav="swap"');
+  });
+});
+
+describe('opening the wallet where the person left off', () => {
+  const store = (v: string | null) => ({ getItem: () => v, setItem: () => undefined });
+  it('goes back to the last page only for the plain wallet address', () => {
+    expect(viewToResume(store('swings'), '/wallet', '')).toBe('swings');
+    expect(viewToResume(store('radar'), '/wallet/', '#')).toBe('radar');
+    expect(viewToResume(store('swings'), '/wallet', '#/send')).toBeNull();
+    expect(viewToResume(store('swings'), '/wallet/solana/So11111111111111111111111111111111111111112', '')).toBeNull();
+  });
+  it('never goes back to the dashboard, the game or anything unknown, and survives blocked storage', () => {
+    for (const v of ['dashboard', 'ultimate-city-search', 'shield', '', 'nonsense']) expect(viewToResume(store(v), '/wallet', '')).toBeNull();
+    expect(viewToResume(null, '/wallet', '')).toBeNull();
+    expect(viewToResume({ getItem: () => { throw new Error('blocked'); }, setItem: () => undefined }, '/wallet', '')).toBeNull();
+  });
+  it('remembers a page worth returning to and clears the memory on one that is not', () => {
+    const seen: string[] = [];
+    const s = { getItem: () => null, setItem: (_k: string, v: string) => void seen.push(v) };
+    rememberView(s, 'swings');
+    rememberView(s, 'dashboard');
+    expect(seen).toEqual(['swings', '']);
+    expect(() => rememberView({ getItem: () => null, setItem: () => { throw new Error('blocked'); } }, 'send')).not.toThrow();
   });
 });

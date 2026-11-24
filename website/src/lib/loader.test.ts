@@ -3,6 +3,8 @@ import { describe, expect, it } from 'vitest';
 import { MARK_PIECES, markSvg } from './loader';
 import { isLoadingText } from './loadingMarks';
 
+const loaderSource = readFileSync(new URL('./loader.ts', import.meta.url), 'utf8');
+
 describe('the Aretia loading mark', () => {
   it('draws the logo: the outlined square, the tile and the two jaws, hidden from screen readers (the message is the label)', () => {
     const svg = markSvg(40);
@@ -13,6 +15,11 @@ describe('the Aretia loading mark', () => {
     expect(svg).toContain('aria-hidden="true"');
     expect(svg).toContain('width="40"');
     expect(markSvg('1.15em')).toContain('width="1.15em"');
+  });
+  it('can fill and centre itself in the area it is placed in, for a list with nothing to show yet', () => {
+    const css = readFileSync(new URL('../styles/global.css', import.meta.url), 'utf8');
+    expect(css).toMatch(/.aretia-loading--fill {[^}]*align-content: center;[^}]*min-height:/);
+    expect(loaderSource).toContain('aretia-loading--fill');
   });
   it('recognises the loading messages the pages show, and nothing else', () => {
     for (const t of ['Loading…', 'Loading activity…', 'Checking the transfer…', 'Searching…', 'Waiting for your wallet to approve…', 'Analyzing this token. This can take up to a minute…'.replace('. This', ' this'), 'Working...', 'Looking for the pool this token trades on…'])

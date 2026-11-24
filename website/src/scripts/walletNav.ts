@@ -20,3 +20,32 @@ export function tokenOpenMode(hash: string): TokenOpenMode {
   if (hash === '#/swings' || hash.startsWith('#/swings/') || hash === '#/favourites') return 'markets-dialog';
   return 'go-to-swap';
 }
+
+/** The page a person was last on, kept in this browser only so that opening the wallet again lands there. */
+export const LAST_VIEW_KEY = 'aretia.wallet.lastView';
+/** Pages worth coming back to. The dashboard is the default anyway, and a game page or a shared check is only ever opened by a link. */
+const RESUMABLE = new Set(['send', 'swap', 'launch', 'launchbox', 'carbon', 'swings', 'favourites', 'radar', 'activity', 'referrals']);
+type KeyValueStore = { getItem(k: string): string | null; setItem(k: string, v: string): void };
+
+/** Remembers the page, or forgets it when it is not one to come back to. Never throws: storage may be blocked. */
+export function rememberView(store: KeyValueStore | null, view: string): void {
+  try {
+    store?.setItem(LAST_VIEW_KEY, RESUMABLE.has(view) ? view : '');
+  } catch {
+    // not remembered
+  }
+}
+
+/**
+ * The page to open when the wallet is opened with no page named: only the plain "/wallet" address, never a link to a token, a page or a
+ * check, so a shared link always opens what it points at. Null when there is nothing to go back to.
+ */
+export function viewToResume(store: KeyValueStore | null, pathname: string, hash: string): string | null {
+  if (!/^\/wallet\/?$/.test(pathname) || (hash !== '' && hash !== '#')) return null;
+  try {
+    const v = store?.getItem(LAST_VIEW_KEY) ?? '';
+    return RESUMABLE.has(v) ? v : null;
+  } catch {
+    return null;
+  }
+}

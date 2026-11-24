@@ -22,7 +22,7 @@ import { AddressBook } from '../swings/shield/addressBook.js';
 import { loadTrades, type TradeRow } from './walletTrades';
 import { guardRecipient } from '../swings/shield/guard';
 import { sendConfirmDisabled, sendRecipientGuard } from './walletSendGuard';
-import { sidebarItemFor } from './walletNav';
+import { rememberView, sidebarItemFor, viewToResume } from './walletNav';
 import { checkSendInput, sendAssetLabel } from './walletSendInput';
 import { countsTowardTotal, dexScreenerPrices, lamportsToBalance, mergeBalances, parseTokenAccountsResult, portfolioTotal, priceWithLiquidity, splitByPrice, TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID, type DexPricePair, type RawBalance } from './walletHoldings';
 import { majorsOf } from '../swings/charts/pool.js';
@@ -548,6 +548,7 @@ export function initWalletApp(): void {
   // ---- rendering
   function renderChrome(): void {
     const view = currentView();
+    rememberView(browserStorage(), view);
     root!.dataset.connected = address ? 'true' : 'false';
     // Favourites is the Markets list filtered to the person's favourites, so it takes the Markets layout.
     root!.dataset.view = view === 'favourites' ? 'swings' : view;
@@ -1444,6 +1445,9 @@ export function initWalletApp(): void {
     return true;
   };
   initSidebar();
+  // Opened with no page named: go back to the page this person was last on.
+  const resume = viewToResume(browserStorage(), location.pathname, location.hash);
+  if (resume) history.replaceState(null, '', `/wallet#/${resume}`);
   onRoute();
   // Once the page is drawn and idle, fetch the rest so it is ready by the time a tab is opened.
   const startLazy = () => lazyStarters.forEach((f) => f());

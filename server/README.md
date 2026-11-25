@@ -164,7 +164,7 @@ must still exist and be paid up (or within its limits) for rollback to work.
 
 | Do | Command (in `/opt/aretia/server`) |
 |---|---|
-| Update to the latest kit and apply new migrations | `./bin/update.sh` |
+| Update to the latest kit, apply new migrations, and restart PostgREST and Caddy so new tables are reachable | `./bin/update.sh` |
 | See what runs | `docker compose ps` |
 | Logs of one part | `docker compose logs --tail 100 postgrest` |
 | Stop / start everything | `docker compose stop` / `docker compose up -d` |

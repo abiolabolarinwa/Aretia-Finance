@@ -74,7 +74,7 @@ const sendTips = [
           <img src="/assets/logo-mark.png" width="28" height="28" alt="" />
           <span>Aretia</span>
         </a>
-        <button type="button" class="wapp__pin" data-side-pin aria-pressed="false" title="Pin the sidebar open" aria-label="Pin the sidebar open">
+        <button type="button" class="wapp__pin" data-side-pin aria-pressed="false" title="Show the full sidebar" aria-label="Show the full sidebar">
           <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M12 17v5" /><path d="M9 3h6l-1 6 3 3v2H7v-2l3-3z" /></svg>
         </button>
       </div>
@@ -502,7 +502,7 @@ const sendTips = [
   .wapp__pin[aria-pressed='true'] { color: #0f0f12; background: #fff; }
   .wapp__pin[aria-pressed='true'] svg { fill: currentColor; transform: rotate(-35deg); }
   .wapp__pin:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
-  @media (min-width: 961px) { .wapp__pin { display: grid; } html[data-wapp-sidebar='collapsed']:not([data-wapp-peek]) .wapp__pin { display: none; } }
+  @media (min-width: 961px) { .wapp__pin { display: grid; } }
   .wapp__collapse:hover { background: rgba(255, 255, 255, 0.2); color: #fff; }
   .wapp__collapse:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
   .wapp__side { position: sticky; top: 0; z-index: 60; align-self: start; display: flex; flex-direction: column; gap: 12px; height: 100vh; box-sizing: border-box; overflow-y: auto; padding: 14px 8px; background: #0f0f12; border-right: 0; }
@@ -2129,8 +2129,7 @@ const sendTips = [
   .wapp-trade--move, .wapp-trade--in, .wapp-trade--out { color: var(--color-brand); background: var(--color-brand-soft); }
   .wapp-error { margin: 0; padding: 12px 14px; font-size: 12px; color: #b3261e; background: rgba(179, 38, 30, 0.08); border-radius: var(--radius-md); }
 
-  /* Desktop: the sidebar rests as a narrow icon rail and opens, over the page, only while the
-     pointer is on it (or keyboard focus is in it). The page never reflows. */
+  /* Desktop: the sidebar rests as a narrow icon rail until the button at its top shows it in full. */
   @media (min-width: 961px) {
     .wapp__side { justify-self: start; width: 204px; overflow-x: hidden; transition: width 200ms ease, box-shadow 200ms ease; }
     .wapp__side .wapp__label, .wapp__side .wapp__brand span, .wapp__side-foot a { white-space: nowrap; }

@@ -15,6 +15,9 @@ import { lockView, lockStateFrom, type LockView } from '../swings/market/lockVie
 import { LOCK_MIN_PCT } from '../swings/market/lock.js';
 import { lockChip } from './walletLockChip.js';
 import { readPoolLock } from './walletPoolLockStatus.js';
+import { fetchProfile, profileBlock, profileEditor } from './walletTokenProfile.js';
+import type { Signer } from '../swings/account/client';
+import type { PublicProfile } from '../swings/profiles/core.js';
 
 export interface MarketPanelOptions {
   /** Aretia's own on-chain check of a token. Null when it could not be made. */
@@ -26,6 +29,8 @@ export interface MarketPanelOptions {
   swapFor(row: MarketRow): (() => void) | null;
   /** Puts the live swap card, with this token chosen, into the box (shown above the numbers, like a trading screen). */
   mountSwap?(host: HTMLElement, row: MarketRow): void;
+  /** The wallet that would sign for a network family, for a creator's free profile (docs/token-profiles.md). Without it there is no edit button. */
+  profileSigner?(family: 'solana' | 'evm'): Signer | null;
 }
 
 const LABEL: Record<Win, string> = { m5: '5M', h1: '1H', h6: '6H', h24: '24H' };
@@ -212,6 +217,57 @@ export function createMarketPanel(o: MarketPanelOptions) {
   /** Kept across redraws: the swap card lives inside it. */
   const swapHost = el('div', 'wapp-mp__swap');
   let swapKey = '';
+  /** Kept across redraws: the creator's free profile, and its form while it is open. */
+  const profileHost = el('div', 'wapp-mp__profile');
+  let profileKey = '';
+  let profile: PublicProfile | null = null;
+  let editing = false;
+
+  function drawProfile(r: MarketRow): void {
+    profileHost.replaceChildren();
+    if (editing && o.profileSigner) {
+      profileHost.append(
+        profileEditor({
+          chain: r.chain,
+          address: r.address,
+          symbol: r.symbol,
+          signer: (family) => o.profileSigner!(family),
+          onDone: () => loadProfile(r, true),
+          onClose: () => {
+            editing = false;
+            drawProfile(r);
+          },
+        }),
+      );
+      return;
+    }
+    if (profile) profileHost.append(profileBlock(profile));
+    if (o.profileSigner) {
+      const b = el('button', 'wapp-mp__profilebtn', profile ? 'Your token? Edit its free profile' : 'Your token? Add a free profile');
+      b.type = 'button';
+      b.addEventListener('click', () => {
+        editing = true;
+        drawProfile(r);
+      });
+      profileHost.append(b);
+    }
+  }
+
+  /** Reads the token's profile; `keepForm` leaves an open form (with its message) in place after a save. */
+  function loadProfile(r: MarketRow, keepForm = false): void {
+    const key = rowKey(r);
+    if (!keepForm) {
+      editing = false;
+      profile = null;
+    }
+    profileKey = key;
+    drawProfile(r);
+    void fetchProfile(r.chain, r.address).then((p) => {
+      if (profileKey !== key) return;
+      profile = p;
+      if (!editing) drawProfile(r);
+    });
+  }
 
   // The "Aretia check" card (rating, findings, "Watch for changes", "Full Shield report") was removed from this panel.
 
@@ -324,6 +380,8 @@ export function createMarketPanel(o: MarketPanelOptions) {
       g.append(links);
       root.append(g);
     }
+    if (profileKey !== rowKey(r)) loadProfile(r);
+    root.append(profileHost);
     root.append(el('p', 'wapp-mp__tiny', 'Anyone can create a token. Aretia does not endorse the tokens listed.'));
     applyTitle();
   }

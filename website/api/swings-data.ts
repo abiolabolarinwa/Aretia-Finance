@@ -1,5 +1,5 @@
 /**
- * One function behind fifteen public paths, because the Hobby plan allows at most twelve serverless functions:
+ * One function behind sixteen public paths, because the Hobby plan allows at most twelve serverless functions:
  *   /api/swings-candles  price history candles        (GET)
  *   /api/swings-ohlcv    candles for the TradingView chart, shared and cached (GET)
  *   /api/swings-trades   recent trades of a pool for the Transactions table, shared and cached (GET)
@@ -15,6 +15,7 @@
  *   /api/launchbox-run   the Launch Box indexer (GET, with the cron secret)
  *   /api/swings-upload   a one-use upload link for a token's picture or details file, for a signed-in wallet (POST)
  *   /api/swings-meta     the picture, description and links of tokens made through Aretia Launch (GET)
+ *   /api/swings-profiles free token profiles: read (GET), a creator's check and submit, the owner's review (POST)
  *   /api/v1/...          the Market Indexer's public read API: new pairs, trending, pools, tokens, trades, candles (GET)
  *   /api/mi-run          the Market Indexer's scheduled run (GET, with the cron secret)
  *   /api/swings-mi-admin Market Indexer owner controls with an audit log (POST; 404 for anyone but ADMIN_WALLETS)
@@ -27,6 +28,7 @@ import { handleAccount } from './_swingsAccount.js';
 import { handleAlertsRun, handleNotify, handleTelegramWebhook } from './_swingsNotify.js';
 import { handleCandles } from './_swingsCandles.js';
 import { handleMeta, handleUpload } from './_swingsUpload.js';
+import { handleProfiles } from './_tokenProfiles.js';
 import { handleReferrals } from './_swingsReferrals.js';
 import { handleLaunchbox, handleLaunchboxRun } from './_launchbox.js';
 import { handleMarket } from './_swingsMarket.js';
@@ -95,6 +97,7 @@ export default async function handler(req: Req, res: Res): Promise<void> {
   else if (route === 'admin') out = await handleAdmin({ ...common, body });
   else if (route === 'upload') out = await handleUpload({ ...common, query, body });
   else if (route === 'meta') out = await handleMeta({ ...common, query, body });
+  else if (route === 'profiles') out = await handleProfiles({ ...common, query, body });
   else if (route === 'mi') out = await handleMi({ ...common, query, body });
   else if (route === 'mi-run') out = await handleMiRun({ ...common, query });
   else if (route === 'mi-admin') out = await handleMiAdmin({ ...common, body });

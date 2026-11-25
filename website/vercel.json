@@ -24,6 +24,7 @@
     { "source": "/api/swings-admin", "destination": "/api/swings-data?route=admin" },
     { "source": "/api/swings-upload", "destination": "/api/swings-data?route=upload" },
     { "source": "/api/swings-meta", "destination": "/api/swings-data?route=meta" },
+    { "source": "/api/swings-profiles", "destination": "/api/swings-data?route=profiles" },
     { "source": "/api/v1", "destination": "/api/swings-data?route=mi" },
     { "source": "/api/v1/:path*", "destination": "/api/swings-data?route=mi&path=:path*" },
     { "source": "/api/mi-run", "destination": "/api/swings-data?route=mi-run" },

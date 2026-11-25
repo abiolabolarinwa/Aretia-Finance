@@ -2826,17 +2826,34 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
     function favouriteAlerts(): HTMLElement {
       const box = el('div', { class: 'wapp-alerts' });
       box.append(alertsCard({ account, session: sessionNow, signIn: signInNow, canSign: () => signerNow() !== null }));
-      box.append(el('p', { class: 'wapp__fine', text: `Price alerts pop up for two seconds while this page is open, when a favourite has moved ±${alerts.pct()}% from where it was when you starred it or last alerted. With "Alerts on your phone" above turned on, Aretia also checks for you when the page is closed.` }));
+      const recent = el('section', { class: 'wapp-ra', attrs: { 'aria-labelledby': 'wapp-ra-title' } });
+      const head = el('header', { class: 'wapp-ra__head' }, [el('h3', { class: 'wapp-ra__title', text: 'Recent alerts', attrs: { id: 'wapp-ra-title' } }), el('span', { class: 'wapp-ra__rule', text: `Moves of ±${alerts.pct()}% while this page is open` })]);
+      recent.append(head);
       const log = alerts.log();
-      if (log.length > 0) {
-        box.append(el('span', { class: 'wapp__eyebrow', text: 'Recent alerts' }));
-        const list = el('ul', { class: 'wapp-alerts__list' });
+      if (log.length === 0) {
+        recent.append(el('p', { class: 'wapp-ra__empty', text: 'No alerts yet. When a favourite moves, it shows here and pops up for a moment.' }));
+      } else {
+        const list = el('ul', { class: 'wapp-ra__list' });
         for (const a of log.slice(0, 8)) {
           const up = a.movePct > 0;
-          list.append(el('li', { class: up ? 'is-up' : 'is-down', text: `${a.symbol} ${up ? '▲ +' : '▼ '}${a.movePct.toFixed(1)}% to ${formatPrice(a.price)} · ${formatAge(Date.now() - a.at)} ago` }));
+          const mark = el('span', { class: 'wapp-ra__mark', text: (a.symbol.trim()[0] ?? '?').toUpperCase(), attrs: { 'aria-hidden': 'true' } });
+          if (a.icon) {
+            const img = el('img', { attrs: { src: a.icon, alt: '', loading: 'lazy', width: '28', height: '28' } });
+            img.addEventListener('error', () => img.remove());
+            mark.append(img);
+          }
+          const row = el('button', { class: 'wapp-ra__row', attrs: { type: 'button', title: `Open ${a.symbol}: chart and details` } }, [
+            mark,
+            el('span', { class: 'wapp-ra__name' }, [el('strong', { text: a.symbol }), el('span', { class: 'wapp-ra__price', text: `now ${formatPrice(a.price)}` })]),
+            el('span', { class: `wapp-ra__chg ${up ? 'is-up' : 'is-down'}`, text: `${up ? '▲ +' : '▼ '}${a.movePct.toFixed(1)}%` }),
+            el('time', { class: 'wapp-ra__time', text: `${formatAge(Date.now() - a.at)} ago`, attrs: { datetime: new Date(a.at).toISOString() } }),
+          ]);
+          row.addEventListener('click', () => window.dispatchEvent(new CustomEvent(SHOW_MARKET_EVENT, { detail: { chain: a.chain, address: a.address, symbol: a.symbol, name: a.symbol, icon: a.icon, page: 'swings' } })));
+          list.append(el('li', {}, [row]));
         }
-        box.append(list);
+        recent.append(list);
       }
+      box.append(recent);
       return box;
     }
 

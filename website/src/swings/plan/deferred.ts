@@ -42,14 +42,26 @@ export class DeferredSettlementExecutor implements LegExecutor {
     const asset = this.o.usdc(src);
     const destAsset = this.o.usdc(dst);
     if (!wallet || !asset || !destAsset) return { status: 'waiting-user', instruction: `Connect your wallet on ${CHAINS[src].name} to continue.` };
-    const before = plan.legs[leg.index - 1]?.ref.watchBaseline;
-    if (before === undefined) return { status: 'waiting-user', instruction: 'Aretia cannot tell how much arrived from the step before, so it will not guess. Move the USDC yourself in the Move USDC tab.' };
+    // The USDC always goes to the user's own account on the destination (a Solana account and an Ethereum-style one differ).
+    const recipient = this.o.walletFor(dst);
+    if (!recipient) return { status: 'waiting-user', instruction: `Connect your wallet on ${CHAINS[dst].name} to receive the USDC there. Nothing was sent.` };
     const now = await this.o.balanceOf(src, wallet, asset);
     if (now === null) return { status: 'waiting-user', instruction: 'Your balance could not be read just now. Nothing is assumed; try again shortly.' };
-    const arrived = now - BigInt(before);
-    if (arrived <= 0n) return { status: 'waiting-user', instruction: 'The USDC has not arrived yet.' };
+    let arrived: bigint;
+    if (leg.index === 0) {
+      // The plan starts with this move: it moves at most what the user entered, and only if the wallet really holds it.
+      const entered = plan.quote.spend.amount;
+      if (entered === null || entered <= 0n) return { status: 'waiting-user', instruction: 'This plan does not say how much to move, so it will not guess.' };
+      if (now < entered) return { status: 'waiting-user', instruction: `Your wallet holds ${formatUnits(now, 6)} USDC on ${CHAINS[src].name}, less than the ${formatUnits(entered, 6)} planned. Nothing was sent.` };
+      arrived = entered;
+    } else {
+      const before = plan.legs[leg.index - 1]?.ref.watchBaseline;
+      if (before === undefined) return { status: 'waiting-user', instruction: 'Aretia cannot tell how much arrived from the step before, so it will not guess. Move the USDC yourself in the Move USDC tab.' };
+      arrived = now - BigInt(before);
+      if (arrived <= 0n) return { status: 'waiting-user', instruction: 'The USDC has not arrived yet.' };
+    }
 
-    const ask = (amount: bigint) => this.o.engine.quote({ sourceChain: src, sourceAsset: { chain: src, address: asset }, sourceAmount: amount, destinationChain: dst, destinationAsset: { chain: dst, address: destAsset }, sender: wallet, recipient: wallet }, 'balanced');
+    const ask = (amount: bigint) => this.o.engine.quote({ sourceChain: src, sourceAsset: { chain: src, address: asset }, sourceAmount: amount, destinationChain: dst, destinationAsset: { chain: dst, address: destAsset }, sender: wallet, recipient }, 'balanced');
     let search = await ask(arrived);
     let best: SettlementQuote | undefined = search.quotes[0];
     // Fees added on top (Aretia's and Circle's) must also come out of what arrived: move a little less, so the total fits.

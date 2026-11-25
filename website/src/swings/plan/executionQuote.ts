@@ -78,17 +78,21 @@ export interface ExecutionQuote {
 }
 
 const RISK = { low: 0, medium: 1, high: 2 } as const;
-const key = (a: string): string => a.toLowerCase();
+/**
+ * The key an asset is known by on a chain. Ethereum-style addresses are written in mixed case only as a checksum, so they are
+ * compared in lower case; a Solana address IS its case (lower-casing it names a different, usually empty, account), so it is kept.
+ */
+export const assetKeyOf = (chain: ChainId | null, address: string): string => (chain !== null && CHAINS[chain].kind === 'solana' ? address : address.toLowerCase());
 
 const fiatLine = (code: string, amount: number | null): AmountLine => ({ chain: null, assetKey: `fiat:${code.toLowerCase()}`, symbol: code.toUpperCase(), decimals: 0, amount: amount === null ? null : BigInt(amount) });
 
 export function legFromSettlement(q: SettlementQuote, symbol = 'USDC', decimals = 6): ExecutionLeg {
   const i = q.intent;
-  const src = { chain: i.sourceChain, assetKey: key(i.sourceAsset.address), symbol, decimals };
+  const src = { chain: i.sourceChain, assetKey: assetKeyOf(i.sourceChain, i.sourceAsset.address), symbol, decimals };
   const onTop = q.sourceTotal !== undefined && q.sourceTotal > q.sourceAmount;
   const fees: FeeLine[] = [{ label: q.aretiaFee ? `Circle's transfer fee${onTop ? ' (at most, added on top)' : ''}` : 'Transfer fee', kind: 'settlement', assetKey: src.assetKey, symbol, decimals, amount: q.settlementFee.amount }];
   // Aretia's Move USDC fee is its own line, never merged into Circle's.
-  if (q.aretiaFee) fees.push({ label: `Moving USDC, ${MOVE_FEE_PERCENT} of the amount${onTop ? ', added on top' : ''}`, kind: 'aretia-fee', assetKey: key(q.aretiaFee.asset.address), symbol, decimals, amount: q.aretiaFee.amount });
+  if (q.aretiaFee) fees.push({ label: `Moving USDC, ${MOVE_FEE_PERCENT} of the amount${onTop ? ', added on top' : ''}`, kind: 'aretia-fee', assetKey: assetKeyOf(i.sourceChain, q.aretiaFee.asset.address), symbol, decimals, amount: q.aretiaFee.amount });
   if (q.networkFees === null) fees.push({ label: 'Network fees (not estimated)', kind: 'network', assetKey: `native:${i.sourceChain}`, symbol: CHAINS[i.sourceChain].nativeSymbol, decimals: CHAINS[i.sourceChain].nativeDecimals, amount: null });
   else for (const f of q.networkFees) fees.push({ label: `Network fee on ${CHAINS[f.chain].name}`, kind: 'network', assetKey: `native:${f.chain}`, symbol: CHAINS[f.chain].nativeSymbol, decimals: CHAINS[f.chain].nativeDecimals, amount: f.amount });
   return {
@@ -97,7 +101,7 @@ export function legFromSettlement(q: SettlementQuote, symbol = 'USDC', decimals 
     title: `Move ${symbol} from ${CHAINS[i.sourceChain].name} to ${CHAINS[i.destinationChain].name}`,
     // What the leg takes from the wallet: the amount plus any fee added on top.
     input: { ...src, amount: q.sourceTotal ?? q.sourceAmount },
-    output: { chain: i.destinationChain, assetKey: key(i.destinationAsset.address), symbol, decimals, amount: q.destinationAmount },
+    output: { chain: i.destinationChain, assetKey: assetKeyOf(i.destinationChain, i.destinationAsset.address), symbol, decimals, amount: q.destinationAmount },
     fees,
     estimatedSeconds: q.estimatedSeconds,
     risk: q.risk.level,
@@ -109,7 +113,7 @@ export function legFromSettlement(q: SettlementQuote, symbol = 'USDC', decimals 
 
 export function legFromRamp(q: RampQuote): ExecutionLeg {
   const i = q.intent;
-  const token: Omit<AmountLine, 'amount'> = { chain: i.asset.chain, assetKey: key(i.asset.address), symbol: i.asset.symbol, decimals: i.asset.decimals };
+  const token: Omit<AmountLine, 'amount'> = { chain: i.asset.chain, assetKey: assetKeyOf(i.asset.chain, i.asset.address), symbol: i.asset.symbol, decimals: i.asset.decimals };
   const fiat = fiatLine(i.fiat, i.fiatAmount);
   const buy = i.side === 'buy';
   return {
@@ -135,6 +139,7 @@ export interface TokenMeta {
 export function legFromSwap(q: Quote, from: TokenMeta, to: TokenMeta): ExecutionLeg {
   const r = q.request;
   const fees: FeeLine[] = [];
+  const key = (a: string): string => assetKeyOf(r.chain, a);
   const meta = (address: string | null): TokenMeta & { key: string } => {
     if (address === null || key(address) === key(r.from.address)) return { ...from, key: key(r.from.address) };
     if (key(address) === key(r.to.address)) return { ...to, key: key(r.to.address) };
@@ -213,9 +218,9 @@ export function pendingSettlementLeg(id: string, from: { chain: ChainId; address
     id,
     kind: 'settlement',
     title: `Move ${symbol} from ${CHAINS[from.chain].name} to ${CHAINS[to.chain].name}`,
-    input: { chain: from.chain, assetKey: key(from.address), symbol, decimals, amount: null },
-    output: { chain: to.chain, assetKey: key(to.address), symbol, decimals, amount: null },
-    fees: [{ label: 'Transfer fee (quoted when the money arrives)', kind: 'settlement', assetKey: key(from.address), symbol, decimals, amount: null }, { label: `Moving USDC, ${MOVE_FEE_PERCENT} of the amount moved (worked out when the money arrives)`, kind: 'aretia-fee', assetKey: key(from.address), symbol, decimals, amount: null }, { label: 'Network fees (not estimated)', kind: 'network', assetKey: `native:${from.chain}`, symbol: CHAINS[from.chain].nativeSymbol, decimals: CHAINS[from.chain].nativeDecimals, amount: null }],
+    input: { chain: from.chain, assetKey: assetKeyOf(from.chain, from.address), symbol, decimals, amount: null },
+    output: { chain: to.chain, assetKey: assetKeyOf(to.chain, to.address), symbol, decimals, amount: null },
+    fees: [{ label: 'Transfer fee (quoted when the money arrives)', kind: 'settlement', assetKey: assetKeyOf(from.chain, from.address), symbol, decimals, amount: null }, { label: `Moving USDC, ${MOVE_FEE_PERCENT} of the amount moved (worked out when the money arrives)`, kind: 'aretia-fee', assetKey: assetKeyOf(from.chain, from.address), symbol, decimals, amount: null }, { label: 'Network fees (not estimated)', kind: 'network', assetKey: `native:${from.chain}`, symbol: CHAINS[from.chain].nativeSymbol, decimals: CHAINS[from.chain].nativeDecimals, amount: null }],
     estimatedSeconds,
     risk: 'low',
     signatures: 4,

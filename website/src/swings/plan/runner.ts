@@ -9,7 +9,7 @@
 import { SwingsError } from '../core/types.js';
 import { secureId } from '../orchestrator/remote.js';
 import type { LegKind } from './executionQuote.js';
-import { hasBegun, isPlanFinal, movePlan, newPlan, type LegRef, type PlanLeg, type PlanRecord } from './state.js';
+import { canStopHere, hasBegun, isPlanFinal, movePlan, newPlan, type LegRef, type PlanLeg, type PlanRecord } from './state.js';
 import type { ExecutionQuote } from './executionQuote.js';
 import type { JsonVersionedStore } from './store.js';
 
@@ -53,6 +53,19 @@ export class PlanRunner {
   async cancel(id: string): Promise<PlanRecord> {
     const p = await this.require(id);
     return this.save(p, movePlan(p, 'CANCELLED', 'Cancelled before anything began.', this.now()));
+  }
+
+  /**
+   * The user stops the plan where it is and keeps what they hold (for example the USDC after a move, instead of the last swap).
+   * Before anything began it is a plain cancel. Refused while anything is in flight (see `canStopHere`).
+   */
+  async stopHere(id: string): Promise<PlanRecord> {
+    if (this.busy.has(id)) throw new SwingsError('invalid', 'This plan is being checked right now. Try again in a moment.');
+    const p = await this.require(id);
+    if (!hasBegun(p) && p.state === 'PLANNED') return this.cancel(id);
+    if (!canStopHere(p)) throw new SwingsError('invalid', 'A step is in progress, so the plan cannot be stopped now. Wait until it finishes.');
+    const reason = 'You stopped the plan here and kept what you hold.';
+    return this.save(p, { ...movePlan(p, 'FAILED', reason, this.now()), failure: { reason, fundsMayBeAtRisk: false, legIndex: null } });
   }
 
   /** Moves the plan as far as it safely can right now. */

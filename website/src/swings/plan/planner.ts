@@ -10,7 +10,7 @@
  * to make a plan work: a step exists only if the capabilities say so.
  */
 import type { ChainId } from '../core/types.js';
-import type { LegKind } from './executionQuote.js';
+import { assetKeyOf, type LegKind } from './executionQuote.js';
 
 export interface TokenSpot {
   chain: ChainId;
@@ -43,7 +43,7 @@ export interface PlanStepSpec {
   chain: ChainId;
   /** For a settlement, the destination chain. */
   toChain?: ChainId;
-  /** Token addresses: what goes in and what comes out (lower-case). Fiat is described by `fiat`. */
+  /** Token addresses: what goes in and what comes out (Ethereum-style in lower case, Solana as written). Fiat is described by `fiat`. */
   inAddress: string | null;
   outAddress: string | null;
   fiat?: string;
@@ -59,7 +59,6 @@ export interface PlanResult {
   reasons: string[];
 }
 
-const lc = (a: string): string => a.toLowerCase();
 
 export async function planRoutes(goal: PlanGoal, cap: Capabilities): Promise<PlanResult> {
   const plans: PlanCandidate[] = [];
@@ -74,11 +73,11 @@ export async function planRoutes(goal: PlanGoal, cap: Capabilities): Promise<Pla
     if (at !== dest.chain) {
       if (!usdcDest) return (reasons.push('USDC is not known on the destination network.'), null);
       if (!(await cap.canSettle(at, dest.chain))) return (reasons.push(`No settlement route exists between these two networks for USDC.`), null);
-      steps.push({ kind: 'settlement', chain: at, toChain: dest.chain, inAddress: lc(usdcAt), outAddress: lc(usdcDest) });
+      steps.push({ kind: 'settlement', chain: at, toChain: dest.chain, inAddress: assetKeyOf(at, usdcAt), outAddress: assetKeyOf(dest.chain, usdcDest) });
     }
-    if (usdcDest && lc(dest.address) !== lc(usdcDest)) {
+    if (usdcDest && assetKeyOf(dest.chain, dest.address) !== assetKeyOf(dest.chain, usdcDest)) {
       if (!(await cap.canSwap(dest.chain, usdcDest, dest.address))) return (reasons.push('No swap route exists from USDC to that token on its network.'), null);
-      steps.push({ kind: 'swap', chain: dest.chain, inAddress: lc(usdcDest), outAddress: lc(dest.address) });
+      steps.push({ kind: 'swap', chain: dest.chain, inAddress: assetKeyOf(dest.chain, usdcDest), outAddress: assetKeyOf(dest.chain, dest.address) });
     }
     return steps;
   };
@@ -89,13 +88,13 @@ export async function planRoutes(goal: PlanGoal, cap: Capabilities): Promise<Pla
     const usdcAt = cap.usdc(at);
     if (!usdcSrc || !usdcAt) return (reasons.push('USDC is not known on one of the networks.'), null);
     const steps: PlanStepSpec[] = [];
-    if (lc(src.address) !== lc(usdcSrc)) {
+    if (assetKeyOf(src.chain, src.address) !== assetKeyOf(src.chain, usdcSrc)) {
       if (!(await cap.canSwap(src.chain, src.address, usdcSrc))) return (reasons.push('No swap route exists from that token to USDC on its network.'), null);
-      steps.push({ kind: 'swap', chain: src.chain, inAddress: lc(src.address), outAddress: lc(usdcSrc) });
+      steps.push({ kind: 'swap', chain: src.chain, inAddress: assetKeyOf(src.chain, src.address), outAddress: assetKeyOf(src.chain, usdcSrc) });
     }
     if (src.chain !== at) {
       if (!(await cap.canSettle(src.chain, at))) return (reasons.push('No settlement route exists between these two networks for USDC.'), null);
-      steps.push({ kind: 'settlement', chain: src.chain, toChain: at, inAddress: lc(usdcSrc), outAddress: lc(usdcAt) });
+      steps.push({ kind: 'settlement', chain: src.chain, toChain: at, inAddress: assetKeyOf(src.chain, usdcSrc), outAddress: assetKeyOf(at, usdcAt) });
     }
     return steps;
   };
@@ -108,7 +107,7 @@ export async function planRoutes(goal: PlanGoal, cap: Capabilities): Promise<Pla
       const usdc = cap.usdc(x);
       if (!usdc) continue;
       const rest = await fromUsdc(x, goal.to);
-      if (rest) plans.push({ steps: [{ kind: 'ramp-buy', chain: x, inAddress: null, outAddress: lc(usdc), fiat: goal.from.fiat }, ...rest] });
+      if (rest) plans.push({ steps: [{ kind: 'ramp-buy', chain: x, inAddress: null, outAddress: assetKeyOf(x, usdc), fiat: goal.from.fiat }, ...rest] });
     }
   } else if (goal.from.kind === 'token' && goal.to.kind === 'fiat') {
     const sellChains = await cap.rampChains('sell', goal.to.fiat, goal.country);
@@ -118,13 +117,13 @@ export async function planRoutes(goal: PlanGoal, cap: Capabilities): Promise<Pla
       const usdc = cap.usdc(x);
       if (!usdc) continue;
       const first = await toUsdc(goal.from, x);
-      if (first) plans.push({ steps: [...first, { kind: 'ramp-sell', chain: x, inAddress: lc(usdc), outAddress: null, fiat: (goal.to as { fiat: string }).fiat }] });
+      if (first) plans.push({ steps: [...first, { kind: 'ramp-sell', chain: x, inAddress: assetKeyOf(x, usdc), outAddress: null, fiat: (goal.to as { fiat: string }).fiat }] });
     }
   } else if (goal.from.kind === 'token' && goal.to.kind === 'token') {
     const dest: TokenSpot = goal.to;
     const src = goal.from;
     if (src.chain === dest.chain) {
-      if (await cap.canSwap(src.chain, src.address, dest.address)) plans.push({ steps: [{ kind: 'swap', chain: src.chain, inAddress: lc(src.address), outAddress: lc(dest.address) }] });
+      if (await cap.canSwap(src.chain, src.address, dest.address)) plans.push({ steps: [{ kind: 'swap', chain: src.chain, inAddress: assetKeyOf(src.chain, src.address), outAddress: assetKeyOf(dest.chain, dest.address) }] });
       else reasons.push('No swap route exists between those tokens.');
     } else {
       const usdcDest = cap.usdc(dest.chain);

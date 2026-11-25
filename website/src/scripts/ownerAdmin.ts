@@ -3,6 +3,7 @@
  * /api/swings-admin, which answers only when the signed-in address is in the server's ADMIN_WALLETS list. Hiding anything here would
  * protect nothing: the server decides. See docs/admin-page.md.
  */
+import { profilesSection } from './ownerAdminProfiles';
 import { AccountClient, type Session, type Signer } from '../swings/account/client';
 
 interface Tally { key: string; n: number }
@@ -170,7 +171,7 @@ function render(stats: Stats, ctl: Controls): void {
 
   const nav = el('nav', undefined, 'oa-nav');
   nav.setAttribute('aria-label', 'Sections');
-  for (const [id, label] of [['traffic', 'Traffic'], ['trading', 'Trading'], ['revenue', 'Revenue'], ['issues', 'Issues']] as const) {
+  for (const [id, label] of [['traffic', 'Traffic'], ['trading', 'Trading'], ['revenue', 'Revenue'], ['issues', 'Issues'], ['profiles', 'Token profiles']] as const) {
     const a = el('a', label);
     a.href = `#oa-${id}`;
     nav.append(a);
@@ -342,6 +343,7 @@ function init(): void {
           say('Signed out on this device.');
         },
       });
+      root!.append(profilesSection(session.token));
     } catch {
       showSignedOut();
       say('The numbers could not be loaded. Check your connection and sign in again.', true);

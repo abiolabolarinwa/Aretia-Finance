@@ -290,7 +290,11 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
 
   /** Who would sign: the Ethereum-style wallet on an Ethereum-style network, otherwise the wallet connected in the sidebar. */
   function signerNow(): Signer | null {
-    if (isEvm(s.chain)) {
+    return signerFor(isEvm(s.chain) ? 'evm' : 'solana');
+  }
+  /** The connected wallet of one family: the Ethereum-style wallet, or the wallet connected in the sidebar. */
+  function signerFor(family: 'solana' | 'evm'): Signer | null {
+    if (family === 'evm') {
       const adapter = evm.adapter;
       const address = evm.account;
       if (!adapter || !address) return null;
@@ -2045,6 +2049,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
       openChart: (r) => openRow(r),
       swapFor: (r) => swapHandler(r),
       mountSwap: (host, r) => embedSwap(host, r, records.get(rowKey(r.chain, r.address))),
+      profileSigner: (family) => signerFor(family),
     });
     refreshDockedSwap = () => panel.refresh();
     // The panel is a bar docked to the right edge of the wallet on a wide screen, and hidden on a narrow one, where a row opens the full token page instead.

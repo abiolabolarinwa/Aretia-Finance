@@ -36,7 +36,7 @@ async function fresh(): Promise<{ db: PGlite; sql: SqlClient }> {
 describe('migration files', () => {
   it('are numbered without gaps and have checksums', () => {
     const m = loadMigrations(files);
-    expect(m.map((x) => x.name)).toEqual(['0001_token_registry.sql', '0002_swings_events.sql', '0003_shadow_events.sql', '0004_more_chains.sql', '0005_swings_records.sql', '0006_token_market.sql', '0007_pool_ticks.sql', '0008_user_data.sql', '0009_robinhood_chain.sql', '0010_notifications.sql', '0011_referrals.sql', '0012_launchbox.sql', '0013_referral_tx_case.sql', '0014_auth_nonces_and_pruning.sql', '0015_launchbox_listing.sql', '0016_admin_counters.sql', '0017_market_indexer.sql', '0018_market_indexer_solana.sql', '0019_market_indexer_robinhood.sql', '0020_market_indexer_v4.sql', '0021_supabase_usage.sql', '0022_mi_token_supply.sql', '0023_wallet_index.sql', '0024_market_intelligence.sql', '0025_mi_token_mint_flags.sql', '0026_market_alerts.sql']);
+    expect(m.map((x) => x.name)).toEqual(['0001_token_registry.sql', '0002_swings_events.sql', '0003_shadow_events.sql', '0004_more_chains.sql', '0005_swings_records.sql', '0006_token_market.sql', '0007_pool_ticks.sql', '0008_user_data.sql', '0009_robinhood_chain.sql', '0010_notifications.sql', '0011_referrals.sql', '0012_launchbox.sql', '0013_referral_tx_case.sql', '0014_auth_nonces_and_pruning.sql', '0015_launchbox_listing.sql', '0016_admin_counters.sql', '0017_market_indexer.sql', '0018_market_indexer_solana.sql', '0019_market_indexer_robinhood.sql', '0020_market_indexer_v4.sql', '0021_supabase_usage.sql', '0022_mi_token_supply.sql', '0023_wallet_index.sql', '0024_market_intelligence.sql', '0025_mi_token_mint_flags.sql', '0026_market_alerts.sql', '0027_token_profiles.sql']);
     expect(m[0]!.checksum).toBe(checksumOf(files[0]!.sql));
   });
 
@@ -57,8 +57,8 @@ describe('the schema, on a real Postgres engine', () => {
     const { sql } = await fresh();
     const steps: string[] = [];
     const done = await applyMigrations(sql, loadMigrations(files), { onStep: (s) => steps.push(s) });
-    expect(done).toEqual(['0001_token_registry.sql', '0002_swings_events.sql', '0003_shadow_events.sql', '0004_more_chains.sql', '0005_swings_records.sql', '0006_token_market.sql', '0007_pool_ticks.sql', '0008_user_data.sql', '0009_robinhood_chain.sql', '0010_notifications.sql', '0011_referrals.sql', '0012_launchbox.sql', '0013_referral_tx_case.sql', '0014_auth_nonces_and_pruning.sql', '0015_launchbox_listing.sql', '0016_admin_counters.sql', '0017_market_indexer.sql', '0018_market_indexer_solana.sql', '0019_market_indexer_robinhood.sql', '0020_market_indexer_v4.sql', '0021_supabase_usage.sql', '0022_mi_token_supply.sql', '0023_wallet_index.sql', '0024_market_intelligence.sql', '0025_mi_token_mint_flags.sql', '0026_market_alerts.sql']);
-    expect(steps).toEqual(['Applied 0001_token_registry.sql', 'Applied 0002_swings_events.sql', 'Applied 0003_shadow_events.sql', 'Applied 0004_more_chains.sql', 'Applied 0005_swings_records.sql', 'Applied 0006_token_market.sql', 'Applied 0007_pool_ticks.sql', 'Applied 0008_user_data.sql', 'Applied 0009_robinhood_chain.sql', 'Applied 0010_notifications.sql', 'Applied 0011_referrals.sql', 'Applied 0012_launchbox.sql', 'Applied 0013_referral_tx_case.sql', 'Applied 0014_auth_nonces_and_pruning.sql', 'Applied 0015_launchbox_listing.sql', 'Applied 0016_admin_counters.sql', 'Applied 0017_market_indexer.sql', 'Applied 0018_market_indexer_solana.sql', 'Applied 0019_market_indexer_robinhood.sql', 'Applied 0020_market_indexer_v4.sql', 'Applied 0021_supabase_usage.sql', 'Applied 0022_mi_token_supply.sql', 'Applied 0023_wallet_index.sql', 'Applied 0024_market_intelligence.sql', 'Applied 0025_mi_token_mint_flags.sql', 'Applied 0026_market_alerts.sql']);
+    expect(done).toEqual(['0001_token_registry.sql', '0002_swings_events.sql', '0003_shadow_events.sql', '0004_more_chains.sql', '0005_swings_records.sql', '0006_token_market.sql', '0007_pool_ticks.sql', '0008_user_data.sql', '0009_robinhood_chain.sql', '0010_notifications.sql', '0011_referrals.sql', '0012_launchbox.sql', '0013_referral_tx_case.sql', '0014_auth_nonces_and_pruning.sql', '0015_launchbox_listing.sql', '0016_admin_counters.sql', '0017_market_indexer.sql', '0018_market_indexer_solana.sql', '0019_market_indexer_robinhood.sql', '0020_market_indexer_v4.sql', '0021_supabase_usage.sql', '0022_mi_token_supply.sql', '0023_wallet_index.sql', '0024_market_intelligence.sql', '0025_mi_token_mint_flags.sql', '0026_market_alerts.sql', '0027_token_profiles.sql']);
+    expect(steps).toEqual(['Applied 0001_token_registry.sql', 'Applied 0002_swings_events.sql', 'Applied 0003_shadow_events.sql', 'Applied 0004_more_chains.sql', 'Applied 0005_swings_records.sql', 'Applied 0006_token_market.sql', 'Applied 0007_pool_ticks.sql', 'Applied 0008_user_data.sql', 'Applied 0009_robinhood_chain.sql', 'Applied 0010_notifications.sql', 'Applied 0011_referrals.sql', 'Applied 0012_launchbox.sql', 'Applied 0013_referral_tx_case.sql', 'Applied 0014_auth_nonces_and_pruning.sql', 'Applied 0015_launchbox_listing.sql', 'Applied 0016_admin_counters.sql', 'Applied 0017_market_indexer.sql', 'Applied 0018_market_indexer_solana.sql', 'Applied 0019_market_indexer_robinhood.sql', 'Applied 0020_market_indexer_v4.sql', 'Applied 0021_supabase_usage.sql', 'Applied 0022_mi_token_supply.sql', 'Applied 0023_wallet_index.sql', 'Applied 0024_market_intelligence.sql', 'Applied 0025_mi_token_mint_flags.sql', 'Applied 0026_market_alerts.sql', 'Applied 0027_token_profiles.sql']);
     const rows = await sql.query('select name from public.aretia_schema_migrations order by name');
     expect(rows.map((r) => r.name)).toEqual(done);
     expect((await sql.query("select count(*)::int as n from information_schema.tables where table_schema = 'public' and table_name in ('token_registry','discovery_cursors','swings_events')"))[0]!.n).toBe(3);
@@ -77,7 +77,7 @@ describe('the schema, on a real Postgres engine', () => {
     const { sql } = await fresh();
     const steps: string[] = [];
     const done = await applyMigrations(sql, loadMigrations(files), { dryRun: true, onStep: (s) => steps.push(s) });
-    expect(done).toHaveLength(26);
+    expect(done).toHaveLength(27);
     expect(steps[0]).toMatch(/Would apply/);
     expect((await sql.query("select count(*)::int as n from information_schema.tables where table_schema = 'public' and table_name = 'token_registry'"))[0]!.n).toBe(0);
   });
@@ -193,7 +193,8 @@ describe('what the tables enforce', () => {
     await db.exec(valid);
     const rls = await sql.query("select relname, relrowsecurity from pg_class where relname in ('token_registry','discovery_cursors','swings_events','aretia_schema_migrations') order by relname");
     expect(rls.map((r) => [r.relname, r.relrowsecurity])).toEqual([['aretia_schema_migrations', true], ['discovery_cursors', true], ['swings_events', true], ['token_registry', true]]);
-    expect((await sql.query('select count(*)::int as n from pg_policies'))[0]!.n).toBe(0);
+    // The one policy in the schema: the public may read live token profiles (0027, tested below).
+    expect((await sql.query('select policyname from pg_policies')).map((r) => r.policyname)).toEqual(['token_profiles_public_read']);
     // Supabase grants table privileges to these roles by default; row level security is what stops them.
     await db.exec('grant usage on schema public to anon, authenticated, service_role; grant all on all tables in schema public to anon, authenticated, service_role;');
     await db.exec('set role anon');
@@ -204,5 +205,45 @@ describe('what the tables enforce', () => {
     await db.exec('reset role; set role service_role');
     expect((await db.query('select count(*)::int as n from public.token_registry')).rows[0]).toEqual({ n: 1 });
     await db.exec('reset role');
+  });
+
+  it('0027: the public reads only live token profiles and only their public columns; only the server can write', async () => {
+    const { db, sql } = await fresh();
+    // As on Supabase: new tables are granted to the browser roles by default, so the migration's own revoke and policy are what count.
+    await db.exec('grant usage on schema public to anon, authenticated, service_role; alter default privileges in schema public grant all on tables to anon, authenticated, service_role;');
+    await applyMigrations(sql, loadMigrations(files));
+    const row = (status: string, address: string, by = 'evm:0x' + '1'.repeat(40)): string =>
+      `insert into public.token_profiles (chain, address, status, proof, submitted_by, description, website, created_at, updated_at, reviewed_by) values ('bnb', '${address}', '${status}', 'review', '${by}', 'hi', 'https://cat.example/', 1, 1, 'evm:0x${'9'.repeat(40)}')`;
+    await db.exec(row('live', '0x' + 'a'.repeat(40)));
+    await db.exec(row('pending', '0x' + 'b'.repeat(40)));
+    await db.exec(row('rejected', '0x' + 'c'.repeat(40)));
+    await db.exec(`insert into public.token_profile_blocks (chain, address, blocked_at, blocked_by) values ('bnb', '0x${'d'.repeat(40)}', 1, 'evm:0x${'9'.repeat(40)}')`);
+    expect((await sql.query("select relrowsecurity from pg_class where relname in ('token_profiles','token_profile_blocks')")).every((r) => r.relrowsecurity === true)).toBe(true);
+
+    for (const role of ['anon', 'authenticated']) {
+      await db.exec(`reset role; set role ${role}`);
+      const seen = (await db.query<{ address: string; status?: string }>('select address, description, website, proof from public.token_profiles')).rows;
+      expect(seen.map((r) => r.address)).toEqual(['0x' + 'a'.repeat(40)]);
+      // Who sent or reviewed a profile, and its status column, are never readable by the public.
+      await expect(db.query('select submitted_by from public.token_profiles')).rejects.toThrow(/permission denied/);
+      await expect(db.query('select reviewed_by from public.token_profiles')).rejects.toThrow(/permission denied/);
+      await expect(db.query('select * from public.token_profiles')).rejects.toThrow(/permission denied/);
+      await expect(db.query('select * from public.token_profile_blocks')).rejects.toThrow(/permission denied/);
+      await expect(db.exec(row('live', '0x' + 'e'.repeat(40)))).rejects.toThrow(/permission denied|row-level security/);
+      await expect(db.exec("update public.token_profiles set description = 'pwned'")).rejects.toThrow(/permission denied/);
+      await expect(db.exec('delete from public.token_profiles')).rejects.toThrow(/permission denied/);
+    }
+    await db.exec('reset role; set role service_role');
+    expect((await db.query('select count(*)::int as n from public.token_profiles')).rows[0]).toEqual({ n: 3 });
+    await db.exec('reset role');
+
+    // At most one live profile per token, and one waiting request per token and wallet.
+    await expect(db.exec(row('live', '0x' + 'a'.repeat(40), 'evm:0x' + '2'.repeat(40)))).rejects.toThrow(/duplicate key/);
+    await expect(db.exec(row('pending', '0x' + 'b'.repeat(40)))).rejects.toThrow(/duplicate key/);
+    await db.exec(row('pending', '0x' + 'b'.repeat(40), 'evm:0x' + '2'.repeat(40)));
+    // The table itself refuses what the server's checks refuse.
+    await expect(db.exec(row('live', '0x' + 'A'.repeat(40)))).rejects.toThrow(/check constraint/);
+    await expect(db.exec(row('paid', '0x' + 'f'.repeat(40)))).rejects.toThrow(/check constraint/);
+    await expect(db.exec(row('live', '0x' + 'f'.repeat(40)).replace("'https://cat.example/'", "'javascript:alert(1)'"))).rejects.toThrow(/check constraint/);
   });
 });

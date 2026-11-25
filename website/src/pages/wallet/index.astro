@@ -1132,6 +1132,25 @@ const sendTips = [
   .wapp-mp__lv { display: inline-flex; align-items: center; gap: 8px; color: var(--color-strong); font-variant-numeric: tabular-nums; }
   .wapp-mp__addr { padding: 3px 8px; font-size: 12px; background: var(--color-bg-alt); border: 1px solid var(--color-border); border-radius: 6px; }
   .wapp-mp__links { display: flex; flex-wrap: wrap; gap: 8px; }
+  /* Free token profiles (src/scripts/walletTokenProfile.ts). */
+  .wapp-mp__profile { display: grid; gap: 8px; }
+  .wapp-mp__profile:empty { display: none; }
+  .wapp-tp__top { display: flex; align-items: flex-start; gap: 10px; }
+  .wapp-tp__logo { flex: none; width: 40px; height: 40px; border-radius: 10px; object-fit: cover; background: var(--color-bg-alt); border: 1px solid var(--color-border); }
+  .wapp-tp__desc { margin: 0; font-size: 13px; line-height: 1.5; color: var(--color-strong); white-space: pre-line; overflow-wrap: anywhere; }
+  .wapp-mp__profilebtn { justify-self: start; padding: 0; font: inherit; font-size: 12.5px; font-weight: 600; color: var(--color-brand); background: none; border: 0; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+  .wapp-mp__profilebtn:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; }
+  .wapp-tp--edit { padding: 12px; border: 1px solid var(--color-border); border-radius: var(--radius-md); background: var(--color-bg-alt); }
+  .wapp-tp__bar { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .wapp-tp__bar .wapp__btn { padding: 6px 12px; }
+  .wapp-tp__form { display: grid; gap: 4px; }
+  .wapp-tp__form textarea.wapp__input { resize: vertical; min-height: 84px; }
+  .wapp-tp__form .wapp__btn { margin-top: 8px; }
+  .wapp-tp__label { margin-top: 6px; font-size: 12px; font-weight: 600; color: var(--color-muted); }
+  .wapp-tp__err { font-size: 12px; line-height: 1.4; color: #b3261e; }
+  .wapp-tp__err:empty { display: none; }
+  .wapp-tp__form .wapp__input[aria-invalid='true'] { border-color: #b3261e; }
+  .wapp-tp__logorow { display: flex; align-items: center; gap: 10px; font-size: 12.5px; }
 
   /* ---- Shield: know before you sign ---- */
   .wapp[data-view='shield'] .wapp__top h1 { display: none; }

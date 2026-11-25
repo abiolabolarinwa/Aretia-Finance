@@ -8,6 +8,8 @@
  *                             { op: 'unlink', id }                           remove one channel
  *                             { op: 'prefs', movePct, enabled }              how big a move to report, and on/off
  *                             { op: 'orders', orders: [...] }                copy the browser's price orders so the server watches them
+ *                             { op: 'market-prefs', launchChains, launchMinLiqUsd, bigBuyUsd, liqDropPct }
+ *                                                                            new launches, large buys and liquidity alerts (see notify/market.ts)
  *                             { op: 'test' }                                 send a test message to every channel
  *   GET  /api/swings-notify?inbox=<id>  (X-Inbox-Secret: <secret>)            a browser collects its waiting messages
  *                                                                            (the old ?s=<secret> is still read, for workers not yet updated)
@@ -33,8 +35,10 @@ import { planForOwner, telegramText, type PlannedMessage, type WatchedFavourite 
 import { isStop, readUpdate, sendTelegram, startCode, telegramLink } from '../src/swings/notify/telegram.js';
 import { sendPush, validPushEndpoint, type VapidKeys } from '../src/swings/notify/vapid.js';
 import type { TokensEnv, TokensOutput } from './_swingsTokens.js';
+import { cleanMarketPrefs, MARKET_PREFS_OFF, type MarketPrefs } from '../src/swings/notify/market.js';
+import { runMarketAlerts, type MarketAlertsEnv } from './_swingsMarketAlerts.js';
 
-export interface NotifyEnv extends TokensEnv {
+export interface NotifyEnv extends TokensEnv, MarketAlertsEnv {
   SWINGS_SESSION_SECRET?: string;
   TELEGRAM_BOT_TOKEN?: string;
   TELEGRAM_BOT_USERNAME?: string;
@@ -137,6 +141,17 @@ export async function deliver(env: NotifyEnv, fetchImpl: typeof fetch, db: Rest,
   }
 }
 
+/** A person's market alert settings; null when the server's database does not have them yet (migration 0026 not run). */
+async function readMarketPrefs(db: Rest, q: string): Promise<MarketPrefs | null> {
+  try {
+    const rows = (await db.call(`notify_market_prefs?owner=eq.${q}&select=launch_chains,launch_min_liq,big_buy_usd,liq_drop_pct`)) as { launch_chains: string[] | null; launch_min_liq: number; big_buy_usd: number; liq_drop_pct: number }[];
+    const r = rows[0];
+    return r ? cleanMarketPrefs({ launchChains: r.launch_chains ?? [], launchMinLiqUsd: Number(r.launch_min_liq), bigBuyUsd: Number(r.big_buy_usd), liqDropPct: Number(r.liq_drop_pct) }) : MARKET_PREFS_OFF;
+  } catch {
+    return null;
+  }
+}
+
 function database(env: NotifyEnv, fetchImpl: typeof fetch): { db: Rest; secret: string } | null {
   const url = supabaseBase(env.SUPABASE_URL);
   const key = env.SUPABASE_SERVICE_ROLE_KEY?.trim();
@@ -210,8 +225,17 @@ export async function handleNotify(input: NotifyInput): Promise<TokensOutput> {
     const channels = async (): Promise<Channel[]> => (await db.call(`notify_channels?owner=eq.${q}&select=id,owner,kind,ref,secret,created_at&order=created_at.asc`)) as Channel[];
 
     if (op === 'status') {
-      const [chs, prefs] = await Promise.all([channels(), db.call(`notify_prefs?owner=eq.${q}&select=move_pct,enabled`) as Promise<{ move_pct: number; enabled: boolean }[]>]);
-      return json(200, { channels: chs.map((c) => ({ id: c.id, kind: c.kind, label: c.kind === 'telegram' ? 'Telegram' : 'This browser', createdAt: Number(c.created_at ?? 0), secret: c.kind === 'webpush' ? c.secret : null })), prefs: { movePct: prefs[0]?.move_pct ?? 5, enabled: prefs[0]?.enabled ?? true } }, headers);
+      const [chs, prefs, market] = await Promise.all([channels(), db.call(`notify_prefs?owner=eq.${q}&select=move_pct,enabled`) as Promise<{ move_pct: number; enabled: boolean }[]>, readMarketPrefs(db, q)]);
+      return json(200, { channels: chs.map((c) => ({ id: c.id, kind: c.kind, label: c.kind === 'telegram' ? 'Telegram' : 'This browser', createdAt: Number(c.created_at ?? 0), secret: c.kind === 'webpush' ? c.secret : null })), prefs: { movePct: prefs[0]?.move_pct ?? 5, enabled: prefs[0]?.enabled ?? true }, market }, headers);
+    }
+    if (op === 'market-prefs') {
+      const p = cleanMarketPrefs(body);
+      try {
+        await db.call('notify_market_prefs?on_conflict=owner', { method: 'POST', headers: { prefer: 'resolution=merge-duplicates,return=minimal' }, body: JSON.stringify({ owner, launch_chains: p.launchChains, launch_min_liq: p.launchMinLiqUsd, big_buy_usd: p.bigBuyUsd, liq_drop_pct: p.liqDropPct, updated_at: input.now }) });
+      } catch {
+        return json(503, { error: 'not-ready', message: 'Market alerts are not switched on on this server yet.' }, headers);
+      }
+      return json(200, { ok: true, market: p }, headers);
     }
     if (op === 'telegram-link') {
       if (!botName || !input.env.TELEGRAM_BOT_TOKEN?.trim()) return json(503, { error: 'not-configured', message: 'Telegram alerts are not set up on this server yet.' }, headers);
@@ -293,7 +317,7 @@ export async function handleTelegramWebhook(input: NotifyInput): Promise<TokensO
       }
       await db.call(`notify_links?code=eq.${encodeURIComponent(code)}`, { method: 'DELETE', headers: { prefer: 'return=minimal' } });
       await db.call('notify_channels?on_conflict=owner,kind,ref', { method: 'POST', headers: { prefer: 'resolution=merge-duplicates,return=minimal' }, body: JSON.stringify({ owner: link.owner, kind: 'telegram', ref: update.chatId, created_at: input.now }) });
-      await reply('✅ Connected. You will get your Aretia price alerts here: favourites that move, and prices you set. Send /stop at any time to stop them.');
+      await reply('✅ Connected. You will get your Aretia alerts here: favourites that move, prices you set, and any market alerts you switch on. Send /stop at any time to stop them.');
     } else if (isStop(update.text)) {
       await db.call(`notify_channels?kind=eq.telegram&ref=eq.${encodeURIComponent(update.chatId)}`, { method: 'DELETE', headers: { prefer: 'return=minimal' } });
       await reply('Stopped. You will not get Aretia alerts here any more. You can connect again from the wallet.');
@@ -337,7 +361,7 @@ export async function handleAlertsRun(input: NotifyInput): Promise<TokensOutput>
   const base = database(input.env, input.fetchImpl);
   if (!base) return json(503, { error: 'not-configured' }, headers);
   const { db } = base;
-  const stats = { owners: 0, tokens: 0, sent: 0, failed: 0, ordersReached: 0 };
+  const stats: Record<string, number | string> = { owners: 0, tokens: 0, sent: 0, failed: 0, ordersReached: 0 };
   // Old link codes, inbox messages, tracked pools and records are removed by the database (migration 0014); best-effort.
   await db.call('rpc/aretia_prune', { method: 'POST', body: JSON.stringify({ now_ms: input.now }) }).catch(() => undefined);
   try {
@@ -393,9 +417,9 @@ export async function handleAlertsRun(input: NotifyInput): Promise<TokensOutput>
         let any = false;
         for (const ch of byOwner.get(owner) ?? []) if (await deliver(input.env, input.fetchImpl, db, ch, m, input.now)) any = true;
         if (any) {
-          stats.sent++;
+          stats.sent = Number(stats.sent) + 1;
           delivered = true;
-        } else stats.failed++;
+        } else stats.failed = Number(stats.failed) + 1;
       }
       // What was reported is remembered only if it reached somewhere, so a failed send is tried again on the next run.
       if (!delivered) continue;
@@ -406,8 +430,29 @@ export async function handleAlertsRun(input: NotifyInput): Promise<TokensOutput>
       if (old.length > 0) await db.call(`notify_state?owner=eq.${q}&token_key=${encodeURIComponent(inList(old))}`, { method: 'DELETE', headers: { prefer: 'return=minimal' } });
       for (const h of plan.hitOrders) {
         await db.call(`user_price_orders?owner=eq.${q}&id=eq.${encodeURIComponent(h.id)}`, { method: 'PATCH', headers: { prefer: 'return=minimal' }, body: JSON.stringify({ hit_at: input.now, hit_price: h.price }) });
-        stats.ordersReached++;
+        stats.ordersReached = Number(stats.ordersReached) + 1;
       }
+    }
+
+    // Market alerts (launches, large buys, liquidity drops). A failure here, such as the index being slow or migration 0026 not
+    // yet run, is noted in the answer and leaves the price alerts above as they were.
+    try {
+      const enabledOwners = owners.filter((o) => (prefs.get(o) ?? { enabled: true }).enabled);
+      Object.assign(stats, await runMarketAlerts({
+        env: input.env,
+        fetchImpl: input.fetchImpl,
+        db,
+        now: input.now,
+        owners: enabledOwners,
+        favourites: (o) => favs.get(o) ?? [],
+        send: async (o, m) => {
+          let any = false;
+          for (const ch of byOwner.get(o) ?? []) if (await deliver(input.env, input.fetchImpl, db, ch, m, input.now)) any = true;
+          return any;
+        },
+      }));
+    } catch (e) {
+      stats.market = e instanceof Error ? e.message.slice(0, 120) : 'failed';
     }
     return json(200, stats, headers);
   } catch (e) {

@@ -6,6 +6,10 @@
 import { PCT_CHOICES } from '../swings/account/priceAlerts.js';
 import type { AccountClient, Session } from '../swings/account/client.js';
 import { b64uDecode } from '../swings/notify/vapid.js';
+import { BIG_BUY_CHOICES, LAUNCH_MIN_LIQ_CHOICES, LIQ_DROP_CHOICES, MARKET_PREFS_OFF, MAX_MARKET_PER_HOUR, MAX_MARKET_PER_RUN, type MarketPrefs } from '../swings/notify/market.js';
+import { MI_CHAINS } from '../swings/mi/chains.js';
+import { CHAINS } from '../swings/core/types.js';
+import { compactUsd } from '../swings/market/types.js';
 
 const NOTIFY = '/api/swings-notify';
 const SW_PATH = '/aretia-alerts-sw.js';
@@ -32,6 +36,8 @@ interface Channel {
 interface Status {
   channels: Channel[];
   prefs: { movePct: number; enabled: boolean };
+  /** null: this server's database does not hold market alerts yet. */
+  market?: MarketPrefs | null;
 }
 
 let config: Config | null = null;
@@ -175,7 +181,7 @@ export function alertsCard(deps: AlertsDeps): HTMLElement {
   function draw(): void {
     box.replaceChildren();
     box.append(el('h3', 'wapp-pa__title', 'Alerts on your phone'));
-    box.append(el('p', 'wapp__fine', 'Get a message on Telegram, or a notification from this browser, when a favourite moves or a price you set is reached, even when Aretia is closed. Messages only say what moved and link back here; they never ask you to sign or approve anything.'));
+    box.append(el('p', 'wapp__fine', 'Get a message on Telegram, or a notification from this browser, when a favourite moves, a price you set is reached, or a market alert you switch on (new launches, large buys, liquidity taken out) fires, even when Aretia is closed. Messages only say what moved and link back here; they never ask you to sign or approve anything.'));
     const session = deps.session();
     if (!config) {
       box.append(el('p', 'wapp__fine', 'Loading…'));
@@ -263,10 +269,63 @@ export function alertsCard(deps: AlertsDeps): HTMLElement {
       test.disabled = busy !== '';
       test.addEventListener('click', () => run('test', async () => { const r = await deps.account.call<{ sent: number; of: number }>(session, { op: 'test' }, NOTIFY); message = r.sent > 0 ? `Sent to ${r.sent} of ${r.of}. It should arrive in a few seconds.` : 'Nothing could be delivered. Try removing and linking again.'; }));
       settings.append(pct, test);
-      box.append(settings);
+      box.append(settings, marketSettings(session));
     }
     if (message) box.append(el('p', 'wapp__fine wapp-pa__msg', message));
     if (config.webpush && isIos() && !standalone()) box.append(el('p', 'wapp__fine', 'On iPhone, browser alerts only work once Aretia is added to your Home Screen (Share, then Add to Home Screen). Telegram works without that.'));
+  }
+
+  /** New launches, large buys and liquidity removed: each change is saved at once. */
+  function marketSettings(session: Session): HTMLElement {
+    const wrap = el('div', 'wapp-pa__rows');
+    wrap.setAttribute('data-market-alerts', '');
+    wrap.append(el('strong', '', 'Market alerts'));
+    if (status?.market === null) {
+      wrap.append(el('p', 'wapp__fine', 'Alerts for new launches, large buys and liquidity removed are not switched on on this server yet.'));
+      return wrap;
+    }
+    const cur: MarketPrefs = status?.market ?? MARKET_PREFS_OFF;
+    const save = (next: MarketPrefs): void =>
+      run('market', async () => {
+        const r = await deps.account.call<{ market: MarketPrefs }>(session, { op: 'market-prefs', ...next }, NOTIFY);
+        if (status) status.market = r.market;
+      });
+    const select = (label: string, choices: readonly number[], value: number, text: (n: number) => string, onChange: (n: number) => void): HTMLSelectElement => {
+      const s = el('select', 'wapp__input');
+      s.setAttribute('aria-label', label);
+      for (const c of choices) {
+        const o = el('option', '', text(c));
+        o.value = String(c);
+        s.append(o);
+      }
+      s.value = String(value);
+      s.disabled = busy !== '';
+      s.addEventListener('change', () => onChange(Number(s.value)));
+      return s;
+    };
+
+    const launches = el('div', 'wapp-pa__row');
+    launches.append(el('span', 'wapp__fine', 'New launches on'));
+    for (const c of MI_CHAINS) {
+      const lab = el('label', 'wapp__fine');
+      const box2 = el('input');
+      box2.type = 'checkbox';
+      box2.checked = cur.launchChains.includes(c);
+      box2.disabled = busy !== '';
+      box2.addEventListener('change', () => save({ ...cur, launchChains: box2.checked ? [...cur.launchChains, c] : cur.launchChains.filter((x) => x !== c) }));
+      lab.append(box2, document.createTextNode(` ${CHAINS[c].name}`));
+      launches.append(lab);
+    }
+    launches.append(el('span', 'wapp__fine', 'with liquidity of at least'), select('Smallest liquidity for a new launch', LAUNCH_MIN_LIQ_CHOICES, cur.launchMinLiqUsd, (n) => (n === 0 ? 'any' : compactUsd(n)), (n) => save({ ...cur, launchMinLiqUsd: n })));
+
+    const buys = el('div', 'wapp-pa__row');
+    buys.append(el('span', 'wapp__fine', 'A favourite is bought for'), select('Smallest buy of a favourite to report', BIG_BUY_CHOICES, cur.bigBuyUsd, (n) => (n === 0 ? 'off' : `${compactUsd(n)} or more`), (n) => save({ ...cur, bigBuyUsd: n })));
+
+    const liq = el('div', 'wapp-pa__row');
+    liq.append(el('span', 'wapp__fine', "Liquidity taken out of a favourite's pool"), select('Share of liquidity taken out to report', LIQ_DROP_CHOICES, cur.liqDropPct, (n) => (n === 0 ? 'off' : `${n}% or more`), (n) => save({ ...cur, liqDropPct: n })));
+
+    wrap.append(launches, buys, liq, el('p', 'wapp__fine', `At most ${MAX_MARKET_PER_RUN} market alerts at a time and ${MAX_MARKET_PER_HOUR} an hour. Liquidity locks are not tracked: this tells you when liquidity leaves a pool, not when a lock ends. An alert can arrive some minutes after the event.`));
+    return wrap;
   }
 
   redraw = draw;

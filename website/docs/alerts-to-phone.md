@@ -57,3 +57,30 @@ from there. Telegram works without that.
 - A move that could not be delivered is not remembered as sent, so it is tried again on the next run. A person who blocks the bot
   or a browser that has gone is removed automatically. Send `/stop` to the bot to stop Telegram alerts.
 - WhatsApp and iMessage are not part of this. SMS or WhatsApp could be added as more channels later.
+
+## Market alerts: new launches, large buys, liquidity taken out
+
+Each person can also switch on, in the same card on the Favourites page:
+
+- **New launches** on the networks they tick (Solana, Ethereum, Base, BNB Chain, Polygon, Robinhood Chain), optionally only when
+  the new pool already holds at least $1K, $5K, $10K or $50K of liquidity. A run looks back 30 minutes.
+- **Large buys of a favourite**: a single buy of $1K, $5K, $10K or $50K or more in one of the favourite's two deepest pools. A run
+  looks back 15 minutes. The dollar value is the quote amount times the quote token's price as the index last computed it.
+- **Liquidity taken out of a favourite's pool**: 30%, 50% or 80% of it, measured from the most the pool held in the last day.
+  Liquidity counts as taken out only when both sides of the pool shrink together; a heavy sell (token side grows) does not count.
+  Liquidity **locks are not tracked** anywhere in the index, so there is no "lock ended" alert.
+
+All three are read from Aretia's own market index (`mi_pools`, `mi_tokens`, `mi_trades`), never from an outside service. The index
+server is small (1 vCPU, 2 GB), so a run asks it at most: one question for new pools (100 rows), one for their names, and per network
+one for the favourites' pools and one for their recent buys (300 rows). The favourites read per run are capped at 60 tokens, shared
+round-robin between people. Nothing is asked when nobody has a market alert on.
+
+Limits: at most 4 market messages per person per run (the last one says how many more there were; many launches on one network
+become one line) and 12 per hour. Each launch, buy or drop is sent to a person once. A failure here (the index slow or down, or the
+migration below not run) is reported in the run's answer as `market` and leaves the price alerts untouched.
+
+Setup: apply migration `0026_market_alerts.sql` to whichever database `SUPABASE_URL` points at: on the self-hosted data server,
+`./bin/update.sh` applies it and reloads Caddy (whose list now includes the three new tables); on Supabase, `npm run db:migrate`
+or paste it in the SQL editor. Until then the card says market alerts are
+not switched on, and the run skips them. The index is read with `MI_DATA_URL` and `MI_DATA_SERVICE_ROLE_KEY` (the same settings the
+Markets list uses).

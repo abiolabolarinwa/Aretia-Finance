@@ -6,6 +6,7 @@
  */
 import { chainNativeUsd, planChainPrice, PUBLIC_NODES, publicRpc, type ChainPriceDeps, type PricePlan, type Rpc } from './chainPrice.js';
 import { fromBase64 } from '../mi/solana/accounts.js';
+import { nextPace } from './pace.js';
 import type { ChainId } from '../core/types.js';
 
 export interface BoardPool {
@@ -56,6 +57,10 @@ const SOLANA_CHUNK = 10;
 const PREFETCH_MAX = 100;
 const EVM_CHUNK = 40;
 const MAX_BACKOFF_MS = 10_000;
+/** The longest wait between reads while no price on the page is moving. */
+export const BOARD_CALM_MAX_MS = 8_000;
+/** At most this many pools are read from the chain: the top of the list, where people look. The rest keep the index's live numbers. */
+export const BOARD_CHAIN_MAX = 50;
 const DESCRIBE_TRIES = 3;
 const DESCRIBE_RETRY_MS = 3_000;
 
@@ -91,6 +96,8 @@ export function createBoardFeed(env: Partial<BoardEnv> & { onPrices: (list: Boar
   let stopped = false;
   let timer: unknown = null;
   let backoff = 0;
+  /** The wait before the next read while the reads succeed: the base pace, longer while nothing changes. */
+  let pace = 0;
 
   /** Solana accounts (pools, token mints) read together before the pools are described, so describing a pool needs no request of its own. */
   const known = new Map<string, { owner: string; data: [string, string] } | null>();
@@ -223,6 +230,7 @@ export function createBoardFeed(env: Partial<BoardEnv> & { onPrices: (list: Boar
     return out;
   }
 
+  let lastChanged = true;
   async function tick(): Promise<void> {
     if (stopped) return;
     let failed = false;
@@ -250,16 +258,20 @@ export function createBoardFeed(env: Partial<BoardEnv> & { onPrices: (list: Boar
           }
         }),
       );
+      lastChanged = changed.length > 0;
       if (!stopped && changed.length > 0) env.onPrices(changed);
     }
     backoff = failed ? Math.min(MAX_BACKOFF_MS, (backoff || e.everyMs) * 2) : 0;
-    if (!stopped) timer = e.setTimer(() => void tick(), e.everyMs + backoff);
+    if (!e.isHidden() && !failed) pace = nextPace(e.everyMs, pace || e.everyMs, lastChanged, BOARD_CALM_MAX_MS);
+    if (!stopped) timer = e.setTimer(() => void tick(), (pace || e.everyMs) + backoff);
   }
 
   return {
     setPools(pools) {
       if (stopped) return;
-      wanted = pools.filter((p) => p.pool && p.address).slice(0, 100);
+      wanted = pools.filter((p) => p.pool && p.address).slice(0, BOARD_CHAIN_MAX);
+      // A new set of rows is read at the base pace at first, so its prices arrive quickly.
+      pace = 0;
       const keep = new Set(wanted.map((p) => poolKey(p.chain, p.pool)));
       for (const k of [...lastSent.keys()]) if (!keep.has(k)) lastSent.delete(k);
       // Pools that left the page before they were described are forgotten, so they are described if they come back.

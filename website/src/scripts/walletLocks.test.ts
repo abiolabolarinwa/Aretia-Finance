@@ -140,3 +140,36 @@ describe('a pool whose reads keep failing', () => {
     expect(rows[0]!.lockedPct ?? null).toBeNull();
   });
 });
+
+describe('lock answers kept between visits', () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  it('a returning page uses the answers it kept and does not check those pools again', async () => {
+    const m = new Map<string, string>();
+    const storage = { getItem: (k: string) => m.get(k) ?? null, setItem: (k: string, v: string) => void m.set(k, v) };
+    const first = vi.fn(async () => found(100));
+    const q1 = createLockQueue({ check: first, onChange: () => undefined, storage });
+    q1.rate([row('0xa')]);
+    await vi.advanceTimersByTimeAsync(3_000);
+    expect(first).toHaveBeenCalledTimes(1);
+
+    const second = vi.fn(async () => found(100));
+    const q2 = createLockQueue({ check: second, onChange: () => undefined, storage });
+    const rows = [row('0xa')];
+    q2.rate(rows);
+    await vi.advanceTimersByTimeAsync(3_000);
+    expect(second).not.toHaveBeenCalled();
+    expect(rows[0]!.lockedPct).toBe(100);
+  });
+
+  it('works as before when storage is blocked', async () => {
+    const storage = { getItem: () => { throw new Error('blocked'); }, setItem: () => { throw new Error('blocked'); } };
+    const check = vi.fn(async () => found(100));
+    const q = createLockQueue({ check, onChange: () => undefined, storage });
+    q.rate([row('0xa')]);
+    await vi.advanceTimersByTimeAsync(3_000);
+    expect(check).toHaveBeenCalledTimes(1);
+  });
+});
+

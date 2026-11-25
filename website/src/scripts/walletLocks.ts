@@ -29,10 +29,37 @@ export interface LockQueueOptions {
   onChange(): void;
   concurrency?: number;
   now?: () => number;
+  /** Where answers are kept between visits (this browser only), so a returning visitor's page does not check every pool again. */
+  storage?: { getItem(k: string): string | null; setItem(k: string, v: string): void } | null;
 }
+
+const STORE_KEY = 'aretia-locks-v1';
+/** At most this many answers are kept between visits, the newest. */
+const KEEP_MAX = 600;
 
 export function createLockQueue(o: LockQueueOptions) {
   const done = new Map<string, { found: LockFound | null; at: number }>();
+  const nowAtStart = (o.now ?? Date.now)();
+  try {
+    const raw = o.storage?.getItem(STORE_KEY);
+    const kept = raw ? (JSON.parse(raw) as Record<string, { found: LockFound | null; at: number }>) : {};
+    for (const [k, v] of Object.entries(kept)) if (v && typeof v.at === 'number' && nowAtStart - v.at <= TTL_MS) done.set(k, { found: v.found ?? null, at: v.at });
+  } catch {
+    // nothing kept, or storage blocked: every pool is checked as before
+  }
+  let saveTimer: ReturnType<typeof setTimeout> | null = null;
+  const save = (): void => {
+    if (!o.storage || saveTimer) return;
+    saveTimer = setTimeout(() => {
+      saveTimer = null;
+      try {
+        const newest = [...done.entries()].sort((a, b) => b[1].at - a[1].at).slice(0, KEEP_MAX);
+        o.storage?.setItem(STORE_KEY, JSON.stringify(Object.fromEntries(newest)));
+      } catch {
+        // storage full or blocked: not kept this time
+      }
+    }, 2_000);
+  };
   const pending = new Set<string>();
   const retryAt = new Map<string, number>();
   const tries = new Map<string, number>();
@@ -84,6 +111,7 @@ export function createLockQueue(o: LockQueueOptions) {
         .then(
           (found) => {
             done.set(k, { found, at: now() });
+            save();
             retryAt.delete(k);
             announce();
           },

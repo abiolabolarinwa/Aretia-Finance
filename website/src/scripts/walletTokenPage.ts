@@ -5,6 +5,7 @@
  */
 import { CHAINS, type ChainId } from '../swings/core/types.js';
 import { DexScreenerPoolFinder } from '../swings/charts/dexscreener.js';
+import { watchChainPrice } from '../swings/charts/chainWatch.js';
 import { fetchPairDetail, WINDOWS, type PairDetail, type Win } from '../swings/charts/pairDetail.js';
 import { poolDetailsGroup } from './walletMarketPanel.js';
 import { embedUrl, GECKO_NETWORK } from '../swings/charts/pool.js';
@@ -195,32 +196,62 @@ export function createTokenPage(finder = new DexScreenerPoolFinder()) {
     side.append(el('p', 'wapp__fine', 'Anyone can create a token, and Aretia does not endorse the tokens listed. Liquidity can be withdrawn by whoever put it there.'));
   }
 
-  /** Writes a fresh reading into the numbers already on the page, flashing the price when it moved. Nothing is rebuilt, so the chart and the swap card are not touched. */
-  function applyLive(d: PairDetail): void {
-    const text = (key: string, value: string): HTMLElement | null => {
-      const host = root.querySelector<HTMLElement>(`[data-live="${key}"]`);
-      const v = host && host.classList.contains('wapp-tp__stat') ? host.querySelector<HTMLElement>('.wapp-tp__v') : host;
-      if (!v || v.textContent === value) return null;
-      v.textContent = value;
-      return v;
-    };
-    const moved = text('price', formatPrice(d.priceUsd));
+  /** Writes one number into the page ("price", "liq"...), returning its element when the text changed. */
+  function putText(key: string, value: string): HTMLElement | null {
+    const host = root.querySelector<HTMLElement>(`[data-live="${key}"]`);
+    const v = host && host.classList.contains('wapp-tp__stat') ? host.querySelector<HTMLElement>('.wapp-tp__v') : host;
+    if (!v || v.textContent === value) return null;
+    v.textContent = value;
+    return v;
+  }
+  /** Shows the price, flashing it green or red when it moved. */
+  function showPrice(usd: number | null): void {
+    const moved = putText('price', formatPrice(usd));
     if (moved) {
       const prev = Number(moved.dataset.was);
       moved.classList.remove('is-tick-up', 'is-tick-down');
       void moved.offsetWidth;
-      if (Number.isFinite(prev) && d.priceUsd !== null && prev !== d.priceUsd) moved.classList.add(d.priceUsd > prev ? 'is-tick-up' : 'is-tick-down');
+      if (Number.isFinite(prev) && usd !== null && prev !== usd) moved.classList.add(usd > prev ? 'is-tick-up' : 'is-tick-down');
     }
     const price = root.querySelector<HTMLElement>('[data-live="price"]');
-    if (price && d.priceUsd !== null) price.dataset.was = String(d.priceUsd);
-    const day = d.change.h24;
-    text('chg24', formatChange(day));
+    if (price && usd !== null) price.dataset.was = String(usd);
+  }
+  function showChange(day: number | null): void {
+    putText('chg24', formatChange(day));
     const chgEl = root.querySelector<HTMLElement>('[data-live="chg24"]');
     if (chgEl) chgEl.className = `wapp-tp__chg ${day === null ? '' : day >= 0 ? 'is-up' : 'is-down'}`;
+  }
+
+  /** The last reading of the pool's numbers, which the chain's price is measured against (24-hour open, value per dollar of price). */
+  let basis: { price: number; open24: number | null; fdv: number | null; mcap: number | null } | null = null;
+  /** When the chain's price last reached the page: while it is arriving, the slower reading never overwrites the price, its change or the values that follow it. */
+  let chainAt = 0;
+  let stopChain: (() => void) | undefined;
+  const chainFresh = (): boolean => Date.now() - chainAt < 3_000;
+
+  /** The price read from the chain (about twice a second): the price itself, the 24-hour change against the day's opening price, and the values that follow the price. */
+  function applyChain(p: number): void {
+    if (!basis || !(p > 0)) return;
+    chainAt = Date.now();
+    showPrice(p);
+    if (basis.open24 !== null) showChange((p / basis.open24 - 1) * 100);
+    if (basis.fdv !== null) putText('fdv', compactUsd((basis.fdv / basis.price) * p));
+    if (basis.mcap !== null) putText('mcap', compactUsd((basis.mcap / basis.price) * p));
+  }
+
+  /** Writes a fresh reading into the numbers already on the page, flashing the price when it moved. Nothing is rebuilt, so the chart and the swap card are not touched. */
+  function applyLive(d: PairDetail): void {
+    const text = putText;
+    setBasis(d);
+    const fresh = chainFresh();
+    if (!fresh) showPrice(d.priceUsd);
+    if (!fresh) {
+      showChange(d.change.h24);
+      text('fdv', compactUsd(d.fdvUsd));
+      text('mcap', compactUsd(d.marketCapUsd));
+    }
     text('pq', nativePrice(d));
     text('liq', compactUsd(d.liquidityUsd));
-    text('fdv', compactUsd(d.fdvUsd));
-    text('mcap', compactUsd(d.marketCapUsd));
     const buys = d.buys.h24;
     const sells = d.sells.h24;
     text('txns', compactCount(buys === null || sells === null ? null : buys + sells));
@@ -238,7 +269,13 @@ export function createTokenPage(finder = new DexScreenerPoolFinder()) {
     }
   }
 
-  /** Once a second, while the page is open and the tab is shown, the pool's numbers are read again (the chart's own last candle already follows the price every second). */
+  /** Remembers the numbers the chain's price is measured against. */
+  function setBasis(d: PairDetail): void {
+    const h = d.change.h24;
+    basis = d.priceUsd !== null && d.priceUsd > 0 ? { price: d.priceUsd, open24: h !== null && h > -100 ? d.priceUsd / (1 + h / 100) : null, fdv: d.fdvUsd, mcap: d.marketCapUsd } : null;
+  }
+
+  /** Every few seconds, while the page is open and the tab is shown, the pool's numbers are read again (the chart's own last candle already follows the price every second). */
   let liveTimer: ReturnType<typeof setInterval> | undefined;
   function startLive(mine: number, pool: string, ctl: AbortController): void {
     clearInterval(liveTimer);
@@ -255,7 +292,7 @@ export function createTokenPage(finder = new DexScreenerPoolFinder()) {
         .finally(() => {
           busy = false;
         });
-    }, 700);
+    }, 5_000);
   }
   let lastChain: ChainId = 'solana';
 
@@ -264,6 +301,10 @@ export function createTokenPage(finder = new DexScreenerPoolFinder()) {
     active?.abort();
     const ctl = new AbortController();
     active = ctl;
+    stopChain?.();
+    stopChain = undefined;
+    basis = null;
+    chainAt = 0;
     const parts = skeleton(o);
     root.hidden = false;
     try {
@@ -279,7 +320,12 @@ export function createTokenPage(finder = new DexScreenerPoolFinder()) {
       if (mine !== seq) return;
       fill(o, parts, info.pool, detail, problem);
       lastChain = o.chain;
-      if (detail) startLive(mine, info.pool, ctl);
+      if (detail) {
+        startLive(mine, info.pool, ctl);
+        setBasis(detail);
+        // The price, its change and the values that follow it come from the pool itself, read through the chain's public node (shared with the chart).
+        stopChain = watchChainPrice({ chain: o.chain, pool: info.pool, target: o.address, visible: () => !root.hidden }, applyChain);
+      }
     } catch (e) {
       if (mine !== seq) return;
       parts.chart.replaceChildren(el('p', 'wapp__fine', e instanceof Error ? e.message : 'No trading pool was found for this token yet. Brand-new tokens can take a few minutes to appear.'));
@@ -296,6 +342,8 @@ export function createTokenPage(finder = new DexScreenerPoolFinder()) {
   function close(): void {
     seq++;
     clearInterval(liveTimer);
+    stopChain?.();
+    stopChain = undefined;
     active?.abort();
     tv?.dispose();
     tv = null;

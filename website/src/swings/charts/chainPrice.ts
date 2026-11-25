@@ -9,8 +9,9 @@
  *  - Ethereum-style networks: Uniswap V2 style pools (getReserves) and Uniswap V3 style pools (slot0).
  * Any other kind of pool answers null: the chart then keeps to its other sources, as before.
  *
- * Prices are in dollars only when the pool is paired with a dollar coin, or with the network's own coin (whose dollar price is read from
- * DexScreener's busiest pool for it and kept a few seconds: it moves slowly next to a small token). Any other pairing answers null.
+ * Prices are in dollars only when the pool is paired with a dollar coin, or with the network's own coin (whose dollar price is read from the
+ * chain too, from the deepest coin/dollar pool of that network, and kept a couple of seconds). Any other pairing answers null. Nothing here
+ * asks a price service: the only thing contacted is the chain's public node.
  */
 import { decodeBase58, fromBase64, parseAmmV4Pool, parseClmmPool, parseCpmmPool, parseDlmmPair, parseMint, parsePumpPool, parseWhirlpool, tokenAmount, whirlpoolPriceScaled, type PoolAccounts } from '../mi/solana/accounts.js';
 import { HUB_TOKENS } from '../dex/hubs.js';
@@ -57,33 +58,56 @@ export function publicRpc(chain: ChainId, fetchImpl: typeof fetch = (...a) => fe
   };
 }
 
-/** The dollar price of a token from DexScreener's deepest pool for it, kept for a few seconds. */
-export function dexscreenerUsd(fetchImpl: typeof fetch = (...a) => fetch(...a), now: () => number = Date.now, ttlMs = 5_000): ChainPriceDeps['usdOf'] {
-  const cache = new Map<string, { at: number; usd: number | null }>();
-  return async (_chain, token) => {
-    const hit = cache.get(token);
-    if (hit && now() - hit.at < ttlMs) return hit.usd;
-    let usd: number | null = null;
-    try {
-      const res = await fetchImpl(`https://api.dexscreener.com/latest/dex/tokens/${encodeURIComponent(token)}`, { headers: { accept: 'application/json' } });
-      if (res.ok) {
-        const body = (await res.json()) as { pairs?: { baseToken?: { address?: string }; priceUsd?: string; liquidity?: { usd?: number } }[] };
-        let best = -1;
-        for (const p of body.pairs ?? []) {
-          const price = Number(p.priceUsd);
-          const liq = p.liquidity?.usd ?? 0;
-          if (p.baseToken?.address?.toLowerCase() === token.toLowerCase() && Number.isFinite(price) && price > 0 && liq > best) {
-            best = liq;
-            usd = price;
-          }
-        }
-      }
-    } catch {
-      usd = null;
+/**
+ * The deepest pool pairing each network's own coin with a dollar coin. The coin's dollar price is read from it on the chain, so the price of a
+ * token paired with the coin needs no price service. Robinhood Chain has no such pool that is known, so tokens paired with its coin are not priced here.
+ */
+export const NATIVE_REFERENCE: Readonly<Partial<Record<ChainId, { pool: string; coin: string }>>> = {
+  solana: { pool: 'Czfq3xZZDmsdGdUyrNLtRhGc47cXcZtLG4crryfu44zE', coin: WSOL },
+  ethereum: { pool: '0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640', coin: WRAPPED_NATIVE.ethereum },
+  bnb: { pool: '0x172fcD41E0913e95784454622d1c3724f546f849', coin: WRAPPED_NATIVE.bnb },
+  polygon: { pool: '0xA374094527e1673A86dE625aa59517c5dE346d32', coin: WRAPPED_NATIVE.polygon },
+  base: { pool: '0xd0b53D9277642d899DF5C87A3966A349A798F224', coin: WRAPPED_NATIVE.base },
+};
+
+/** How long the last good price of a coin is kept when reading it fails. */
+const NATIVE_KEEP_MS = 60_000;
+
+/** The dollar price of a network's own coin, read from the chain and kept `ttlMs`. A failed read keeps the last good price for a minute, then answers null. */
+export function chainNativeUsd(rpcFor: (chain: ChainId) => Rpc, now: () => number = Date.now, ttlMs = 2_000): ChainPriceDeps['usdOf'] {
+  const readers = new Map<ChainId, Promise<PriceReader | null>>();
+  const last = new Map<ChainId, { at: number; usd: number }>();
+  const inflight = new Map<ChainId, Promise<number | null>>();
+  return (chain) => {
+    const ref = NATIVE_REFERENCE[chain];
+    if (!ref) return Promise.resolve(null);
+    const hit = last.get(chain);
+    if (hit && now() - hit.at < ttlMs) return Promise.resolve(hit.usd);
+    const running = inflight.get(chain);
+    if (running) return running;
+    let reader = readers.get(chain);
+    if (!reader) {
+      // The reference pool is paired with a dollar coin, so reading it never asks for a coin price.
+      reader = createChainPricer({ chain, pool: ref.pool, target: ref.coin }, { rpc: rpcFor(chain), usdOf: async () => null });
+      readers.set(chain, reader);
     }
-    // A failed read keeps the last good price for the next few seconds' worth of asks, rather than blanking the chart's feed.
-    cache.set(token, { at: now(), usd: usd ?? hit?.usd ?? null });
-    return usd ?? hit?.usd ?? null;
+    const p = reader
+      .then(async (read) => {
+        if (!read) throw new Error('no reader');
+        const usd = await read();
+        if (usd === null || !(usd > 0)) throw new Error('no price');
+        last.set(chain, { at: now(), usd });
+        return usd;
+      })
+      .catch(() => {
+        // Ask again from scratch next time when the pool could not even be described.
+        readers.delete(chain);
+        const old = last.get(chain);
+        return old && now() - old.at < NATIVE_KEEP_MS ? old.usd : null;
+      })
+      .finally(() => inflight.delete(chain));
+    inflight.set(chain, p);
+    return p;
   };
 }
 
@@ -99,13 +123,35 @@ const addressWord = (data: string, i: number): string | null => {
   return s.length === 40 ? `0x${s}` : null;
 };
 
-/** The pool's reader, or null when its kind is not one this module reads (or its tokens cannot be priced in dollars). */
-export async function createChainPricer(o: { chain: ChainId; pool: string; target: string }, d: ChainPriceDeps): Promise<PriceReader | null> {
+/**
+ * What to read from the chain to price one pool, and how to turn what was read into dollars. The reads are separate from the pricing so a
+ * Markets page can put the reads of every pool on screen into one request per network (see chainBoard.ts), while a chart reads one pool.
+ */
+export type PricePlan =
+  | { kind: 'solana'; accounts: string[]; price: (data: readonly (Uint8Array | null)[]) => Promise<number | null> }
+  | { kind: 'evm'; calls: { to: string; data: string }[]; price: (results: readonly (string | null)[]) => Promise<number | null> };
+
+/** The pool's plan, or null when its kind is not one this module reads (or its tokens cannot be priced in dollars). */
+export async function planChainPrice(o: { chain: ChainId; pool: string; target: string }, d: ChainPriceDeps): Promise<PricePlan | null> {
   try {
-    return o.chain === 'solana' ? await solanaPricer(o, d) : await evmPricer(o, d);
+    return o.chain === 'solana' ? await solanaPlan(o, d) : await evmPlan(o, d);
   } catch {
     return null;
   }
+}
+
+/** The pool's reader, or null when its kind is not one this module reads (or its tokens cannot be priced in dollars). */
+export async function createChainPricer(o: { chain: ChainId; pool: string; target: string }, d: ChainPriceDeps): Promise<PriceReader | null> {
+  const plan = await planChainPrice(o, d);
+  if (!plan) return null;
+  if (plan.kind === 'solana') {
+    const accounts = plan.accounts;
+    return async () => {
+      const got = (await d.rpc('getMultipleAccounts', [accounts, { encoding: 'base64', commitment: 'confirmed' }])) as { value: ({ data: [string, string] } | null)[] } | null;
+      return plan.price(accounts.map((_, i) => (got?.value?.[i] ? fromBase64(got.value[i]!.data[0]) : null)));
+    };
+  }
+  return async () => plan.price(await Promise.all(plan.calls.map((c) => d.rpc('eth_call', [c, 'latest']).then((r) => (typeof r === 'string' ? r : null)))));
 }
 
 /** Price of the target in dollars from "A in B" (B per A, whole tokens) and which token is which. */
@@ -119,7 +165,7 @@ async function inDollars(chain: ChainId, aInB: number, a: string, b: string, tar
   return usdQuote !== null && usdQuote > 0 ? perQuote * usdQuote : null;
 }
 
-async function solanaPricer(o: { chain: ChainId; pool: string; target: string }, d: ChainPriceDeps): Promise<PriceReader | null> {
+async function solanaPlan(o: { chain: ChainId; pool: string; target: string }, d: ChainPriceDeps): Promise<PricePlan | null> {
   const info = (await d.rpc('getAccountInfo', [o.pool, { encoding: 'base64', commitment: 'confirmed' }])) as { value: { owner: string; data: [string, string] } | null } | null;
   if (!info?.value) return null;
   const data = fromBase64(info.value.data[0]);
@@ -176,25 +222,44 @@ async function solanaPricer(o: { chain: ChainId; pool: string; target: string },
       return null;
   }
   if (!accounts || decodeBase58(accounts.mintA)?.length !== 32) return null;
-  const mints = (await d.rpc('getMultipleAccounts', [[accounts.mintA, accounts.mintB], { encoding: 'base64', commitment: 'confirmed' }])) as { value: ({ data: [string, string] } | null)[] } | null;
-  const decA = mints?.value?.[0] ? parseMint(fromBase64(mints.value[0].data[0]))?.decimals : undefined;
-  const decB = mints?.value?.[1] ? parseMint(fromBase64(mints.value[1].data[0]))?.decimals : undefined;
+  const decA = await mintDecimals(d.rpc, accounts.mintA, accounts.mintB, 0);
+  const decB = await mintDecimals(d.rpc, accounts.mintA, accounts.mintB, 1);
   if (decA === undefined || decB === undefined) return null;
   const { mintA, mintB, vaultA, vaultB } = accounts;
   if (target(o.target, mintA, mintB) === null) return null;
-  return async () => {
-    let aInB: number | null = null;
-    if (fromAccount) {
-      const fresh = (await d.rpc('getAccountInfo', [o.pool, { encoding: 'base64', commitment: 'confirmed' }])) as { value: { data: [string, string] } | null } | null;
-      aInB = fresh?.value ? fromAccount(fromBase64(fresh.value.data[0]), decA, decB) : null;
-    } else {
-      const got = (await d.rpc('getMultipleAccounts', [[vaultA, vaultB], { encoding: 'base64', commitment: 'confirmed' }])) as { value: ({ data: [string, string] } | null)[] } | null;
-      const balA = got?.value?.[0] ? tokenAmount(fromBase64(got.value[0].data[0])) : null;
-      const balB = got?.value?.[1] ? tokenAmount(fromBase64(got.value[1].data[0])) : null;
-      if (balA !== null && balB !== null && balA > 0n && balB > 0n) aInB = (Number(balB) / Number(balA)) * 10 ** (decA - decB);
-    }
-    return aInB === null ? null : inDollars('solana', aInB, mintA, mintB, o.target, d, SOLANA_DOLLARS, WSOL, same);
+  return {
+    kind: 'solana',
+    accounts: fromAccount ? [o.pool] : [vaultA, vaultB],
+    price: async (got) => {
+      let aInB: number | null = null;
+      if (fromAccount) {
+        aInB = got[0] ? fromAccount(got[0], decA, decB) : null;
+      } else {
+        const balA = got[0] ? tokenAmount(got[0]) : null;
+        const balB = got[1] ? tokenAmount(got[1]) : null;
+        if (balA !== null && balB !== null && balA > 0n && balB > 0n) aInB = (Number(balB) / Number(balA)) * 10 ** (decA - decB);
+      }
+      return aInB === null ? null : inDollars('solana', aInB, mintA, mintB, o.target, d, SOLANA_DOLLARS, WSOL, same);
+    },
   };
+}
+
+/** Mint decimals never change, so a mint is read once for every pool that holds it (the dollar coins and SOL sit in most of them). */
+const knownDecimals = new Map<string, number>();
+
+/** The decimals of one of a pool's two mints (0 for the first, 1 for the second), reading both together when either is not known yet. */
+async function mintDecimals(rpc: Rpc, mintA: string, mintB: string, which: 0 | 1): Promise<number | undefined> {
+  const want = which === 0 ? mintA : mintB;
+  const known = knownDecimals.get(want);
+  if (known !== undefined) return known;
+  const missing = [mintA, mintB].filter((m, i, all) => !knownDecimals.has(m) && all.indexOf(m) === i);
+  const got = (await rpc('getMultipleAccounts', [missing, { encoding: 'base64', commitment: 'confirmed' }])) as { value: ({ data: [string, string] } | null)[] } | null;
+  missing.forEach((m, i) => {
+    const v = got?.value?.[i];
+    const dec = v ? parseMint(fromBase64(v.data[0]))?.decimals : undefined;
+    if (dec !== undefined) knownDecimals.set(m, dec);
+  });
+  return knownDecimals.get(want);
 }
 
 /** Which of the pool's two tokens the target is, or null. */
@@ -202,7 +267,7 @@ function target(t: string, a: string, b: string): 'a' | 'b' | null {
   return t === a ? 'a' : t === b ? 'b' : null;
 }
 
-async function evmPricer(o: { chain: ChainId; pool: string; target: string }, d: ChainPriceDeps): Promise<PriceReader | null> {
+async function evmPlan(o: { chain: ChainId; pool: string; target: string }, d: ChainPriceDeps): Promise<PricePlan | null> {
   const call = async (to: string, selector: string): Promise<string> => {
     const r = (await d.rpc('eth_call', [{ to, data: selector }, 'latest'])) as unknown;
     if (typeof r !== 'string' || r.length < 66) throw new Error('empty answer');
@@ -234,20 +299,25 @@ async function evmPricer(o: { chain: ChainId; pool: string; target: string }, d:
   const dollars = new Set((HUB_TOKENS[o.chain] ?? []).filter((h) => ['USDC', 'USDT', 'DAI', 'USDG'].includes(h.symbol)).map((h) => h.address.toLowerCase()));
   const wrapped = ((WRAPPED_NATIVE as Record<string, string | undefined>)[o.chain] ?? '').toLowerCase();
   const same = (x: string, y: string): boolean => x.toLowerCase() === y.toLowerCase();
-  return async () => {
-    let aInB: number | null = null;
-    if (kind === 'v2') {
-      const r = await call(pool, '0x0902f1ac');
-      const r0 = word(r, 0);
-      const r1 = word(r, 1);
-      if (r0 !== null && r1 !== null && r0 > 0n && r1 > 0n) aInB = (Number(r1) / Number(r0)) * 10 ** (dec0 - dec1);
-    } else {
-      const s = word(await call(pool, '0x3850c7bd'), 0);
-      if (s !== null && s > 0n) {
-        const root = Number(s) / 2 ** 96;
-        aInB = root * root * 10 ** (dec0 - dec1);
+  return {
+    kind: 'evm',
+    calls: [{ to: pool, data: kind === 'v2' ? '0x0902f1ac' : '0x3850c7bd' }],
+    price: async (results) => {
+      const r = results[0];
+      if (!r || r.length < 66) throw new Error('empty answer');
+      let aInB: number | null = null;
+      if (kind === 'v2') {
+        const r0 = word(r, 0);
+        const r1 = word(r, 1);
+        if (r0 !== null && r1 !== null && r0 > 0n && r1 > 0n) aInB = (Number(r1) / Number(r0)) * 10 ** (dec0 - dec1);
+      } else {
+        const sq = word(r, 0);
+        if (sq !== null && sq > 0n) {
+          const root = Number(sq) / 2 ** 96;
+          aInB = root * root * 10 ** (dec0 - dec1);
+        }
       }
-    }
-    return aInB === null ? null : inDollars(o.chain, aInB, token0, token1, targetAddress, d, dollars, wrapped, same);
+      return aInB === null ? null : inDollars(o.chain, aInB, token0, token1, targetAddress, d, dollars, wrapped, same);
+    },
   };
 }

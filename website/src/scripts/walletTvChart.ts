@@ -12,10 +12,9 @@ import { holdLowPriority } from '../swings/charts/geckoGate.js';
 import { createLiveStream } from './walletLiveStream.js';
 import { currentTheme, type Theme } from './walletTheme.js';
 import { createPoolDatafeed, SUPPORTED_RESOLUTIONS, type ChartStatus, type TvDatafeed } from '../swings/charts/tvDatafeed.js';
-import { createChainPricer, dexscreenerUsd, publicRpc } from '../swings/charts/chainPrice.js';
+import { watchChainPrice } from '../swings/charts/chainWatch.js';
 
 /** How long the chart waits after one read of the pool before the next (a read takes about 0.15 to 0.5 s, so a price arrives about every 0.7 s). */
-const CHAIN_READ_MS = 400;
 
 const LIBRARY_PATH = '/charting_library/';
 const LIBRARY_SCRIPT = `${LIBRARY_PATH}charting_library.standalone.js`;
@@ -150,38 +149,15 @@ export function mountTvChart(
             },
           });
           if (side === 'base') stream.setKeys([key]);
-          let stopped = false;
-          let timer: ReturnType<typeof setTimeout> | undefined;
-          if (o.target) {
-            const deps = { rpc: publicRpc(o.chain), usdOf: dexscreenerUsd() };
-            void createChainPricer({ chain: o.chain, pool: o.pool, target: o.target }, deps).then((read) => {
-              if (!read || stopped) return;
-              let failures = 0;
-              const loop = async (): Promise<void> => {
-                if (stopped) return;
-                // Nothing is read while the tab or the chart is hidden.
-                if (!document.hidden && host.getClientRects().length > 0) {
-                  try {
-                    const p = await read();
-                    if (p !== null && !stopped) {
-                      failures = 0;
-                      chainAt = Date.now();
-                      onPrice(p);
-                    } else failures++;
-                  } catch {
-                    failures++;
-                  }
-                }
-                // A node that keeps refusing is left alone; the other sources carry the chart.
-                if (failures >= 8) return;
-                timer = setTimeout(() => void loop(), CHAIN_READ_MS);
-              };
-              void loop();
-            });
-          }
+          // The loop is shared with the token page's header, which asks for the same pool.
+          const stopChain = o.target
+            ? watchChainPrice({ chain: o.chain, pool: o.pool, target: o.target, visible: () => host.getClientRects().length > 0 }, (p) => {
+                chainAt = Date.now();
+                onPrice(p);
+              })
+            : (): void => undefined;
           return () => {
-            stopped = true;
-            clearTimeout(timer);
+            stopChain();
             stream.stop();
           };
         },

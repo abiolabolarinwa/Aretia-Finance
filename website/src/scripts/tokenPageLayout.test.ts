@@ -32,8 +32,9 @@ describe('the token list window', () => {
 
 describe('the token page numbers', () => {
   const code = readFileSync(new URL('./walletTokenPage.ts', import.meta.url), 'utf8');
-  it('are read again every 0.7 seconds while the page is open, and written in place', () => {
-    expect(code).toContain('}, 700);');
+  it('are written in place: the price from the chain about twice a second, the rest read again every few seconds', () => {
+    expect(code).toContain('}, 5_000);');
+    expect(code).toContain('watchChainPrice(');
     expect(code).toContain('fetchPairDetail(lastChain, pool');
     for (const key of ['price', 'chg24', 'pq', 'liq', 'fdv', 'mcap', 'txns', 'buys', 'sells', 'vol24']) expect(code).toContain(`'${key}'`);
   });

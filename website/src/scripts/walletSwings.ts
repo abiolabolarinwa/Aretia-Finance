@@ -29,7 +29,8 @@ import { overviewBand } from './walletMarketOverview.js';
 import { fetchMarketIntel, intelNow } from '../swings/market/intel/client.js';
 import { markSelected, marketTable, tableRowKey, updateLiquidityCells, updateLiveCells, updateRatingCells, type TableState } from './walletMarketTable.js';
 import { createLiveStream } from './walletLiveStream.js';
-import { applyLive, type LiveUpdate } from '../swings/market/liveFields.js';
+import { applyLive, capAtPrice, type LiveUpdate } from '../swings/market/liveFields.js';
+import { createBoardFeed, poolKey as boardKey } from '../swings/charts/chainBoard.js';
 import { createLockQueue } from './walletLocks.js';
 import { tokenOpenMode } from './walletNav';
 import { checkLock, LOCK_MIN_PCT } from '../swings/market/lock.js';
@@ -1891,6 +1892,30 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
     // Live numbers: the pools on screen are named to the stream, and what it sends is applied to the rows in place. If the stream is
     // off or unreachable nothing changes: the list's own refresh below keeps it current.
     let liveRows = new Map<string, MarketRow>();
+    // The price of every pool on screen is also read from the chain (one request per network for all of them), twice a second or so: the index
+    // stream above only sends what the index has written, a few seconds behind. While a chain price is fresh, the stream does not move the price.
+    let chainRows = new Map<string, MarketRow>();
+    const chainLast = new Map<string, { at: number; usd: number }>();
+    const chainBoard = createBoardFeed({
+      onPrices: (list) => {
+        const changed: MarketRow[] = [];
+        const before = new Map<string, MarketRow>();
+        const now = Date.now();
+        for (const c of list) {
+          const r = chainRows.get(c.key);
+          if (!r) continue;
+          chainLast.set(c.key, { at: now, usd: c.usd });
+          if (r.priceUsd === c.usd) continue;
+          before.set(tableRowKey(r), { ...r });
+          const cap = capAtPrice(r, c.usd);
+          r.priceUsd = c.usd;
+          if (r.capIsFdv === true && cap !== null) r.capUsd = cap;
+          delete r.priceFromReserves;
+          changed.push(r);
+        }
+        if (changed.length > 0 && tableEl?.isConnected) updateLiveCells(tableEl, changed, before);
+      },
+    });
     const live = createLiveStream({
       url: String(import.meta.env.PUBLIC_MARKET_STREAM_URL ?? 'https://data.aretiafinance.org/stream'),
       onUpdates: (list: LiveUpdate[]) => {
@@ -1901,7 +1926,8 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
           const r = liveRows.get(u.key);
           if (!r) continue;
           before.set(tableRowKey(r), { ...r });
-          const next = applyLive(r, u, now);
+          const c = chainLast.get(u.key);
+          const next = applyLive(r, c && now - c.at < 3_000 ? { ...u, p_usd: c.usd, rp: c.usd } : u, now);
           for (const k of Object.keys(r)) if (!(k in next)) delete (r as unknown as Record<string, unknown>)[k];
           Object.assign(r, next);
           changed.push(r);
@@ -1915,10 +1941,17 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
     const watchRows = (shown: readonly MarketRow[]): void => {
       liveRows = new Map(shown.filter((r) => r.source === 'index' && r.pool).map((r) => [`${r.chain}:${r.chain === 'solana' ? r.pool : r.pool.toLowerCase()}`, r]));
       live.setKeys([...liveRows.keys()]);
+      const priced = shown.filter((r) => r.pool && r.address);
+      chainRows = new Map(priced.map((r) => [boardKey(r.chain, r.pool), r]));
+      for (const k of [...chainLast.keys()]) if (!chainRows.has(k)) chainLast.delete(k);
+      chainBoard.setPools(priced.map((r) => ({ chain: r.chain, pool: r.pool, address: r.address })));
     };
     // When this page is not the one on screen, the stream is not needed.
     setInterval(() => {
-      if (target.hidden || !target.isConnected || page) live.setKeys([]);
+      if (target.hidden || !target.isConnected || page) {
+        live.setKeys([]);
+        chainBoard.setPools([]);
+      }
     }, 5_000);
     /** True while the sidebar's Favourites page is showing this list. */
     let favPage = false;

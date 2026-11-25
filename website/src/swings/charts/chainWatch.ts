@@ -6,6 +6,7 @@
  */
 import { chainNativeUsd, createChainPricer, publicRpc, type ChainPriceDeps, type PriceReader } from './chainPrice.js';
 import type { ChainId } from '../core/types.js';
+import { nextPace } from './pace.js';
 
 export interface WatchOptions {
   chain: ChainId;
@@ -19,6 +20,8 @@ export interface WatchOptions {
 export interface WatchEnv {
   deps: (chain: ChainId) => ChainPriceDeps;
   everyMs: number;
+  /** The longest wait between reads while the price does not change. */
+  calmMaxMs: number;
   maxFailures: number;
   isTabHidden: () => boolean;
   setTimer: (fn: () => void, ms: number) => unknown;
@@ -36,6 +39,8 @@ interface Loop {
 }
 
 export const CHAIN_READ_MS = 400;
+/** The longest wait between reads of a pool whose price is not moving. */
+export const CHAIN_CALM_MAX_MS = 4_000;
 
 const defaultDeps = (): ((chain: ChainId) => ChainPriceDeps) => {
   const usdOf = chainNativeUsd((c) => publicRpc(c));
@@ -55,6 +60,7 @@ export function createChainWatch(env: Partial<WatchEnv> = {}): (o: WatchOptions,
   const e: WatchEnv = {
     deps: env.deps ?? defaultDeps(),
     everyMs: env.everyMs ?? CHAIN_READ_MS,
+    calmMaxMs: env.calmMaxMs ?? CHAIN_CALM_MAX_MS,
     maxFailures: env.maxFailures ?? 8,
     isTabHidden: env.isTabHidden ?? ((): boolean => typeof document !== 'undefined' && document.hidden),
     setTimer: env.setTimer ?? ((fn, ms): unknown => setTimeout(fn, ms)),
@@ -69,6 +75,7 @@ export function createChainWatch(env: Partial<WatchEnv> = {}): (o: WatchOptions,
     void createChainPricer({ chain: o.chain, pool: o.pool, target: o.target }, e.deps(o.chain)).then((read: PriceReader | null) => {
       if (!read || stopped) return;
       let failures = 0;
+      let pace = e.everyMs;
       const tick = async (): Promise<void> => {
         if (stopped) return;
         const shown = !e.isTabHidden() && [...loop.watchers].some((w) => w.visible());
@@ -77,6 +84,8 @@ export function createChainWatch(env: Partial<WatchEnv> = {}): (o: WatchOptions,
             const p = await read();
             if (p !== null && !stopped) {
               failures = 0;
+              // A price that keeps still is read less and less often (up to calmMaxMs); a move brings the pace back at once.
+              pace = nextPace(e.everyMs, pace, p !== loop.last, e.calmMaxMs);
               loop.last = p;
               for (const w of [...loop.watchers]) w.onPrice(p);
             } else failures++;
@@ -85,7 +94,7 @@ export function createChainWatch(env: Partial<WatchEnv> = {}): (o: WatchOptions,
           }
         }
         if (failures >= e.maxFailures || stopped) return;
-        timer = e.setTimer(() => void tick(), e.everyMs);
+        timer = e.setTimer(() => void tick(), pace);
       };
       void tick();
     });

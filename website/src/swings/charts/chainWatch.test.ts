@@ -125,3 +125,42 @@ describe('the shared chain watcher', () => {
     expect(got).toHaveLength(1);
   });
 });
+
+describe('a price that keeps still is read less often', () => {
+  it('waits longer after each read that finds no change, up to the ceiling, and goes back to the base pace on a move', async () => {
+    const s = setup();
+    const waits: number[] = [];
+    let next: (() => void) | null = null;
+    const watch = createChainWatch({
+      deps: () => ({ rpc: s.rpc, usdOf: async () => null }),
+      isTabHidden: () => false,
+      everyMs: 400,
+      calmMaxMs: 4000,
+      setTimer: (fn, ms) => {
+        waits.push(ms);
+        next = fn;
+        return 1;
+      },
+      clearTimer: () => {
+        next = null;
+      },
+    });
+    const stop = watch({ chain: 'solana', pool: KEY(9), target: KEY(21) }, () => undefined);
+    await settle();
+    for (let i = 0; i < 8; i++) {
+      const fn = next as (() => void) | null;
+      next = null;
+      fn?.();
+      await settle();
+    }
+    expect(waits[0]).toBe(400); // the first price is new
+    expect(waits.at(-1)).toBe(4000); // still for a while: at the ceiling
+    s.setUsdc(4_000_000n);
+    const fn = next as (() => void) | null;
+    fn?.();
+    await settle();
+    expect(waits.at(-1)).toBe(400); // a move: back to the base pace
+    stop();
+  });
+});
+

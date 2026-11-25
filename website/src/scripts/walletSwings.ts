@@ -2037,6 +2037,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
 
     // Which pools have their liquidity locked (burned), worked out in the page for the rows on screen. A padlock appears as each is proven.
     const locks = createLockQueue({
+      storage: browserStorage(),
       check: async (row) => {
         const lock = await checkLock(row.chain, row.pool, { ...(CHAINS[row.chain].kind === 'evm' ? { evm: publicRead(row.chain) } : { sol: rpcCall }) }, Date.now());
         // Under the bar is still an answer ("no lock found", with the share burned); only a pool of a kind Aretia cannot read gives none.

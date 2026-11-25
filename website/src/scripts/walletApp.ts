@@ -365,9 +365,9 @@ function initSidebar(): void {
   const side = document.querySelector<HTMLElement>('.wapp__side');
   if (!wapp || !side) return;
 
-  // The sidebar always rests as an icon rail; it opens over the page while the pointer is on it
-  // or keyboard focus is inside it, and closes when both leave.
-  // A pin keeps it open instead; the choice is remembered on this device.
+  // The sidebar rests as an icon rail, with each icon's name shown when the pointer is on it. It stays that way until the person
+  // presses the button at its top, which shows it in full (and pressing it again goes back to the icons). The choice is remembered on
+  // this device. The notification list alone opens it over the page while the list is showing.
   const PIN_KEY = 'aretia.wallet.sidebarPinned';
   const pin = document.querySelector<HTMLButtonElement>('[data-side-pin]');
   const readPinned = (): boolean => {
@@ -378,27 +378,24 @@ function initSidebar(): void {
     }
   };
   let pinned = readPinned();
+  side.querySelectorAll<HTMLElement>('.wapp__nav button, .wapp__lock').forEach((b) => {
+    const name = b.querySelector('.wapp__label')?.textContent?.trim();
+    if (name && !b.title) b.title = name;
+  });
   const applyPin = (): void => {
     root.dataset.wappSidebar = pinned ? 'open' : 'collapsed';
     if (pinned) delete root.dataset.wappPeek;
     pin?.setAttribute('aria-pressed', String(pinned));
-    const label = pinned ? 'Unpin the sidebar' : 'Pin the sidebar open';
+    const label = pinned ? 'Show icons only' : 'Show the full sidebar';
     pin?.setAttribute('title', label);
     pin?.setAttribute('aria-label', label);
   };
-  let hover = false;
-  let focus = false;
   const sync = (): void => {
     if (pinned) return void delete root.dataset.wappPeek;
-    if (hover || focus || 'wappHold' in root.dataset) root.dataset.wappPeek = '';
+    if ('wappHold' in root.dataset) root.dataset.wappPeek = '';
     else delete root.dataset.wappPeek;
   };
-  // The notification list keeps the sidebar open beside it while it is showing.
   window.addEventListener('aretia:sidebar-hold', sync);
-  side.addEventListener('mouseenter', () => { hover = true; sync(); });
-  side.addEventListener('mouseleave', () => { hover = false; sync(); });
-  side.addEventListener('focusin', (e) => { focus = (e.target as HTMLElement).matches(':focus-visible'); sync(); });
-  side.addEventListener('focusout', () => { focus = false; sync(); });
   applyPin();
   pin?.addEventListener('click', () => {
     pinned = !pinned;

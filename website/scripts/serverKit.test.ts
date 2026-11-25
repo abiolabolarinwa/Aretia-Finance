@@ -23,6 +23,13 @@ const listed = (label: string): string[] => {
   return (m?.[1] ?? '').split('|').sort();
 };
 
+describe('server/bin/update.sh', () => {
+  it('recreates Caddy after migrating, so a new table in the Caddyfile is reachable (Caddy reads it only at start)', () => {
+    const update = readFileSync(new URL('../../server/bin/update.sh', import.meta.url), 'utf8');
+    expect(update).toMatch(/run --rm migrate[\s\S]*restart postgrest[\s\S]*up -d --force-recreate caddy/);
+  });
+});
+
 describe('server/caddy/Caddyfile', () => {
   it('lists exactly the tables and views the migrations create (so none is forgotten and none is invented)', () => {
     const tables = names(/create table if not exists public\.([a-z_0-9]+)/gi).filter((t) => t !== 'aretia_schema_migrations');

@@ -156,11 +156,23 @@ function waitForTelegram(deps: AlertsDeps): void {
   }, 3_000);
 }
 
+const ICONS = {
+  bell: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>',
+  telegram: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>',
+  browser: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>',
+  shield: '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"/><path d="m9 12 2 2 4-4"/></svg>',
+};
+const icon = (name: keyof typeof ICONS, cls: string): HTMLElement => {
+  const s = el('span', cls);
+  s.innerHTML = ICONS[name];
+  return s;
+};
+
 /** The card. Redrawn by the page whenever the Favourites list redraws; it keeps its state between draws. */
 export function alertsCard(deps: AlertsDeps): HTMLElement {
   const box = el('section', 'wapp-pa');
   box.setAttribute('data-alerts-card', '');
-  box.setAttribute('aria-label', 'Alerts on your phone');
+  box.setAttribute('aria-labelledby', 'wapp-pa-title');
   const mine = (): Record<string, number> => readMine();
 
   const run = (what: string, job: () => Promise<void>): void => {
@@ -169,8 +181,10 @@ export function alertsCard(deps: AlertsDeps): HTMLElement {
     message = '';
     redraw();
     void job()
-      .catch((e: unknown) => {
+      .catch(async (e: unknown) => {
         message = e instanceof Error ? (/reject|declin|denied/i.test(e.message) ? 'The sign-in was declined, so nothing was linked.' : e.message) : 'That did not work. Try again.';
+        // A setting shown before it was saved goes back to what the server holds.
+        if (what === 'prefs' || what === 'market') await loadStatus(deps);
       })
       .finally(() => {
         if (busy !== 'telegram') busy = '';
@@ -178,154 +192,179 @@ export function alertsCard(deps: AlertsDeps): HTMLElement {
       });
   };
 
-  function draw(): void {
-    box.replaceChildren();
-    box.append(el('h3', 'wapp-pa__title', 'Alerts on your phone'));
-    box.append(el('p', 'wapp__fine', 'Get a message on Telegram, or a notification from this browser, when a favourite moves, a price you set is reached, or a market alert you switch on (new launches, large buys, liquidity taken out) fires, even when Aretia is closed. Messages only say what moved and link back here; they never ask you to sign or approve anything.'));
-    const session = deps.session();
-    if (!config) {
-      box.append(el('p', 'wapp__fine', 'Loading…'));
-      return;
+  /** A row of choices, one pressed: quicker to read and to tap than a drop-down. */
+  function choices<T extends number>(label: string, options: readonly T[], current: number, text: (v: T) => string, pick: (v: T) => void): HTMLElement {
+    const group = el('div', 'wapp-pa__seg');
+    group.setAttribute('role', 'group');
+    group.setAttribute('aria-label', label);
+    for (const v of options) {
+      const b = el('button', 'wapp-pa__opt', text(v));
+      b.type = 'button';
+      b.setAttribute('aria-pressed', String(v === current));
+      b.disabled = busy !== '';
+      b.addEventListener('click', () => {
+        if (v !== current) pick(v);
+      });
+      group.append(b);
     }
-    if (!config.telegram && !config.webpush) {
-      box.append(el('p', 'wapp__fine', 'Alerts to your phone are not switched on yet. They will appear here as soon as Aretia finishes setting them up.'));
-      return;
-    }
-    if (!session) {
-      const go = el('button', 'wapp__btn wapp__btn--primary', busy === 'signin' ? 'Waiting for your wallet…' : 'Save to my wallet to turn on');
-      go.type = 'button';
-      go.disabled = !deps.canSign() || busy !== '';
-      go.addEventListener('click', () => run('signin', async () => { await deps.signIn(); await loadStatus(deps); }));
-      box.append(go, el('p', 'wapp__fine', deps.canSign() ? 'Aretia needs to know whose favourites to watch. You sign a free message; it is not a transaction and cannot move funds.' : 'Connect a wallet first.'));
-      if (message) box.append(el('p', 'wapp__fine', message));
-      return;
-    }
-    const channels = status?.channels ?? [];
-    const here = mine()[session.owner];
-    const tg = channels.find((c) => c.kind === 'telegram');
-    const hereChannel = channels.find((c) => c.kind === 'webpush' && c.id === here);
-    const rows = el('div', 'wapp-pa__rows');
-
-    if (config.telegram) {
-      const row = el('div', 'wapp-pa__row');
-      row.append(el('strong', '', 'Telegram'));
-      if (tg) {
-        row.append(el('span', 'wapp-pa__on', 'Connected'));
-        const off = el('button', 'wapp__btn wapp__btn--ghost', 'Remove');
-        off.type = 'button';
-        off.addEventListener('click', () => run('unlink-tg', async () => { await deps.account.call(session, { op: 'unlink', id: tg.id }, NOTIFY); await loadStatus(deps); }));
-        row.append(off);
-      } else {
-        const on = el('button', 'wapp__btn wapp__btn--primary', busy === 'telegram' ? 'Waiting for Telegram…' : 'Connect Telegram');
-        on.type = 'button';
-        on.disabled = busy !== '';
-        on.addEventListener('click', () =>
-          run('telegram', async () => {
-            const { url } = await deps.account.call<{ url: string }>(session, { op: 'telegram-link' }, NOTIFY);
-            window.open(url, '_blank', 'noopener');
-            message = 'Telegram opened. Press Start there, and this will say Connected.';
-            waitForTelegram(deps);
-          }),
-        );
-        row.append(on);
-      }
-      rows.append(row);
-    }
-
-    if (config.webpush) {
-      const row = el('div', 'wapp-pa__row');
-      row.append(el('strong', '', 'This browser'));
-      if (hereChannel) {
-        row.append(el('span', 'wapp-pa__on', 'On'));
-        const off = el('button', 'wapp__btn wapp__btn--ghost', 'Turn off');
-        off.type = 'button';
-        off.addEventListener('click', () => run('unlink-web', async () => { await deps.account.call(session, { op: 'unlink', id: hereChannel.id }, NOTIFY); await turnOffBrowser(); setMine(session.owner, null); await loadStatus(deps); }));
-        row.append(off);
-      } else {
-        const on = el('button', 'wapp__btn wapp__btn--primary', busy === 'web' ? 'Setting up…' : 'Turn on browser alerts');
-        on.type = 'button';
-        on.disabled = busy !== '';
-        on.addEventListener('click', () => run('web', async () => { await turnOnBrowser(deps, session); await loadStatus(deps); message = 'Browser alerts are on. Press "Send a test" to see one.'; }));
-        row.append(on);
-      }
-      rows.append(row);
-    }
-    box.append(rows);
-
-    if (channels.length > 0) {
-      const settings = el('div', 'wapp-pa__row');
-      settings.append(el('span', 'wapp__fine', 'Tell me when a favourite moves by'));
-      const pct = el('select', 'wapp__input');
-      pct.setAttribute('aria-label', 'How big a move to report');
-      for (const p of PCT_CHOICES) {
-        const o = el('option', '', `${p}%`);
-        o.value = String(p);
-        pct.append(o);
-      }
-      pct.value = String(status?.prefs.movePct ?? 5);
-      pct.addEventListener('change', () => run('prefs', async () => { await deps.account.call(session, { op: 'prefs', movePct: Number(pct.value), enabled: status?.prefs.enabled ?? true }, NOTIFY); await loadStatus(deps); }));
-      const test = el('button', 'wapp__btn wapp__btn--ghost', busy === 'test' ? 'Sending…' : 'Send a test');
-      test.type = 'button';
-      test.disabled = busy !== '';
-      test.addEventListener('click', () => run('test', async () => { const r = await deps.account.call<{ sent: number; of: number }>(session, { op: 'test' }, NOTIFY); message = r.sent > 0 ? `Sent to ${r.sent} of ${r.of}. It should arrive in a few seconds.` : 'Nothing could be delivered. Try removing and linking again.'; }));
-      settings.append(pct, test);
-      box.append(settings, marketSettings(session));
-    }
-    if (message) box.append(el('p', 'wapp__fine wapp-pa__msg', message));
-    if (config.webpush && isIos() && !standalone()) box.append(el('p', 'wapp__fine', 'On iPhone, browser alerts only work once Aretia is added to your Home Screen (Share, then Add to Home Screen). Telegram works without that.'));
+    return group;
   }
 
-  /** New launches, large buys and liquidity removed: each change is saved at once. */
-  function marketSettings(session: Session): HTMLElement {
-    const wrap = el('div', 'wapp-pa__rows');
-    wrap.setAttribute('data-market-alerts', '');
-    wrap.append(el('strong', '', 'Market alerts'));
+  /** One kind of alert: what it is on the left, its setting on the right (below it on a phone). */
+  function rule(title: string, hint: string, on: boolean, ...controls: HTMLElement[]): HTMLElement {
+    const row = el('div', `wapp-pa__rule${on ? ' is-on' : ''}`);
+    const text = el('div', 'wapp-pa__rule-text');
+    text.append(el('strong', '', title), el('span', 'wapp-pa__hint', hint));
+    const ctl = el('div', 'wapp-pa__rule-ctl');
+    ctl.append(...controls);
+    row.append(text, ctl);
+    return row;
+  }
+
+  function channelTile(kind: 'telegram' | 'browser', name: string, connected: boolean, state: string, action: HTMLButtonElement): HTMLElement {
+    const tile = el('div', `wapp-pa__ch${connected ? ' is-on' : ''}`);
+    const text = el('div', 'wapp-pa__ch-text');
+    text.append(el('strong', '', name), el('span', 'wapp-pa__ch-state', state));
+    tile.append(icon(kind, 'wapp-pa__ch-icon'), text, action);
+    return tile;
+  }
+
+  const button = (text: string, kind: 'primary' | 'ghost', disabled: boolean, onClick: () => void, spinning = false): HTMLButtonElement => {
+    const b = el('button', `wapp__btn wapp__btn--${kind} wapp-pa__btn`);
+    b.type = 'button';
+    if (spinning) {
+      b.append(el('span', 'wapp-pa__spin'));
+      b.setAttribute('aria-busy', 'true');
+    }
+    b.append(document.createTextNode(text));
+    b.disabled = disabled;
+    b.addEventListener('click', onClick);
+    return b;
+  };
+
+  function draw(): void {
+    box.replaceChildren();
+    const session = deps.session();
+    const channels = session ? (status?.channels ?? []) : [];
+    const head = el('header', 'wapp-pa__head');
+    const titles = el('div', 'wapp-pa__titles');
+    const h = el('h3', 'wapp-pa__title', 'Alerts on your phone');
+    h.id = 'wapp-pa-title';
+    titles.append(h, el('p', 'wapp-pa__sub', 'Telegram or browser notifications about your favourites and the market, even when Aretia is closed.'));
+    const pill = el('span', `wapp-pa__status${channels.length > 0 ? ' is-on' : ''}`, channels.length > 0 ? `On · ${channels.length === 1 ? '1 place' : `${channels.length} places`}` : 'Off');
+    head.append(icon('bell', 'wapp-pa__bell'), titles, pill);
+    box.append(head);
+
+    const body = el('div', 'wapp-pa__body');
+    box.append(body);
+
+    if (!config) {
+      body.append(el('div', 'wapp-pa__skel'), el('div', 'wapp-pa__skel wapp-pa__skel--short'));
+    } else if (!config.telegram && !config.webpush) {
+      body.append(el('p', 'wapp-pa__empty', 'Alerts to your phone are not switched on yet. They will appear here as soon as Aretia finishes setting them up.'));
+    } else if (!session) {
+      const cta = el('div', 'wapp-pa__cta');
+      const why = el('div', 'wapp-pa__cta-text');
+      why.append(el('strong', '', deps.canSign() ? 'Sign once to start' : 'Connect a wallet to start'), el('span', 'wapp-pa__hint', deps.canSign() ? 'Aretia needs to know whose favourites to watch. You sign a free message: it is not a transaction and cannot move funds.' : 'Alerts follow the favourites saved to your wallet.'));
+      const waiting = busy === 'signin';
+      cta.append(why, button(waiting ? 'Check your wallet…' : 'Turn on alerts', 'primary', !deps.canSign() || busy !== '', () => run('signin', async () => { await deps.signIn(); await loadStatus(deps); }), waiting));
+      body.append(cta);
+    } else {
+      const here = mine()[session.owner];
+      const tg = channels.find((c) => c.kind === 'telegram');
+      const hereChannel = channels.find((c) => c.kind === 'webpush' && c.id === here);
+      const others = channels.filter((c) => c.kind === 'webpush' && c.id !== here).length;
+
+      body.append(el('span', 'wapp__eyebrow', 'Send alerts to'));
+      const tiles = el('div', 'wapp-pa__chs');
+      if (config.telegram) {
+        const action = tg
+          ? button('Remove', 'ghost', busy !== '', () => run('unlink-tg', async () => { await deps.account.call(session, { op: 'unlink', id: tg.id }, NOTIFY); await loadStatus(deps); }))
+          : button(busy === 'telegram' ? 'Waiting…' : 'Connect', 'primary', busy !== '', () =>
+              run('telegram', async () => {
+                const { url } = await deps.account.call<{ url: string }>(session, { op: 'telegram-link' }, NOTIFY);
+                window.open(url, '_blank', 'noopener');
+                message = 'Telegram opened. Press Start there, and this will say Connected.';
+                waitForTelegram(deps);
+              }), busy === 'telegram');
+        tiles.append(channelTile('telegram', 'Telegram', !!tg, tg ? 'Connected' : 'Not connected', action));
+      }
+      if (config.webpush) {
+        const action = hereChannel
+          ? button('Turn off', 'ghost', busy !== '', () => run('unlink-web', async () => { await deps.account.call(session, { op: 'unlink', id: hereChannel.id }, NOTIFY); await turnOffBrowser(); setMine(session.owner, null); await loadStatus(deps); }))
+          : button(busy === 'web' ? 'Setting up…' : 'Turn on', 'primary', busy !== '', () => run('web', async () => { await turnOnBrowser(deps, session); await loadStatus(deps); message = 'Browser alerts are on. Press "Send a test" to see one.'; }), busy === 'web');
+        tiles.append(channelTile('browser', 'This browser', !!hereChannel, hereChannel ? 'On' : others > 0 ? `Off here · on in ${others} other${others === 1 ? '' : 's'}` : 'Off', action));
+      }
+      body.append(tiles);
+      if (config.webpush && isIos() && !standalone()) body.append(el('p', 'wapp-pa__hint', 'On iPhone, browser alerts work once Aretia is on your Home Screen (Share, then Add to Home Screen). Telegram works without that.'));
+
+      body.append(el('span', 'wapp__eyebrow', 'Alert me about'));
+      const rules = el('div', 'wapp-pa__rules');
+      rules.append(rule('Price moves', 'A favourite moves this much, up or down. Prices you set are always sent.', true, choices('How big a move to report', PCT_CHOICES, status?.prefs.movePct ?? 5, (p) => `${p}%`, (p) => {
+        if (status) status.prefs = { ...status.prefs, movePct: p };
+        run('prefs', async () => { await deps.account.call(session, { op: 'prefs', movePct: p, enabled: status?.prefs.enabled ?? true }, NOTIFY); });
+      })));
+      rules.append(...marketRules(session));
+      body.append(rules);
+      if (channels.length === 0) body.append(el('p', 'wapp-pa__hint', 'Connect Telegram or this browser above to receive these.'));
+
+      const foot = el('div', 'wapp-pa__foot');
+      foot.append(el('span', 'wapp-pa__hint', `At most ${MAX_MARKET_PER_RUN} market alerts at a time and ${MAX_MARKET_PER_HOUR} an hour. They can arrive a few minutes after the event.`));
+      if (channels.length > 0) foot.append(button(busy === 'test' ? 'Sending…' : 'Send a test', 'ghost', busy !== '', () => run('test', async () => { const r = await deps.account.call<{ sent: number; of: number }>(session, { op: 'test' }, NOTIFY); message = r.sent > 0 ? `Sent to ${r.sent} of ${r.of}. It should arrive in a few seconds.` : 'Nothing could be delivered. Try removing and linking again.'; }), busy === 'test'));
+      body.append(foot);
+    }
+    const note = el('p', 'wapp-pa__msg', message);
+    note.setAttribute('role', 'status');
+    note.hidden = !message;
+    body.append(note);
+    const safe = el('p', 'wapp-pa__safe');
+    safe.append(icon('shield', 'wapp-pa__safe-icon'), document.createTextNode('Alerts only say what happened and link back here. They never ask you to sign or approve anything.'));
+    box.append(safe);
+  }
+
+  /** New launches, large buys and liquidity removed: each change shows at once and is saved straight away. */
+  function marketRules(session: Session): HTMLElement[] {
     if (status?.market === null) {
-      wrap.append(el('p', 'wapp__fine', 'Alerts for new launches, large buys and liquidity removed are not switched on on this server yet.'));
-      return wrap;
+      const off = el('div', 'wapp-pa__rule is-unavailable');
+      off.setAttribute('data-market-alerts', '');
+      const t = el('div', 'wapp-pa__rule-text');
+      t.append(el('strong', '', 'Launches, large buys, liquidity removed'), el('span', 'wapp-pa__hint', 'Not switched on on this server yet.'));
+      off.append(t);
+      return [off];
     }
     const cur: MarketPrefs = status?.market ?? MARKET_PREFS_OFF;
-    const save = (next: MarketPrefs): void =>
+    const save = (next: MarketPrefs): void => {
+      if (status) status.market = next;
       run('market', async () => {
         const r = await deps.account.call<{ market: MarketPrefs }>(session, { op: 'market-prefs', ...next }, NOTIFY);
         if (status) status.market = r.market;
       });
-    const select = (label: string, choices: readonly number[], value: number, text: (n: number) => string, onChange: (n: number) => void): HTMLSelectElement => {
-      const s = el('select', 'wapp__input');
-      s.setAttribute('aria-label', label);
-      for (const c of choices) {
-        const o = el('option', '', text(c));
-        o.value = String(c);
-        s.append(o);
-      }
-      s.value = String(value);
-      s.disabled = busy !== '';
-      s.addEventListener('change', () => onChange(Number(s.value)));
-      return s;
     };
+    const usd = (n: number, zero: string): string => (n === 0 ? zero : `${compactUsd(n)}+`);
 
-    const launches = el('div', 'wapp-pa__row');
-    launches.append(el('span', 'wapp__fine', 'New launches on'));
+    const chainChips = el('div', 'wapp-pa__seg wapp-pa__seg--wrap');
+    chainChips.setAttribute('role', 'group');
+    chainChips.setAttribute('aria-label', 'Networks to report new launches on');
     for (const c of MI_CHAINS) {
-      const lab = el('label', 'wapp__fine');
-      const box2 = el('input');
-      box2.type = 'checkbox';
-      box2.checked = cur.launchChains.includes(c);
-      box2.disabled = busy !== '';
-      box2.addEventListener('change', () => save({ ...cur, launchChains: box2.checked ? [...cur.launchChains, c] : cur.launchChains.filter((x) => x !== c) }));
-      lab.append(box2, document.createTextNode(` ${CHAINS[c].name}`));
-      launches.append(lab);
+      const on = cur.launchChains.includes(c);
+      const b = el('button', 'wapp-pa__opt', CHAINS[c].name.replace(/ Chain$/, ''));
+      b.type = 'button';
+      b.setAttribute('aria-pressed', String(on));
+      b.disabled = busy !== '';
+      b.addEventListener('click', () => save({ ...cur, launchChains: on ? cur.launchChains.filter((x) => x !== c) : [...cur.launchChains, c] }));
+      chainChips.append(b);
     }
-    launches.append(el('span', 'wapp__fine', 'with liquidity of at least'), select('Smallest liquidity for a new launch', LAUNCH_MIN_LIQ_CHOICES, cur.launchMinLiqUsd, (n) => (n === 0 ? 'any' : compactUsd(n)), (n) => save({ ...cur, launchMinLiqUsd: n })));
-
-    const buys = el('div', 'wapp-pa__row');
-    buys.append(el('span', 'wapp__fine', 'A favourite is bought for'), select('Smallest buy of a favourite to report', BIG_BUY_CHOICES, cur.bigBuyUsd, (n) => (n === 0 ? 'off' : `${compactUsd(n)} or more`), (n) => save({ ...cur, bigBuyUsd: n })));
-
-    const liq = el('div', 'wapp-pa__row');
-    liq.append(el('span', 'wapp__fine', "Liquidity taken out of a favourite's pool"), select('Share of liquidity taken out to report', LIQ_DROP_CHOICES, cur.liqDropPct, (n) => (n === 0 ? 'off' : `${n}% or more`), (n) => save({ ...cur, liqDropPct: n })));
-
-    wrap.append(launches, buys, liq, el('p', 'wapp__fine', `At most ${MAX_MARKET_PER_RUN} market alerts at a time and ${MAX_MARKET_PER_HOUR} an hour. Liquidity locks are not tracked: this tells you when liquidity leaves a pool, not when a lock ends. An alert can arrive some minutes after the event.`));
-    return wrap;
+    const launchCtl: HTMLElement[] = [chainChips];
+    if (cur.launchChains.length > 0) {
+      const min = el('div', 'wapp-pa__sub-ctl');
+      min.append(el('span', 'wapp-pa__hint', 'Liquidity at least'), choices('Smallest liquidity for a new launch', LAUNCH_MIN_LIQ_CHOICES, cur.launchMinLiqUsd, (n) => usd(n, 'Any'), (n) => save({ ...cur, launchMinLiqUsd: n })));
+      launchCtl.push(min);
+    }
+    const launches = rule('New launches', 'A new pool opens on the networks you pick.', cur.launchChains.length > 0, ...launchCtl);
+    launches.setAttribute('data-market-alerts', '');
+    const buys = rule('Large buys', 'Someone buys a favourite for at least this much in one go.', cur.bigBuyUsd > 0, choices('Smallest buy of a favourite to report', BIG_BUY_CHOICES, cur.bigBuyUsd, (n) => usd(n, 'Off'), (n) => save({ ...cur, bigBuyUsd: n })));
+    const liq = rule('Liquidity removed', "This share of a favourite's pool is taken out, from its high of the last day. Locks are not tracked.", cur.liqDropPct > 0, choices('Share of liquidity taken out to report', LIQ_DROP_CHOICES, cur.liqDropPct, (n) => (n === 0 ? 'Off' : `${n}%`), (n) => save({ ...cur, liqDropPct: n })));
+    return [launches, buys, liq];
   }
 
   redraw = draw;

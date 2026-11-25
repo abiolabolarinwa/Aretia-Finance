@@ -89,6 +89,7 @@ import { isChainEnabled, loadRuntime, runtime } from '../swings/runtime.js';
 import { browserStorage, lastSwapOf, repeatLabel, SwapHistory, type HistoryItem } from '../swings/history.js';
 import { AretiaRouter, explainNoRoute } from '../swings/router/router.js';
 import { fetchSizeImpact, searchTokens, SOL_MINT, type Quote as JupiterQuote, type TokenInfo } from './walletSwap';
+import { canAfford, loadSlippage, quickAmountsFor, saveSlippage } from './walletQuickTrade';
 import { KNOWN_TOKENS, SLIPPAGE_PRESETS_BPS, autoSlippage, defaultSlippageBps, fromSmallestUnit, retrySlippageBps, toSmallestUnit } from './walletTools';
 import { cushionUnits, FEE_CUSHION, shareOfBalance, SHARES, type Share } from './walletAmount.js';
 import { imitationChip } from '../lib/imitationChip';
@@ -392,8 +393,9 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
     from: null as TokenInfo | null,
     to: null as TokenInfo | null,
     amount: '',
-    slippageBps: 50,
-    slippageTouched: false,
+    // The slippage this person chose last time stays their choice; with none, it is worked out for each token as before.
+    slippageBps: loadSlippage(browserStorage()) ?? 50,
+    slippageTouched: loadSlippage(browserStorage()) !== null,
     /** Opened from a token's Markets page: the slippage worked out from how that token is behaving, and why (autoSlippage). */
     marketSlippage: null as { bps: number; reason: string | null } | null,
     /** Solana only: send privately through Jito, with a small tip, to lower the chance of being sandwiched. */
@@ -1046,6 +1048,28 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
       chips.append(b);
     }
     row.append(chips);
+    // Round amounts of the network's coin or of a dollar stablecoin, one tap each. They fill the box; the review screen still comes before any signing.
+    const amounts = quickAmountsFor(s.chain, s.from.symbol, s.from.mint === EVM_NATIVE_ADDRESS || s.from.mint === SOL_MINT);
+    if (amounts.length > 0) {
+      const quick = el('div', { class: 'wapp__swap-shares', attrs: { role: 'group', 'aria-label': 'Fill in a round amount' } });
+      const from = s.from;
+      for (const a of amounts) {
+        const b = el('button', { class: 'wapp__chip wapp__chip--btn', text: `${a} ${from.symbol}`, attrs: { type: 'button', 'aria-pressed': String(s.amount === a) } });
+        if (!canAfford(a, from.decimals, bal)) {
+          b.disabled = true;
+          b.title = 'More than your balance';
+        }
+        b.addEventListener('click', () => {
+          s.amount = a;
+          s.notice = null;
+          resetQuote();
+          render();
+          scheduleAuto();
+        });
+        quick.append(b);
+      }
+      row.append(quick);
+    }
     return row;
   }
 
@@ -1551,6 +1575,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
       b.addEventListener('click', () => {
         s.slippageBps = bps;
         s.slippageTouched = true;
+        saveSlippage(browserStorage(), bps);
         resetQuote();
         render();
         scheduleAuto();

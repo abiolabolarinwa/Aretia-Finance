@@ -35,8 +35,14 @@ export type LegStatus = 'pending' | 'active' | 'waiting-user' | 'needs-requote' 
 export interface LegRef {
   /** The settlement orchestrator's execution id, for a settlement leg. */
   executionId?: string;
-  /** Watch data for a ramp leg: the balance when it started. */
+  /** Watch data: the balance of the leg's OUTPUT asset when it started (a ramp's or a swap's), so what arrived can be proven. */
   watchBaseline?: string;
+  /** For a settlement leg: the destination's USDC balance before the move began, so what landed can be proven. */
+  destinationBaseline?: string;
+  /** For a swap leg: the least the swap may deliver (raw units) under the quote the user signed. The proof uses it. */
+  proofMin?: string;
+  /** For a swap leg: how much went in (raw units), under the quote the user signed. */
+  spent?: string;
   /** Transaction hashes or order references Aretia knows about, public only. */
   references?: string[];
 }
@@ -106,4 +112,24 @@ export function whereAreTheFunds(p: PlanRecord): { description: string; asset: s
   const line = last >= 0 ? p.quote.legs[last]!.output : p.quote.spend;
   const where = line.chain ?? 'your bank or card';
   return { description: last >= 0 ? `${line.symbol} at ${where}, from step ${last + 1}` : `${line.symbol} at ${where}, where you started`, asset: line.symbol, chain: line.chain, amount: line.amount };
+}
+
+/**
+ * Whether the user may stop the plan here and keep what they hold, with nothing in flight: no leg is active, and no settlement
+ * has been started (a started move may already be burning funds, so it must finish or be recovered, never abandoned). A swap the
+ * user signed is "active" until its result is known, so it also blocks a stop.
+ */
+export function canStopHere(p: PlanRecord): boolean {
+  if (isPlanFinal(p.state)) return false;
+  for (const l of p.legs) {
+    if (l.status === 'active' || l.status === 'failed') return false;
+    if (l.status !== 'done' && l.kind === 'settlement' && l.ref.executionId) return false;
+    if (l.status !== 'done' && l.kind === 'swap') {
+      // A swap that was sent and is not known to have failed may still land.
+      const refs = l.ref.references ?? [];
+      const last = [...refs].reverse().find((r) => r.startsWith('tx:'));
+      if (last && !refs.includes(`failed:${last.slice(3)}`)) return false;
+    }
+  }
+  return true;
 }

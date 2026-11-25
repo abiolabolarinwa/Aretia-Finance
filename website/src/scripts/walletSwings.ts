@@ -15,6 +15,7 @@ import { createCrossChainRuntime } from './crossChainRuntime.js';
 import { initCrossChain } from './walletCrossChain.js';
 import { initRamp } from './walletRamp.js';
 import { initPlan } from './walletPlan.js';
+import { initCrossTrade } from './walletCrossTrade.js';
 import { mountTokenSearch, OPEN_TOKEN_EVENT } from './walletSearch.js';
 import { SWAP_TOKEN_EVENT, type SwapTokenRequest } from './walletHoldingActions';
 import { lookupAddress } from './walletAddressLookup.js';
@@ -387,6 +388,9 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
   const chainRuntime = createCrossChainRuntime(evm, (c) => isChainEnabled(c), () => host.getAddress());
   const crossChain = initCrossChain(movePanel, chainRuntime);
   const planTab = initPlan(planPanel, chainRuntime);
+  // Buying on another network exists only on a build with PUBLIC_CROSSCHAIN_SWAP_ENABLED=1, which is what puts its pane in the page.
+  const tradePanel = document.querySelector<HTMLElement>('[data-transfer-pane="trade"]');
+  const crossTrade = tradePanel ? initCrossTrade(tradePanel, chainRuntime, router) : null;
   const ramp = initRamp(rampPanel, evm, () => host.getAddress(), (c) => isChainEnabled(c));
   const s = {
     chain: 'solana' as ChainId,
@@ -1567,7 +1571,19 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
     more.addEventListener('toggle', () => {
       detailsOpen = more.open;
     });
-    more.append(banner('info', `Same-chain swap on ${info.name}. Cross-chain swaps are not available yet.`));
+    if (crossTrade) {
+      // Cross-chain trading is switched on for this build: offer it, with the token on screen already filled in.
+      const across = el('button', { class: 'wapp__btn wapp__btn--ghost', text: 'Buy this with a token on another network', attrs: { type: 'button' } });
+      const target = s.to;
+      const chain = s.chain;
+      across.addEventListener('click', () => {
+        location.hash = '#/send';
+        showPayTab('transfer');
+        showTransferMode('trade');
+        if (target) crossTrade.prefill(chain, target.mint);
+      });
+      more.append(banner('info', `Same-chain swap on ${info.name}. To pay with a token on another network, use a cross-chain trade: swap to USDC, move it with Circle, swap again, each step signed by you.`), across);
+    } else more.append(banner('info', `Same-chain swap on ${info.name}. Cross-chain swaps are not available yet.`));
     const slip = el('div', { class: 'wapp__slip', attrs: { role: 'group', 'aria-label': 'Slippage' } });
     slip.append(el('span', { class: 'wapp__eyebrow', text: 'Slippage' }));
     for (const bps of SLIPPAGE_PRESETS_BPS) {
@@ -3063,16 +3079,18 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
     transfer: 'Send USDC from one network to another, or buy USDC with cash and have it end up where you want it. Your wallet approves each step.',
   };
 
-  type TransferMode = 'move' | 'plan';
+  type TransferMode = 'move' | 'plan' | 'trade';
   let transferMode: TransferMode = 'move';
   function showTransferMode(mode: TransferMode): void {
+    if (mode === 'trade' && !crossTrade) mode = 'move';
     transferMode = mode;
     document.querySelectorAll<HTMLElement>('[data-transfer-mode]').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.transferMode === mode)));
     document.querySelectorAll<HTMLElement>('[data-transfer-pane]').forEach((p) => (p.hidden = p.dataset.transferPane !== mode));
     if (mode === 'move') crossChain.draw();
+    else if (mode === 'trade') crossTrade?.draw();
     else planTab.draw();
   }
-  document.querySelectorAll<HTMLElement>('[data-transfer-mode]').forEach((b) => b.addEventListener('click', () => showTransferMode(b.dataset.transferMode === 'plan' ? 'plan' : 'move')));
+  document.querySelectorAll<HTMLElement>('[data-transfer-mode]').forEach((b) => b.addEventListener('click', () => showTransferMode(b.dataset.transferMode === 'plan' ? 'plan' : b.dataset.transferMode === 'trade' ? 'trade' : 'move')));
 
   // Pay: Send, Receive, Cash out or top up, and Move USDC are one page with four cards.
   const receive = initReceive(document.querySelector<HTMLElement>('[data-pay-panel="receive"]') ?? el('div'), { solana: () => host.getAddress(), evm: () => evm.account });

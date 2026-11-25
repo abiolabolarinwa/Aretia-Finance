@@ -78,6 +78,16 @@ describe('notify: settings', () => {
     const again = fake([[/GET .*notify_channels/, () => [{ id: 7, owner: OWNER, kind: 'webpush', ref: 'https://fcm.googleapis.com/fcm/send/abc', secret: 'keepme' }]]]);
     expect(JSON.parse((await handleNotify(input({ fetchImpl: again.fetchImpl, env: e, body: { op: 'push-subscribe', endpoint: 'https://fcm.googleapis.com/fcm/send/abc' }, authorization: session() }))).body)).toEqual({ id: 7, secret: 'keepme' });
   });
+  it('saves market alert settings cleaned, and reports when the database does not have them yet', async () => {
+    const f = fake([]);
+    const out = await handleNotify(input({ fetchImpl: f.fetchImpl, body: { op: 'market-prefs', launchChains: ['solana', 'x'], launchMinLiqUsd: 5000, bigBuyUsd: 7, liqDropPct: 50 }, authorization: session() }));
+    expect(JSON.parse(out.body)).toEqual({ ok: true, market: { launchChains: ['solana'], launchMinLiqUsd: 5000, bigBuyUsd: 0, liqDropPct: 50 } });
+    expect(f.find(/POST .*notify_market_prefs/)[0]!.body).toEqual({ owner: OWNER, launch_chains: ['solana'], launch_min_liq: 5000, big_buy_usd: 0, liq_drop_pct: 50, updated_at: NOW });
+    const missing = fake([[/notify_market_prefs/, () => new Response('', { status: 404 })]]);
+    expect((await handleNotify(input({ fetchImpl: missing.fetchImpl, body: { op: 'market-prefs' }, authorization: session() }))).status).toBe(503);
+    const status = JSON.parse((await handleNotify(input({ fetchImpl: missing.fetchImpl, body: { op: 'status' }, authorization: session() }))).body) as { market: unknown };
+    expect(status.market).toBeNull();
+  });
   it('checks price orders field by field', () => {
     const good = { id: 'o1', chain: 'base', address: BASE_ADDR, symbol: 'AAA', name: 'Aaa', icon: null, side: 'buy', targetUsd: 0.5, createdAt: 5 };
     expect(cleanOrder(good)).toMatchObject({ id: 'o1', chain: 'base', side: 'buy', targetUsd: 0.5 });
@@ -156,6 +166,12 @@ describe('the scheduled check', () => {
     expect((sent[0]!.body as { text: string }).text).toContain('AAA ▲ +20.0%');
     expect((sent[0]!.body as { text: string }).text).toContain('https://aretiafinance.org/wallet#/favourites');
     expect((f.find(/POST .*notify_state/)[0]!.body as { baseline: number }[])[0]!.baseline).toBeCloseTo(1.2, 6);
+  });
+  it('keeps the price alerts when the market alerts fail, and says why in the answer', async () => {
+    const f = fake([[/GET .*notify_market_prefs/, () => new Response('no table', { status: 404 })], ...routes('1.20')]);
+    const out = await handleAlertsRun(input({ fetchImpl: f.fetchImpl, method: 'GET', authorization: 'Bearer cron-secret' }));
+    expect(out.status).toBe(200);
+    expect(JSON.parse(out.body)).toMatchObject({ sent: 1, market: expect.stringContaining('404') });
   });
   it('sends nothing for a small move', async () => {
     const f = fake(routes('1.01'));

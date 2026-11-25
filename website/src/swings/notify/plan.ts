@@ -34,7 +34,7 @@ export interface OwnerWatch {
 }
 
 export interface PlannedMessage {
-  kind: 'move' | 'order';
+  kind: 'move' | 'order' | 'launch' | 'buy' | 'liquidity';
   title: string;
   body: string;
   /** A path on this site that opens the token's page. */

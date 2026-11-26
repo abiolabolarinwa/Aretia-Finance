@@ -2057,7 +2057,8 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
       },
     });
     /** Every list goes through both: a rating for each row, and a padlock where the liquidity is shown to be locked. */
-    const rateRows = (list: readonly MarketRow[]): MarketRow[] => locks.rate(ratings.rate(list));
+    // A whole list only gets the lock answers already known; the rows on screen are the ones checked (locks.rate(shown) where the table is drawn).
+    const rateRows = (list: readonly MarketRow[]): MarketRow[] => locks.know(ratings.rate(list));
 
     const panel = createMarketPanel({
       assess: assessRow,

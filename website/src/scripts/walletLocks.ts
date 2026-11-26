@@ -140,6 +140,16 @@ export function createLockQueue(o: LockQueueOptions) {
   }
 
   return {
+    /** Applies what is already known to the rows, and checks nothing: for a whole list, of which only the rows on screen are checked (`rate`). */
+    know(rows: readonly MarketRow[]): MarketRow[] {
+      for (const r of rows) {
+        if (r.lockedPct !== null && r.lockedPct !== undefined) continue;
+        if (!r.pool) continue;
+        const k = known(r);
+        if (k) apply(r, k.found);
+      }
+      return rows as MarketRow[];
+    },
     /** Applies what is already known to the rows and queues the rest, in the order they appear. */
     rate(rows: readonly MarketRow[]): MarketRow[] {
       waiting = [];

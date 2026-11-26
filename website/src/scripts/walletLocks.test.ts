@@ -173,3 +173,25 @@ describe('lock answers kept between visits', () => {
   });
 });
 
+describe('a whole list is only given what is already known', () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  it('know() checks nothing, and applies answers found earlier for the rows on screen', async () => {
+    const check = vi.fn(async () => found(100));
+    const q = createLockQueue({ check, onChange: () => undefined });
+    const whole = [row('0xa'), row('0xb'), row('0xc')];
+    q.know(whole);
+    await vi.advanceTimersByTimeAsync(3_000);
+    expect(check).not.toHaveBeenCalled();
+    q.rate([whole[0]!]);
+    await vi.advanceTimersByTimeAsync(3_000);
+    expect(check).toHaveBeenCalledTimes(1);
+    const again = [row('0xa'), row('0xb')];
+    q.know(again);
+    expect(again[0]!.lockedPct).toBe(100);
+    expect(again[1]!.lockedPct ?? null).toBeNull();
+    expect(check).toHaveBeenCalledTimes(1);
+  });
+});
+

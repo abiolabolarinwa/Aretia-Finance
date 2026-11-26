@@ -2004,10 +2004,16 @@ const sendTips = [
   .wapp-mt__num.is-down { color: #b3261e; }
   .wapp-mt__num.is-pending { color: #8a8f98; }
   /* A price that just moved (a live update) flashes for a moment, green for up and red for down. */
-  .wapp-mt__num.is-tick-up { animation: wapp-tick-up 1.2s ease-out; }
-  .wapp-mt__num.is-tick-down { animation: wapp-tick-down 1.2s ease-out; }
-  @keyframes wapp-tick-up { from { background-color: rgba(27, 138, 75, .3); } to { background-color: transparent; } }
-  @keyframes wapp-tick-down { from { background-color: rgba(179, 38, 30, .3); } to { background-color: transparent; } }
+  .wapp-mt__num.is-tick-up, .wapp-mt__num.is-tick-down { border-radius: 4px; }
+  .wapp-mt__num.is-tick-up { animation: wapp-tick-up 0.9s ease-out; }
+  .wapp-mt__num.is-tick-down { animation: wapp-tick-down 0.9s ease-out; }
+  /* The text takes the colour of the move too, and both fade back to the cell's own colours, as on the board. */
+  @keyframes wapp-tick-up { from { color: #15803d; background-color: rgba(27, 138, 75, .24); } to { background-color: transparent; } }
+  @keyframes wapp-tick-down { from { color: #b42318; background-color: rgba(179, 38, 30, .22); } to { background-color: transparent; } }
+  :root[data-theme='dark'] .wapp-mt__num.is-tick-up { animation-name: wapp-tick-up-dark; }
+  :root[data-theme='dark'] .wapp-mt__num.is-tick-down { animation-name: wapp-tick-down-dark; }
+  @keyframes wapp-tick-up-dark { from { color: #3ddc84; background-color: rgba(61, 220, 132, .22); } to { background-color: transparent; } }
+  @keyframes wapp-tick-down-dark { from { color: #ff6b6b; background-color: rgba(255, 107, 107, .22); } to { background-color: transparent; } }
   @media (prefers-reduced-motion: reduce) { .wapp-mt__num.is-tick-up, .wapp-mt__num.is-tick-down { animation: none; } }
   /* ---- Markets, compact: one dense toolbar, short rows and a tight side panel, in the manner of a trading list ---- */
   .wapp__card.wapp-mt__card { padding: 8px 10px 10px; gap: 6px; }

@@ -210,11 +210,36 @@ export function updateLiveCells(table: ParentNode, rows: readonly MarketRow[], b
     liveCells(r).forEach((fresh, i) => {
       const old = tr.querySelector<HTMLElement>(`[data-live="${i}"]`);
       if (!old || (old.textContent === fresh.textContent && old.className === fresh.className)) return;
-      const dir = i === 1 && prev && prev.priceUsd !== null && r.priceUsd !== null && r.priceUsd !== prev.priceUsd ? (r.priceUsd > prev.priceUsd ? 'up' : 'down') : null;
+      const dir = tickDirection(i, r, prev);
       if (dir) fresh.classList.add(`is-tick-${dir}`);
       old.replaceWith(fresh);
     });
   }
+}
+
+/** The live cells that flash when their number moves: the price, and the 5M, 1H, 6H and 24H changes. */
+const TICK_CHANGE: Readonly<Record<number, 'm5' | 'h1' | 'h6' | 'h24'>> = { 5: 'm5', 6: 'h1', 7: 'h6', 8: 'h24' };
+
+/** Which way live cell `i` of a row moved since `prev`, or null when it did not (or there is nothing to compare with). */
+export function tickDirection(i: number, r: MarketRow, prev: MarketRow | undefined): 'up' | 'down' | null {
+  if (!prev) return null;
+  const field = TICK_CHANGE[i];
+  const now = i === 1 ? r.priceUsd : field ? r.change[field] : null;
+  const was = i === 1 ? prev.priceUsd : field ? prev.change[field] : null;
+  if (now === null || was === null || now === undefined || was === undefined || now === was) return null;
+  return now > was ? 'up' : 'down';
+}
+
+/** The keys of the table rows inside the window now, at most `max`: the ones worth asking a fresh price for. */
+export function visibleRowKeys(table: ParentNode, max = 30): string[] {
+  const out: string[] = [];
+  for (const tr of table.querySelectorAll<HTMLElement>('.wapp-mt__row[data-k]')) {
+    const box = tr.getBoundingClientRect();
+    if (box.bottom <= 0) continue;
+    if (box.top >= window.innerHeight || out.length >= max) break;
+    out.push(tr.dataset.k!);
+  }
+  return out;
 }
 
 /** The key a row carries, so a selection can be found again after the table is redrawn. */

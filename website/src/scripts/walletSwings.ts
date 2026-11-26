@@ -28,7 +28,7 @@ import { fetchMissingCaps } from './walletMarketCap.js';
 import { fetchLivePrices } from './walletMarketPrices.js';
 import { overviewBand } from './walletMarketOverview.js';
 import { fetchMarketIntel, intelNow } from '../swings/market/intel/client.js';
-import { markSelected, marketTable, tableRowKey, updateLiquidityCells, updateLiveCells, updateRatingCells, type TableState } from './walletMarketTable.js';
+import { markSelected, marketTable, tableRowKey, updateLiquidityCells, updateLiveCells, updateRatingCells, visibleRowKeys, type TableState } from './walletMarketTable.js';
 import { createLiveStream } from './walletLiveStream.js';
 import { applyLive, capAtPrice, type LiveUpdate } from '../swings/market/liveFields.js';
 import { createBoardFeed, poolKey as boardKey } from '../swings/charts/chainBoard.js';
@@ -2805,7 +2805,44 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
               if (filled.length > 0 && boardEl?.isConnected) updateBoardCards(boardEl, filled);
             });
           });
-        } else boardEl = null;
+        } else {
+          boardEl = null;
+          // As on the board: once a second the rows inside the window are asked of DexScreener for a fresh price and price changes, so the
+          // price and change columns keep moving (and flash) whether or not Aretia's own stream has seen a trade yet. A second request is
+          // never started before the last one has come back. A price read from the chain in the last few seconds is kept.
+          const rowsAt = new Map(shownRows.map((r) => [tableRowKey(r), r]));
+          let busy = false;
+          const tick = setInterval(() => {
+            if (busy || document.hidden || !tableEl?.isConnected) return;
+            const want = visibleRowKeys(tableEl).map((k) => rowsAt.get(k)).filter((r): r is MarketRow => r !== undefined);
+            if (want.length === 0) return;
+            busy = true;
+            void fetchLivePrices(want.map((r) => ({ chain: r.chain, address: r.address })))
+              .then((got) => {
+                const changed: MarketRow[] = [];
+                const before = new Map<string, MarketRow>();
+                const now = Date.now();
+                for (const r of want) {
+                  const v = got.get(tableRowKey(r));
+                  if (!v) continue;
+                  const fromChain = r.pool ? chainLast.get(boardKey(r.chain, r.pool)) : undefined;
+                  const price = fromChain && now - fromChain.at < 3_000 ? r.priceUsd : v.priceUsd;
+                  const moved = r.priceUsd !== price || Object.entries(v.change).some(([k, n]) => r.change[k as 'm5' | 'h1' | 'h6' | 'h24'] !== n);
+                  if (!moved) continue;
+                  before.set(tableRowKey(r), { ...r, change: { ...r.change } });
+                  if (price !== null && r.capUsd !== null && r.priceUsd !== null && r.priceUsd > 0) r.capUsd = r.capUsd * (price / r.priceUsd);
+                  r.priceUsd = price;
+                  r.change = { ...r.change, ...v.change };
+                  changed.push(r);
+                }
+                if (changed.length > 0 && tableEl?.isConnected) updateLiveCells(tableEl, changed, before);
+              })
+              .finally(() => {
+                busy = false;
+              });
+          }, 1000);
+          stopPricePoll = () => clearInterval(tick);
+        }
         const main = el('div', { class: 'wapp-mt__main' }, featured ? [featured, body] : [body]);
         inMain = main;
         card.append(main);

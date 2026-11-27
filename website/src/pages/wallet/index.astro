@@ -2674,4 +2674,21 @@ const sendTips = [
     .wapp-lb__row td::before { font-size: 9.5px; }
     .wapp-lb__chart:has(> .wapp-lb__chartempty:only-child) { display: none; }
   }
+  /* Phones: the wallet's value and Deposit (or Connect) in the site bar, and search as a round button beside the bottom bar
+     (src/scripts/walletTopBar.ts). Wider screens keep their bar. */
+  .nav-balance, .wapp-search-fab { display: none; }
+  @media (max-width: 720px) {
+    .nav-balance { display: flex; flex: 1 1 auto; align-items: center; gap: 8px; min-width: 0; margin: 0 6px; }
+    .nav-balance [hidden] { display: none; }
+    .nav-balance__value { min-width: 0; overflow: hidden; padding: 0; font: inherit; font-size: 20px; font-weight: 750; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; color: var(--color-strong); text-overflow: ellipsis; white-space: nowrap; background: none; border: 0; cursor: pointer; }
+    .nav-balance__btn { flex: none; min-height: 36px; margin-left: auto; padding: 0 14px; font: inherit; font-size: 13.5px; font-weight: 650; color: var(--color-bg); background: var(--color-strong); border: 0; border-radius: 999px; cursor: pointer; }
+    .nav--wallet .nav__bar > .wapp-search { display: none; }
+    html.is-searching .nav--wallet .nav__bar > .wapp-search { display: block; position: fixed; top: calc(var(--nav-height) + 8px); left: 12px; right: 12px; z-index: 95; max-width: none; margin: 0; }
+    .wapp-search-fab { display: grid; place-items: center; position: fixed; right: 12px; bottom: calc(10px + env(safe-area-inset-bottom)); z-index: 81; width: 62px; height: 62px; padding: 0; color: var(--color-strong); background: var(--color-bg); border: 1px solid var(--color-border); border-radius: 50%; box-shadow: 0 12px 32px -10px rgba(0, 0, 0, 0.28); cursor: pointer; }
+    .wapp__side { right: 84px; }
+    body:has(.wapp[data-view='dashboard'][data-connected='false']) .wapp-search-fab,
+    body:has(.wapp-tp:not([hidden]) > .wapp-tp__dock) .wapp-search-fab,
+    body:has(.wapp[data-more-open]) .wapp-search-fab { display: none; }
+    body:has(.wapp[data-view='dashboard'][data-connected='false']) .wapp__side { right: 12px; }
+  }
 </style>

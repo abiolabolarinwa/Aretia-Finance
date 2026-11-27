@@ -2526,4 +2526,11 @@ const sendTips = [
     .wapp[data-view='dashboard'][data-connected='false'] .wapp__main { min-height: calc(100svh - var(--nav-height) - 96px - env(safe-area-inset-bottom)); grid-template-rows: minmax(0, 1fr); align-content: stretch; }
     .wapp[data-view='dashboard'][data-connected='false'] .wapp__gate { align-self: center; }
   }
+  /* Phones: Markets keeps to what it is for: the networks, the search box, the tabs and the token list. The island, the tour button,
+     the three stats and the overview cards are left to wider screens; the loading placeholder sits where the list will be. */
+  @media (max-width: 720px) {
+    .wapp:is([data-view='swings'], [data-view='favourites']) :is(.wapp-island, .wapp__chips) { display: none; }
+    .wapp-mt__card > :is(.wapp-mt__stats, .wapp-ov) { display: none; }
+    .wapp-mt__card > .aretia-loading { order: 4; }
+  }
 </style>

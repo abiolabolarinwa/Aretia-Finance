@@ -2306,10 +2306,10 @@ const sendTips = [
     .wapp__nav { display: flex; align-items: center; justify-content: space-between; gap: 4px; }
     .wapp__nav > button { flex: 0 0 auto; justify-content: center; gap: 8px; min-width: 48px; min-height: 48px; padding: 0 14px; font-size: 13px; font-weight: 600; color: var(--color-muted); border-radius: 999px; }
     .wapp__nav > button svg { width: 21px; height: 21px; }
-    .wapp__nav > button .wapp__label { display: none; white-space: nowrap; }
+    /* Icons only in the bar: the names stay for screen readers */
+    .wapp__nav > button .wapp__label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
     .wapp__nav > button:hover { color: var(--color-strong); background: var(--color-bg-alt); }
     .wapp__nav > button[aria-current='page'] { color: #fff; background: var(--color-brand); }
-    .wapp__nav > button[aria-current='page'] .wapp__label { display: inline; }
     .wapp__nav > button:not([data-nav='dashboard'], [data-nav='swings'], [data-nav='send'], [data-nav='launch'], .wapp__more) { display: none; }
     .wapp__nav .wapp__more { display: flex; }
     /* When the current section lives under More, More is the pill */
@@ -2318,7 +2318,7 @@ const sendTips = [
     .wapp[data-more-open] .wapp__side { padding: 16px 10px 10px; border-radius: 24px; }
     .wapp[data-more-open] .wapp__nav { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
     .wapp[data-more-open] .wapp__nav > button { display: flex; flex-direction: column; gap: 5px; min-height: 64px; padding: 8px 2px; font-size: 11px; font-weight: 500; border-radius: 16px; }
-    .wapp[data-more-open] .wapp__nav > button .wapp__label { display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+    .wapp[data-more-open] .wapp__nav > button .wapp__label { position: static; display: block; width: auto; height: auto; max-width: 100%; overflow: hidden; clip-path: none; text-overflow: ellipsis; }
     .wapp[data-more-open] .wapp__more-scrim:not([hidden]) { display: block; position: fixed; inset: 0; z-index: 79; background: rgba(0, 0, 0, 0.4); }
     .wapp__main { padding: 14px 14px calc(96px + env(safe-area-inset-bottom)); }
     /* Markets: smaller network buttons and a compact three-up stats row */
@@ -2392,8 +2392,7 @@ const sendTips = [
      activity live under their own sections (Markets, the header wallet button, Activity). */
   @media (max-width: 720px) {
     .wapp__nav { flex-wrap: nowrap; }
-    .wapp__nav > button { flex: 0 1 auto; min-width: 44px; padding: 0 12px; }
-    .wapp__nav > button[aria-current='page'] .wapp__label { max-width: 92px; overflow: hidden; text-overflow: ellipsis; }
+    .wapp__nav > button { flex: 1 1 0; min-width: 0; padding: 0; }
     .wapp__main { padding-top: 10px; align-content: start; }
     .wapp-dash, .wapp-dash__main, .wapp-dash__side { align-content: start; }
     .wapp[data-connected='false']:is([data-view='dashboard'], [data-view='send'], [data-view='activity']) .wapp__main { grid-template-rows: none; gap: 10px; }

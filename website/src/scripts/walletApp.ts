@@ -16,6 +16,7 @@ import { CHAIN_IDS, CHAINS, isChainId, type ChainId } from '../swings/core/types
 import { initWalletLock } from './walletLock';
 import { initNotifications } from './walletNotifications';
 import { initWalletConnectSolana } from './solanaWc';
+import { initWalletDeeplinks } from './walletDeeplink';
 import { initMoreSheet } from './walletMoreSheet';
 import { initLaunchSteps } from './launchSteps';
 import { initInsights, openInsight } from './walletInsights';
@@ -1412,6 +1413,8 @@ export function initWalletApp(): void {
   initNotifications();
   // Inside the Aretia app only: lets phone wallets connect through WalletConnect (no effect on the website).
   initWalletConnectSolana();
+  // Inside the Aretia app only: Phantom and Solflare connect and sign through their own app links (no effect on the website).
+  initWalletDeeplinks();
   initMoreSheet();
   initLaunchSteps();
   initInsights();

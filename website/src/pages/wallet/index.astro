@@ -133,7 +133,7 @@ const sendTips = [
         </button>
         <!-- Phones only: the bottom bar shows four sections and this button opens the rest. Hidden on wider screens. -->
         <button type="button" class="wapp__more" data-more aria-expanded="false" aria-controls="wapp-nav">
-          <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><circle cx="5" cy="12" r="1.6" /><circle cx="12" cy="12" r="1.6" /><circle cx="19" cy="12" r="1.6" /></svg>
+          <img class="wapp__more-logo" src="/assets/logo-mark.png" alt="" width="26" height="26" />
           <span class="wapp__label" data-more-label>More</span>
         </button>
       </nav>
@@ -2312,6 +2312,7 @@ const sendTips = [
     .wapp__nav > button[aria-current='page'] { color: #fff; background: var(--color-brand); }
     .wapp__nav > button:not([data-nav='dashboard'], [data-nav='swings'], [data-nav='send'], [data-nav='launch'], .wapp__more) { display: none; }
     .wapp__nav .wapp__more { display: flex; }
+    .wapp__more-logo { display: block; width: 26px; height: 26px; border-radius: 8px; }
     /* When the current section lives under More, More is the pill */
     .wapp__nav:has(> button:not([data-nav='dashboard'], [data-nav='swings'], [data-nav='send'], [data-nav='launch'], .wapp__more)[aria-current='page']) .wapp__more { color: #fff; background: var(--color-brand); }
     /* More open: every section as a grid sheet, icons with names */

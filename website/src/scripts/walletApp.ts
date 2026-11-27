@@ -18,6 +18,7 @@ import { initNotifications } from './walletNotifications';
 import { initWalletConnectSolana } from './solanaWc';
 import { initMoreSheet } from './walletMoreSheet';
 import { initLaunchSteps } from './launchSteps';
+import { initInsights } from './walletInsights';
 import { isNativeApp } from '../lib/nativeApp';
 import type { initReferrals } from './walletReferrals';
 import type { initShield } from './walletShield';
@@ -1412,6 +1413,7 @@ export function initWalletApp(): void {
   initWalletConnectSolana();
   initMoreSheet();
   initLaunchSteps();
+  initInsights();
 
   function clearSessionOutputs(): void {
     for (const sel of ['[data-send-review]']) $(sel)?.replaceChildren();

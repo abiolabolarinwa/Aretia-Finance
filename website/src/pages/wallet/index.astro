@@ -2533,4 +2533,19 @@ const sendTips = [
     .wapp-mt__card > :is(.wapp-mt__stats, .wapp-ov) { display: none; }
     .wapp-mt__card > .aretia-loading { order: 4; }
   }
+  /* Phones: the Markets overview as chips that open each piece in a sheet (src/scripts/walletInsights.ts). Hidden on wider screens. */
+  .wapp-ins { display: none; }
+  @media (max-width: 720px) {
+    .wapp-mt__card > .wapp-ins { order: 2; display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; padding: 2px; }
+    .wapp-ins .wapp__chip { flex: none; padding: 7px 12px; font-size: 12.5px; white-space: nowrap; }
+  }
+  .wapp-ins-sheet { box-sizing: border-box; width: 100%; max-width: 560px; max-height: 82vh; margin: auto auto 0; padding: 0; overflow: hidden; color: var(--color-strong); background: var(--color-bg); border: 1px solid var(--color-border); border-radius: 22px 22px 0 0; box-shadow: 0 -20px 50px rgba(0, 0, 0, 0.35); }
+  .wapp-ins-sheet[open] { display: flex; flex-direction: column; }
+  .wapp-ins-sheet::backdrop { background: rgba(0, 0, 0, 0.45); }
+  .wapp-ins-sheet__head { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 14px 16px 8px; }
+  .wapp-ins-sheet__head strong { font-size: 15px; }
+  .wapp-ins-sheet__body { overflow-y: auto; padding: 4px 16px calc(18px + env(safe-area-inset-bottom)); }
+  .wapp-ins-sheet__body > * { display: grid; max-height: none; margin: 0; border: 0; padding: 0; }
+  .wapp-ins-sheet__body > .wapp-mt__stats { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+  .wapp-ins-sheet__body .wapp-ov__title, .wapp-ins-sheet__body .wapp-ov__ptitle { display: none; }
 </style>

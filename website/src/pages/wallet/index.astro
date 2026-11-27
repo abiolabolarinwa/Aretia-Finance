@@ -2720,4 +2720,22 @@ const sendTips = [
     .wapp-tp__dock .wapp-tp__buy { color: #fff; background: #16a34a; border-color: #16a34a; }
     .wapp-tp { padding-bottom: 76px; }
   }
+  /* Phones: Send as an app screen, after the owner's references: the amount first and large (no box), Max as a small pill under it,
+     then the asset and network side by side, then who it goes to, and Review. No card frame or title around the form. */
+  @media (max-width: 720px) {
+    .wapp-pay [data-pay-panel='send'] .wapp__card { padding: 4px 0 0; background: none; border: 0; box-shadow: none; }
+    .wapp-pay [data-pay-panel='send'] .wapp__card > .wapp__h2 { display: none; }
+    .wapp-pay .wapp-pay__icon { width: 46px; height: 46px; }
+    .wapp-pay [data-send-form] > * { order: 3; }
+    .wapp-pay [data-send-form] > label[for='send-amount'] { order: -2; justify-self: center; margin: 0; font-size: 12px; }
+    .wapp-pay [data-send-form] > .wapp__amount { order: -1; grid-template-columns: minmax(0, 1fr); justify-items: center; gap: 6px; margin-bottom: 8px; }
+    .wapp-pay [data-send-form] > .wapp__amount [data-send-amount] { min-height: 64px; padding: 0; font-size: 44px; font-weight: 750; letter-spacing: -0.03em; text-align: center; background: none; border: 0; box-shadow: none; }
+    .wapp-pay [data-send-form] > .wapp__amount [data-send-amount]:focus { outline: none; }
+    .wapp-pay [data-send-form] > .wapp__amount .wapp__btn { min-height: 34px; padding: 0 16px; font-size: 13px; border-radius: 999px; }
+    .wapp-pay [data-send-form] > label[for='send-network'], .wapp-pay [data-send-form]:has([data-send-network]) > label[for='send-asset'] { order: 1; grid-area: auto; }
+    .wapp-pay [data-send-form] > [data-send-network], .wapp-pay [data-send-form]:has([data-send-network]) > [data-send-asset] { order: 2; grid-area: auto; }
+    .wapp-pay [data-send-form] > label[for='send-network'], .wapp-pay [data-send-form] > [data-send-network] { grid-column: 1; }
+    .wapp-pay [data-send-form]:has([data-send-network]) > label[for='send-asset'], .wapp-pay [data-send-form]:has([data-send-network]) > [data-send-asset] { grid-column: 2; }
+    .wapp-pay [data-send-form] > .wapp__btn--primary { order: 4; margin-top: 10px; }
+  }
 </style>

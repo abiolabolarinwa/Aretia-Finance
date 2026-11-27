@@ -49,6 +49,8 @@ export interface TvChartOptions {
   interval?: string;
   /** Show the drawing tools on the left. */
   toolbar?: boolean;
+  /** Phones: no toolbars, legend or volume, and soft dotted grid lines; the page draws its own timeframe buttons. */
+  minimal?: boolean;
   /** Shown in a sandboxed frame if the chart cannot be drawn (library not installed, blocked, or failed to start). */
   fallbackUrl?: string;
   /** The frame's accessible name. */
@@ -61,7 +63,21 @@ export interface TvChartOptions {
 
 export interface TvChart {
   dispose(): void;
+  /** Shows another timeframe ('1', '15', '60', '240' or '1D'). */
+  setInterval?(interval: string): void;
 }
+
+/** What the clean phone chart leaves out, on top of what every chart leaves out. */
+const MINIMAL_DISABLED = ['header_widget', 'left_toolbar', 'timeframes_toolbar', 'legend_widget', 'control_bar', 'create_volume_indicator_by_default', 'edit_buttons_in_legend', 'context_menus'];
+/** The clean phone chart: dotted grid lines and no axis border. */
+const minimalOverrides = (): Record<string, unknown> => ({
+  'paneProperties.vertGridProperties.style': 1,
+  'paneProperties.horzGridProperties.style': 1,
+  'paneProperties.vertGridProperties.color': 'rgba(128, 128, 140, 0.18)',
+  'paneProperties.horzGridProperties.color': 'rgba(128, 128, 140, 0.18)',
+  'paneProperties.legendProperties.showLegend': false,
+  'scalesProperties.lineColor': 'rgba(0, 0, 0, 0)',
+});
 
 let loading: Promise<TvGlobal> | null = null;
 
@@ -409,8 +425,8 @@ export function mountTvChart(
           loading_screen: { backgroundColor: PALETTE[currentTheme()].bg, foregroundColor: '#0e5c45' },
           // Prices on the axis and in the legend: a tiny one is 0.0₅3264, not 3.264e-6.
           custom_formatters: { priceFormatterFactory: (info: { format?: string } | null) => (info?.format === 'price' || !info ? { format: (price: number) => formatAxisPrice(price) } : null) },
-          disabled_features: [...DISABLED, ...(o.toolbar ? [] : ['left_toolbar'])],
-          overrides: { ...paneOverrides(currentTheme()), 'mainSeriesProperties.candleStyle.upColor': '#16a34a', 'mainSeriesProperties.candleStyle.downColor': '#dc2626', 'mainSeriesProperties.candleStyle.borderUpColor': '#16a34a', 'mainSeriesProperties.candleStyle.borderDownColor': '#dc2626', 'mainSeriesProperties.candleStyle.wickUpColor': '#16a34a', 'mainSeriesProperties.candleStyle.wickDownColor': '#dc2626' },
+          disabled_features: [...DISABLED, ...(o.toolbar ? [] : ['left_toolbar']), ...(o.minimal ? MINIMAL_DISABLED : [])],
+          overrides: { ...paneOverrides(currentTheme()), ...(o.minimal ? minimalOverrides() : {}), 'mainSeriesProperties.candleStyle.upColor': '#16a34a', 'mainSeriesProperties.candleStyle.downColor': '#dc2626', 'mainSeriesProperties.candleStyle.borderUpColor': '#16a34a', 'mainSeriesProperties.candleStyle.borderDownColor': '#dc2626', 'mainSeriesProperties.candleStyle.wickUpColor': '#16a34a', 'mainSeriesProperties.candleStyle.wickDownColor': '#dc2626' },
         });
         widget = w;
         currentFeed = feed;
@@ -436,7 +452,8 @@ export function mountTvChart(
             // The chart is already gone.
           }
         });
-        if (canSwitch) addSwitch(w, TradingView);
+        // The USD / token switch lives in the chart's top toolbar, which the clean phone chart leaves out.
+        if (canSwitch && !o.minimal) addSwitch(w, TradingView);
     } catch {
       unavailable();
     }
@@ -449,6 +466,15 @@ export function mountTvChart(
     .catch(unavailable);
 
   return {
+    setInterval(interval: string) {
+      if (!SUPPORTED_RESOLUTIONS.includes(interval)) return;
+      lastInterval = interval;
+      try {
+        if (chartReady) (widget as unknown as { activeChart(): { setResolution(r: string): void } } | null)?.activeChart().setResolution(interval);
+      } catch {
+        // The chart is gone or not ready: the next one opens on this timeframe.
+      }
+    },
     dispose() {
       disposed = true;
       themeWatch.disconnect();

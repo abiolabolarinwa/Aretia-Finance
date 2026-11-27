@@ -2626,7 +2626,14 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
         icon: r.icon ?? rec?.logo ?? null,
         riskNote,
         onSwap: swapHandler(r),
-        mountSwap: (host) => embedSwap(host, r, rec),
+        mountSwap: (host, side) => embedSwap(host, r, rec, side),
+        holding: () => {
+          // Solana balances only for now: the wallet's other holdings are not listed by token here.
+          if (r.chain !== 'solana') return null;
+          const h = (host.getHoldings() ?? []).find((x) => x.mint === r.address);
+          return h ? { amount: h.amount } : null;
+        },
+        favourite: { on: () => favourites.has(r.chain, r.address), toggle: () => toggleFavourite(r) },
         unmountSwap: releaseSwap,
         onBack: () => {
           // The address bar goes back to the list, so a copied link opens the list and not the token that was left.
@@ -3313,7 +3320,8 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
       unmountSwap: releaseSwap,
     });
   }
-  function embedSwap(host: HTMLElement, r: MarketRow, rec: { logo?: string | null; decimals?: number | null } | undefined): void {
+  /** Puts the swap card into a token page. 'sell' has the token on the paying side instead (the token page's Sell button). */
+  function embedSwap(host: HTMLElement, r: MarketRow, rec: { logo?: string | null; decimals?: number | null } | undefined, side: 'buy' | 'sell' = 'buy'): void {
     closeSwapDialog();
     swapEmbedded = true;
     host.append(swapPanel);
@@ -3322,7 +3330,20 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
     // The slippage this token needs, from its pool and how it is moving, unless the person has chosen one already.
     s.marketSlippage = autoSlippage({ liquidityUsd: r.liquidityUsd, ageMs: r.ageMs, change5mPct: r.change.m5 ?? null, change1hPct: r.change.h1 ?? null });
     // Market rows often carry no decimals; pick() reads them from the chain, so the placeholder is never used.
-    void pick('to', { mint: r.address, symbol: r.symbol, name: r.name, decimals: r.decimals ?? rec?.decimals ?? 0, icon: r.icon ?? rec?.logo ?? null, verified: null }, r.chain);
+    const chosen = pick('to', { mint: r.address, symbol: r.symbol, name: r.name, decimals: r.decimals ?? rec?.decimals ?? 0, icon: r.icon ?? rec?.logo ?? null, verified: null }, r.chain);
+    // Selling: once the token is chosen, the two sides are switched as the card's own switch button does.
+    if (side === 'sell')
+      void chosen.then(() => {
+        if (s.to?.mint !== r.address) return;
+        const was = s.from;
+        s.from = s.to;
+        s.to = was;
+        s.picker = null;
+        s.amount = '';
+        resetQuote();
+        render();
+      });
+    else void chosen;
     render();
   }
   function openSwapDialog(): void {

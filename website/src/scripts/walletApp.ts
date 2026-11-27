@@ -18,6 +18,7 @@ import { initNotifications } from './walletNotifications';
 import { initWalletConnectSolana } from './solanaWc';
 import { initMoreSheet } from './walletMoreSheet';
 import { initLaunchSteps } from './launchSteps';
+import { isNativeApp } from '../lib/nativeApp';
 import type { initReferrals } from './walletReferrals';
 import type { initShield } from './walletShield';
 import { AddressBook } from '../swings/shield/addressBook.js';
@@ -1446,8 +1447,8 @@ export function initWalletApp(): void {
     return true;
   };
   initSidebar();
-  // Opened with no page named: go back to the page this person was last on.
-  const resume = viewToResume(browserStorage(), location.pathname, location.hash);
+  // Opened with no page named: go back to the page this person was last on. The Android and iPhone apps always open on the dashboard.
+  const resume = isNativeApp() ? null : viewToResume(browserStorage(), location.pathname, location.hash);
   if (resume) history.replaceState(null, '', `/wallet#/${resume}`);
   onRoute();
   // Once the page is drawn and idle, fetch the rest so it is ready by the time a tab is opened.

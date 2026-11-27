@@ -2681,7 +2681,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
       const kinds: [Kind, string, string][] = [['favourites', '★ Favourites', 'Tokens you have starred'], ['liquidity', 'All', 'Every token Aretia knows on each network, the most recently traded first, then pools with no trade yet'], ['trending', 'Trending', 'Busiest right now'], ['rising', 'Rising', 'Tokens whose number of buyers is growing, top ten on every network'], ['top', 'Top', 'Most traded in 24 hours'], ['gainers', 'Gainers', 'Biggest price rises'], ['new', 'New', 'Tokens Aretia has just detected, with a trading pool']];
       const kindBox = el('div', { class: 'wapp__seg', attrs: { role: 'group', 'aria-label': 'List' } });
       for (const [k, label, tip] of kinds) {
-        kindBox.append(chip(label, m.kind === k, () => {
+        const kindChip = chip(label, m.kind === k, () => {
           // The ★ list has its own sidebar page, and the other lists live on Markets, so the title and the marked sidebar entry follow the choice.
           if (k === 'favourites' && !favPage && isMarketsHash(hashNow())) {
             location.hash = '#/favourites';
@@ -2704,7 +2704,10 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
           pageNo = 1;
           rows = null;
           void load();
-        }, tip));
+        }, tip);
+        // Named so phones can show each list as an icon (see the max-width 720px rules in wallet/index.astro).
+        kindChip.dataset.kind = k;
+        kindBox.append(kindChip);
       }
       bar.append(kindBox);
       if (m.kind === 'trending' || m.kind === 'gainers' || m.kind === 'rising') {

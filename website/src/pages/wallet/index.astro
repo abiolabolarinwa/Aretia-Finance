@@ -2622,4 +2622,28 @@ const sendTips = [
     .wapp-bd__card[data-swipe='favourite']::after { content: '★ Favourite'; left: 10px; background: #b8860b; }
     .wapp-bd__card.is-swipe-ready::after { opacity: 1; }
   }
+  /* Phones: Launch as an app screen. No tour row or big heading; the networks as round logos (like Markets); the two links small; the
+     three stages as a slim row; the form card with table-like corners. */
+  @media (max-width: 720px) {
+    .wapp[data-view='launch'] .wapp__top { display: none; }
+    .wapp[data-view='launch'] .wapp__main { padding-top: 8px; gap: 8px; }
+    .lh__intro { display: none; }
+    .lh-chips[data-hub-networks] { gap: 10px; padding: 4px 2px; }
+    .lh-chips[data-hub-networks] .lh-chip { position: relative; display: grid; place-items: center; width: 48px; min-width: 48px; height: 48px; min-height: 48px; padding: 0; font-size: 0; background: var(--color-bg-alt); border: 2px solid transparent; border-radius: 50%; box-shadow: none; }
+    .lh-chips[data-hub-networks] .lh-chip .lh-chip__logo { width: 34px; height: 34px; }
+    .lh-chips[data-hub-networks] .lh-chip.is-on { background: var(--color-bg-alt); border-color: var(--color-brand); box-shadow: 0 0 0 3px var(--color-brand-soft); }
+    .lh-chips[data-hub-networks] .lh-chip__check { display: none; }
+    .lh__pools-link { margin: 0; font-size: 13px; text-align: left; }
+    .lh__rail { gap: 4px; }
+    .lh-step { background: none; border-color: transparent; box-shadow: none; }
+    .lh-step.is-here { border-color: transparent; box-shadow: none; }
+    .lh-step .lh-step__btn { flex-direction: row; justify-content: center; gap: 6px; padding: 6px 2px; }
+    .lh-step .lh-step__mark { width: 22px; height: 22px; font-size: 11px; }
+    .lh-step .lh-step__text { justify-items: start; }
+    .lh-step .lh-step__text strong { font-size: 11px; line-height: 1.15; text-align: left; white-space: normal; }
+    .wapp[data-view='launch'] .lh, .wapp[data-view='launch'] .lh__head { gap: 10px; row-gap: 10px; }
+    .lh-chips[data-hub-networks] { justify-content: flex-start; }
+    .wapp[data-view='launch'] .lh__head { align-items: stretch; text-align: left; }
+    .lh__step.wapp__card, .lh__side .wapp__card { padding: 14px; border-radius: 12px; }
+  }
 </style>

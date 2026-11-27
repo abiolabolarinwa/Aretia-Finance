@@ -42,3 +42,10 @@ describe('swiping a token card', () => {
     expect(swipeAction(-30)).toBeNull();
   });
 });
+
+describe('the Favourites board on a phone', () => {
+  it('takes its own heading', () => {
+    const board = marketBoard({ ...base, single: 'all', singleTitle: 'Favourites', listKey: 'fav-test' });
+    expect(board.querySelector('.wapp-bd__title')!.textContent).toBe('Favourites');
+  });
+});

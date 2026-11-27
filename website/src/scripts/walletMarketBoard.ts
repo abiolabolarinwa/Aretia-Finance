@@ -56,6 +56,8 @@ export interface BoardOptions {
   favourites?: { has(row: MarketRow): boolean; toggle(row: MarketRow): void };
   /** Phones: one board instead of the four columns. 'all' lists every network's tokens together (the rows' own order); a network lists only its own. */
   single?: ChainId | 'all';
+  /** The single board's heading, when it is not the network's name (for example "Favourites"). */
+  singleTitle?: string;
   /** Swiping a card left (touch only) opens a trade for it; without this, a left swipe does nothing. */
   onTrade?(row: MarketRow): void;
 }
@@ -288,7 +290,7 @@ export function marketBoard(o: BoardOptions): HTMLElement {
   if (o.single) {
     // One board: every network together under the Aretia mark, or the one network picked in the network row.
     board.classList.add('wapp-bd--single');
-    const title = o.single === 'all' ? 'All networks' : (ALL_TITLES[o.single] ?? o.single);
+    const title = o.singleTitle ?? (o.single === 'all' ? 'All networks' : (ALL_TITLES[o.single] ?? o.single));
     const rows = o.single === 'all' ? withPriceFirst(o.rows) : columnRows(o.rows, o.single);
     board.append(column(title, o.single, rows, o));
     return board;

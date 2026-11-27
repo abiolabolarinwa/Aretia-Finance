@@ -217,16 +217,15 @@ export function updateLiveCells(table: ParentNode, rows: readonly MarketRow[], b
   }
 }
 
-/** The live cells that flash when their number moves: the price, and the 5M, 1H, 6H and 24H changes. */
-const TICK_CHANGE: Readonly<Record<number, 'm5' | 'h1' | 'h6' | 'h24'>> = { 5: 'm5', 6: 'h1', 7: 'h6', 8: 'h24' };
-
-/** Which way live cell `i` of a row moved since `prev`, or null when it did not (or there is nothing to compare with). */
+/**
+ * Which way live cell `i` of a row moved since `prev`, or null when it did not (or there is nothing to compare with). Only the price
+ * (cell 1) flashes; the 5M, 1H, 6H and 24H changes update quietly.
+ */
 export function tickDirection(i: number, r: MarketRow, prev: MarketRow | undefined): 'up' | 'down' | null {
-  if (!prev) return null;
-  const field = TICK_CHANGE[i];
-  const now = i === 1 ? r.priceUsd : field ? r.change[field] : null;
-  const was = i === 1 ? prev.priceUsd : field ? prev.change[field] : null;
-  if (now === null || was === null || now === undefined || was === undefined || now === was) return null;
+  if (!prev || i !== 1) return null;
+  const now = r.priceUsd;
+  const was = prev.priceUsd;
+  if (now === null || was === null || now === was) return null;
   return now > was ? 'up' : 'down';
 }
 

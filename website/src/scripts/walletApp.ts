@@ -18,7 +18,7 @@ import { initNotifications } from './walletNotifications';
 import { initWalletConnectSolana } from './solanaWc';
 import { initMoreSheet } from './walletMoreSheet';
 import { initLaunchSteps } from './launchSteps';
-import { initInsights } from './walletInsights';
+import { initInsights, openInsight } from './walletInsights';
 import { isNativeApp } from '../lib/nativeApp';
 import type { initReferrals } from './walletReferrals';
 import type { initShield } from './walletShield';
@@ -1414,6 +1414,11 @@ export function initWalletApp(): void {
   initMoreSheet();
   initLaunchSteps();
   initInsights();
+  // Phones: the "Before you send" tips open in a sheet from a link under the send form (the card is beside the form on wider screens).
+  const tipsCard = document.querySelector<HTMLElement>('[data-pay-tips-card]');
+  document.querySelector('[data-pay-tips]')?.addEventListener('click', () => {
+    if (tipsCard) openInsight({ label: 'Before you send', el: tipsCard });
+  });
 
   function clearSessionOutputs(): void {
     for (const sel of ['[data-send-review]']) $(sel)?.replaceChildren();

@@ -2809,7 +2809,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
         const phoneBoard = window.matchMedia('(max-width: 720px)').matches;
         const boardMode = m.kind !== 'favourites' && (m.chain === '' || phoneBoard);
         const body = boardMode
-          ? marketBoard({ ...(phoneBoard ? { single: m.chain === '' ? ('all' as const) : m.chain } : {}), rows: shownRows, listKey: `${m.kind}:${m.window}:${phoneBoard ? m.chain || 'all' : ''}`, isFill: (r) => boardFill.has(rowKey(r.chain, r.address)), fourth: fourthChain, onFourth: (c) => { fourthChain = c; draw(); }, onOpen: userPick, favourites: { has: (r) => favourites.has(r.chain, r.address), toggle: toggleFavourite } })
+          ? marketBoard({ ...(phoneBoard ? { single: m.chain === '' ? ('all' as const) : m.chain } : {}), onTrade: (r) => (swapHandler(r) ?? (() => userPick(r)))(), rows: shownRows, listKey: `${m.kind}:${m.window}:${phoneBoard ? m.chain || 'all' : ''}`, isFill: (r) => boardFill.has(rowKey(r.chain, r.address)), fourth: fourthChain, onFourth: (c) => { fourthChain = c; draw(); }, onOpen: userPick, favourites: { has: (r) => favourites.has(r.chain, r.address), toggle: toggleFavourite } })
           : tableEl;
         stopBoardWatch?.();
         stopBoardWatch = null;

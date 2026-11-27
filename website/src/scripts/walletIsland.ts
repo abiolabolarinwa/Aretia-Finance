@@ -325,10 +325,14 @@ export function mountIsland(deps: IslandDeps): void {
     const home = document.querySelector<HTMLElement>('.wapp__top');
     const wide = window.matchMedia('(min-width: 1081px)').matches;
     const tabs = bar?.querySelector<HTMLElement>(':scope > .wapp__seg--tabs') ?? null;
+    // On a phone it sits under the network row on Markets, between the networks and the lists.
+    const rail = document.querySelector<HTMLElement>('[data-rail]');
     if (wide && bar && search?.parentElement === bar) (tabs ?? search).after(root);
+    else if (window.matchMedia('(max-width: 720px)').matches && rail) rail.after(root);
     else if (home) home.append(root);
   };
   window.matchMedia('(min-width: 1081px)').addEventListener('change', place);
+  window.matchMedia('(max-width: 720px)').addEventListener('change', place);
   place();
   // The search box and the tabs are put in the bar by other scripts; look again once they have.
   setTimeout(place, 600);

@@ -27,8 +27,12 @@ export interface TokenPageOptions {
   riskNote?: string | null;
   /** Null when swaps on this network are switched off. */
   onSwap: (() => void) | null;
-  /** Puts the live swap card, with this token chosen, into the given box (the top of the side panel). */
-  mountSwap?: (host: HTMLElement) => void;
+  /** Puts the live swap card, with this token chosen, into the given box (the top of the side panel); 'sell' puts the token on the paying side. */
+  mountSwap?: (host: HTMLElement, side?: 'buy' | 'sell') => void;
+  /** How much of this token the connected wallet holds, or null when that is not known (no wallet, another network). */
+  holding?: () => { amount: number } | null;
+  /** The token's place in the person's favourites. */
+  favourite?: { on(): boolean; toggle(): void };
   /** Takes the swap card back out, when the page closes or another token opens. */
   unmountSwap?: () => void;
   onBack(): void;
@@ -37,6 +41,8 @@ export interface TokenPageOptions {
 }
 
 const LABEL: Record<Win, string> = { m5: '5M', h1: '1H', h6: '6H', h24: '24H' };
+/** The timeframe buttons under the chart on a phone: the chart's interval code and its name. */
+const TIMEFRAMES: readonly [string, string][] = [['1', '1m'], ['15', '15m'], ['60', '1H'], ['240', '4H'], ['1D', '1D']];
 
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls = '', text?: string): HTMLElementTagNameMap[K] {
   const n = document.createElement(tag);
@@ -76,6 +82,7 @@ export function createTokenPage(finder = new DexScreenerPoolFinder()) {
   let tv: TvChart | null = null;
   let trades: TradesTable | null = null;
   let swapHost: HTMLElement | null = null;
+  let tabsEl: HTMLElement | null = null;
   let unmountSwap: (() => void) | undefined;
 
   /** The swap card sits above the numbers, like a trading screen: chart on the left, trade on the right. */
@@ -105,7 +112,30 @@ export function createTokenPage(finder = new DexScreenerPoolFinder()) {
     // The numbers that matter (prices, liquidity, value, trades) sit in this row, beside the name and price.
     const stats = el('div', 'wapp-tp__stats');
     stats.dataset.tpStats = '';
-    bar.append(...(o.hideBack ? [] : [back]), title, headline, stats, shareButton(tokenShare(o.chain, o.address, o.symbol)));
+    const actions = el('div', 'wapp-tp__acts');
+    if (o.favourite) {
+      const fav = o.favourite;
+      const star = el('button', 'wapp__btn wapp__btn--ghost wapp-tp__fav');
+      star.type = 'button';
+      const paint = (): void => {
+        const on = fav.on();
+        star.textContent = on ? '★' : '☆';
+        star.setAttribute('aria-pressed', String(on));
+        star.setAttribute('aria-label', on ? `Remove ${o.symbol} from favourites` : `Add ${o.symbol} to favourites`);
+      };
+      star.addEventListener('click', () => {
+        fav.toggle();
+        paint();
+      });
+      paint();
+      actions.append(star);
+    }
+    actions.append(shareButton(tokenShare(o.chain, o.address, o.symbol)));
+    // The amount of this token the wallet holds and what it is worth (filled once the price is known).
+    const position = el('div', 'wapp-tp__position');
+    position.dataset.tpPosition = '';
+    position.hidden = true;
+    bar.append(...(o.hideBack ? [] : [back]), title, headline, position, stats, actions);
     const grid = el('div', 'wapp-tp__grid');
     const chart = el('div', 'wapp-tp__chart');
     const side = el('aside', 'wapp-tp__side');
@@ -119,26 +149,30 @@ export function createTokenPage(finder = new DexScreenerPoolFinder()) {
     // Phones: a buy button fixed at the bottom of the screen that takes you to the swap card under the chart (hidden on wider screens).
     if (swapHost || o.onSwap) {
       const dock = el('div', 'wapp-tp__dock');
-      const buy = el('button', 'wapp__btn wapp__btn--primary', `Buy ${o.symbol}`);
+      // Sell and Buy open the swap card in a sheet from the bottom of the screen (it is put back under the chart when the sheet closes).
+      const trade = (side: 'buy' | 'sell'): void => {
+        if (swapHost && o.mountSwap) {
+          o.mountSwap(swapHost, side);
+          openInsight({ label: `${side === 'buy' ? 'Buy' : 'Sell'} ${o.symbol}`, el: swapHost });
+        } else o.onSwap?.();
+      };
+      const sell = el('button', 'wapp__btn wapp-tp__sell', 'Sell');
+      sell.type = 'button';
+      sell.addEventListener('click', () => trade('sell'));
+      const buy = el('button', 'wapp__btn wapp__btn--primary wapp-tp__buy', 'Buy');
       buy.type = 'button';
-      buy.addEventListener('click', () => {
-        // The swap card opens in a sheet from the bottom of the screen (it is put back under the chart when the sheet closes).
-        if (swapHost) openInsight({ label: `Buy ${o.symbol}`, el: swapHost });
-        else o.onSwap?.();
-      });
-      dock.append(buy);
+      buy.addEventListener('click', () => trade('buy'));
+      dock.append(sell, buy);
       root.append(dock);
     }
     // Phones: Chart, Trades and About as tabs under the header, one at a time (wider screens show everything; see wallet/index.astro).
     const tabs = el('div', 'wapp-tp__tabs');
     tabs.setAttribute('role', 'tablist');
     tabs.setAttribute('aria-label', `${o.symbol} views`);
-    const tabList: [string, string][] = [['chart', 'Chart'], ['trades', 'Trades'], ['about', 'About']];
+    const tabList: [string, string][] = [['trades', 'Trades'], ['about', 'About']];
     const pick = (key: string): void => {
       root.dataset.tpTab = key;
       tabs.querySelectorAll<HTMLButtonElement>('button').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === key)));
-      // The chart measures its box when it is shown again.
-      if (key === 'chart') window.setTimeout(() => window.dispatchEvent(new Event('resize')), 50);
     };
     for (const [key, label] of tabList) {
       const b = el('button', 'wapp-tp__tab', label);
@@ -148,8 +182,10 @@ export function createTokenPage(finder = new DexScreenerPoolFinder()) {
       b.addEventListener('click', () => pick(key));
       tabs.append(b);
     }
-    bar.after(tabs);
-    pick('chart');
+    // Under the chart, after its timeframe buttons (fill puts them there once the chart is drawn).
+    chart.after(tabs);
+    tabsEl = tabs;
+    pick('trades');
     return { chart, side, title };
   }
 
@@ -161,8 +197,24 @@ export function createTokenPage(finder = new DexScreenerPoolFinder()) {
     plot.setAttribute('role', 'img');
     plot.setAttribute('aria-label', `${o.symbol} price chart`);
     const tradesHost = el('div', 'wapp-tp__trades');
-    parts.chart.replaceChildren(plot, tradesHost);
-    tv = mountTvChart(plot, { chain: o.chain, pool, symbol: o.symbol, target: o.address, ...(d?.quoteSymbol ? { quoteSymbol: d.quoteSymbol } : {}), priceHint: d?.priceUsd ?? null, interval: '1', toolbar: !window.matchMedia('(max-width: 720px)').matches, fallbackUrl: embedUrl({ network: GECKO_NETWORK[o.chain], pool }), title: `${o.symbol} price chart` });
+    // Phones: timeframe buttons under the chart (the chart's own toolbars are left out there).
+    const phone = window.matchMedia('(max-width: 720px)').matches;
+    const frames = el('div', 'wapp-tp__tf');
+    frames.setAttribute('role', 'group');
+    frames.setAttribute('aria-label', 'Timeframe');
+    for (const [code, label] of TIMEFRAMES) {
+      const b = el('button', 'wapp-tp__tfbtn', label);
+      b.type = 'button';
+      b.dataset.tf = code;
+      b.setAttribute('aria-pressed', String(code === '1'));
+      b.addEventListener('click', () => {
+        tv?.setInterval?.(code);
+        frames.querySelectorAll('button').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+      });
+      frames.append(b);
+    }
+    parts.chart.replaceChildren(plot, frames, ...(tabsEl ? [tabsEl] : []), tradesHost);
+    tv = mountTvChart(plot, { chain: o.chain, pool, symbol: o.symbol, target: o.address, ...(d?.quoteSymbol ? { quoteSymbol: d.quoteSymbol } : {}), priceHint: d?.priceUsd ?? null, interval: '1', toolbar: !phone, minimal: phone, fallbackUrl: embedUrl({ network: GECKO_NETWORK[o.chain], pool }), title: `${o.symbol} price chart` });
     // The pool's recent trades, under the chart.
     trades = mountTrades(tradesHost, { chain: o.chain, pool, symbol: d?.baseSymbol ?? o.symbol, quoteSymbol: d?.quoteSymbol });
 
@@ -179,6 +231,14 @@ export function createTokenPage(finder = new DexScreenerPoolFinder()) {
         priceEl.dataset.live = 'price';
         chg.dataset.live = 'chg24';
         headline.append(priceEl, chg);
+        // What the wallet holds of this token, and its worth at this price.
+        const pos = root.querySelector<HTMLElement>('[data-tp-position]');
+        const held = o.holding?.();
+        if (pos && held && held.amount > 0) {
+          const worth = d.priceUsd !== null ? held.amount * d.priceUsd : null;
+          pos.replaceChildren(el('span', 'wapp-tp__poslabel', 'Your position'), el('strong', '', `${held.amount.toLocaleString('en-US', { maximumFractionDigits: 4 })} ${o.symbol}`), el('span', '', worth === null ? '' : formatPrice(worth)));
+          pos.hidden = false;
+        }
       }
     }
     const act = el('div', 'wapp-tp__actions');

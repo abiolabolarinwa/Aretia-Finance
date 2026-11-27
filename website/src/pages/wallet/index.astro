@@ -2570,11 +2570,9 @@ const sendTips = [
     .wapp-tp__tabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; padding: 4px; background: var(--color-bg-alt); border: 1px solid var(--color-border); border-radius: 999px; }
     .wapp-tp__tab { min-height: 36px; font: inherit; font-size: 13px; font-weight: 600; color: var(--color-muted); background: none; border: 0; border-radius: 999px; cursor: pointer; }
     .wapp-tp__tab[aria-selected='true'] { color: var(--color-strong); background: var(--color-bg); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2); }
-    .wapp-tp[data-tp-tab='chart'] :is(.wapp-tp__trades, .wapp-tp__side) { display: none; }
-    .wapp-tp[data-tp-tab='trades'] :is(.wapp-tp__frame, .wapp-tp__side) { display: none; }
-    .wapp-tp[data-tp-tab='about'] .wapp-tp__chart { display: none; }
-    .wapp-tp[data-tp-tab='about'] .wapp-tp__side > .wapp-tp__swap { display: none; }
-    .wapp-tp[data-tp-tab='chart'] .wapp-tp__frame { height: calc(max(360px, 100dvh - var(--nav-height) - 360px) + var(--dex-footer-crop)); }
+    .wapp-tp[data-tp-tab='trades'] .wapp-tp__side { display: none; }
+    .wapp-tp[data-tp-tab='about'] .wapp-tp__trades { display: none; }
+    .wapp-tp .wapp-tp__side > .wapp-tp__swap { display: none; }
   }
   /* Phones: Markets without the Swap button, and its lists as icons (the names stay as the buttons' text for screen readers and as their tooltip). */
   @media (max-width: 720px) {
@@ -2690,5 +2688,36 @@ const sendTips = [
     body:has(.wapp-tp:not([hidden]) > .wapp-tp__dock) .wapp-search-fab,
     body:has(.wapp[data-more-open]) .wapp-search-fab { display: none; }
     body:has(.wapp[data-view='dashboard'][data-connected='false']) .wapp__side { right: 12px; }
+  }
+  /* Phones: the token page after the owner's reference. The big price with its 24-hour change under it, favourite and share at the
+     top right, what you hold of the token, the chart edge to edge and clean (src/scripts/walletTvChart.ts, minimal), timeframe buttons
+     under it, Trades and About as tabs, and Sell and Buy at the bottom. */
+  .wapp-tp__tf { display: none; }
+  .wapp-tp__acts { display: flex; align-items: center; gap: 6px; }
+  .wapp-tp__fav { min-width: 40px; padding: 0 10px; font-size: 18px; line-height: 1; }
+  .wapp-tp__fav[aria-pressed='true'] { color: #d99a00; }
+  .wapp-tp__position { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; font-size: 13px; color: var(--color-muted); }
+  .wapp-tp__position[hidden] { display: none; }
+  .wapp-tp__position strong { color: var(--color-strong); font-variant-numeric: tabular-nums; }
+  .wapp-tp__poslabel { font-size: 11px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
+  @media (max-width: 720px) {
+    .wapp-tp__top { background: none; border: 0; padding: 4px 0; }
+    .wapp-tp__top > .wapp-tp__headline { display: grid; justify-items: start; gap: 4px; }
+    .wapp-tp__top > .wapp-tp__headline .wapp-tp__price { font-size: 32px; font-weight: 750; letter-spacing: -0.03em; }
+    .wapp-tp__top > .wapp-tp__position { grid-area: 3 / 1 / 4 / -1; }
+    .wapp-tp__top > .wapp-tp__stats { grid-area: 4 / 1 / 5 / -1; }
+    .wapp-tp__top > .wapp-tp__acts .wapp-tp__share { min-height: 40px; padding: 0 12px; font-size: 13px; }
+    .wapp-tp__grid { gap: 10px; }
+    .wapp-tp__chart { margin: 0 -14px; padding: 0; background: none; border: 0; border-radius: 0; }
+    .wapp-tp .wapp-tp__frame { height: calc(max(320px, 100dvh - var(--nav-height) - 470px) + var(--dex-footer-crop)); border-radius: 0; clip-path: inset(0 0 var(--dex-footer-crop) 0); }
+    .wapp-tp__tf { display: flex; justify-content: space-between; gap: 4px; margin: 8px 14px 0; }
+    .wapp-tp__tfbtn { flex: 1; min-height: 36px; font: inherit; font-size: 13px; font-weight: 650; color: var(--color-muted); background: none; border: 0; border-radius: 10px; cursor: pointer; }
+    .wapp-tp__tfbtn[aria-pressed='true'] { color: var(--color-strong); background: var(--color-bg-alt); }
+    .wapp-tp__chart > .wapp-tp__tabs { margin: 10px 14px 0; }
+    .wapp-tp__chart > .wapp-tp__trades { margin: 8px 14px 0; }
+    .wapp-tp__dock { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; }
+    .wapp-tp__dock .wapp-tp__sell { color: #fff; background: #dc2626; border-color: #dc2626; }
+    .wapp-tp__dock .wapp-tp__buy { color: #fff; background: #16a34a; border-color: #16a34a; }
+    .wapp-tp { padding-bottom: 76px; }
   }
 </style>

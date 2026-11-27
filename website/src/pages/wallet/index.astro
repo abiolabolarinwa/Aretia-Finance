@@ -2431,4 +2431,34 @@ const sendTips = [
     .wapp-ov > .wapp-ov__cards, .wapp-ov > .wapp-ov__lists { display: contents; }
     .wapp-ov .wapp-ov__card, .wapp-ov .wapp-ov__panel { flex: 0 0 78%; max-height: 180px; overflow: hidden; scroll-snap-align: start; }
   }
+  /* Phones: Pay. The four choices become one row of round icons with short names (the current one filled), the send form gets
+     larger fields and a full-width Review button, and the long introduction steps aside (the review step still shows every detail
+     before anything is signed). Wider screens are untouched. */
+  @media (max-width: 720px) {
+    .wapp-pay__hub { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; }
+    .wapp-pay__card { flex-direction: column; justify-content: flex-start; gap: 6px; padding: 4px 2px; text-align: center; background: none; border: 0; box-shadow: none; }
+    .wapp-pay__card:hover { background: none; }
+    .wapp-pay__icon { width: 52px; height: 52px; border-radius: 50%; }
+    .wapp-pay__card[aria-selected='true'] { box-shadow: none; }
+    .wapp-pay__card[aria-selected='true'] .wapp-pay__icon { color: #fff; background: var(--color-brand); }
+    .wapp-pay__text { justify-items: center; }
+    .wapp-pay__text strong { font-size: 11.5px; line-height: 1.25; }
+    .wapp-pay__text span { display: none; }
+    .wapp-pay [data-pay-panel='send'] .wapp__h2 + .wapp__fine { display: none; }
+    .wapp-pay .wapp__input { min-height: 48px; font-size: 15px; border-radius: 14px; }
+    .wapp-pay [data-send-amount] { font-size: 20px; font-weight: 650; }
+    .wapp-pay .wapp__amount .wapp__btn { min-height: 48px; border-radius: 14px; }
+    .wapp[data-view='send'] .wapp__top h1 { display: none; }
+    .wapp-pay { gap: 12px; }
+    .wapp-pay [data-pay-panel='send'] .wapp__card { gap: 8px; padding: 16px; }
+    .wapp-pay [data-send-form] { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: 8px; row-gap: 6px; }
+    .wapp-pay [data-send-form] > * { grid-column: 1 / -1; }
+    .wapp-pay [data-send-form] > label[for='send-network'] { grid-area: 1 / 1; }
+    .wapp-pay [data-send-form] > [data-send-network] { grid-area: 2 / 1; }
+    .wapp-pay [data-send-form]:has([data-send-network]) > label[for='send-asset'] { grid-area: 1 / 2; }
+    .wapp-pay [data-send-form]:has([data-send-network]) > [data-send-asset] { grid-area: 2 / 2; }
+    .wapp-pay [data-send-form] .wapp__eyebrow { margin-top: 4px; }
+    .wapp-pay .wapp__input { min-height: 46px; }
+    .wapp-pay [data-send-form] > .wapp__btn--primary { width: 100%; min-height: 52px; margin-top: 6px; font-size: 15px; border-radius: 999px; }
+  }
 </style>

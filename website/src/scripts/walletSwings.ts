@@ -2807,9 +2807,10 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
         const featured = featuredForMarkets();
         // Phones show one board: every network together under the Aretia mark, or the one network picked in the network row.
         const phoneBoard = window.matchMedia('(max-width: 720px)').matches;
-        const boardMode = m.kind !== 'favourites' && (m.chain === '' || phoneBoard);
+        // Favourites is a board too on a phone, under its own heading (a table on wider screens, as before).
+        const boardMode = phoneBoard || (m.kind !== 'favourites' && m.chain === '');
         const body = boardMode
-          ? marketBoard({ ...(phoneBoard ? { single: m.chain === '' ? ('all' as const) : m.chain } : {}), onTrade: (r) => (swapHandler(r) ?? (() => userPick(r)))(), rows: shownRows, listKey: `${m.kind}:${m.window}:${phoneBoard ? m.chain || 'all' : ''}`, isFill: (r) => boardFill.has(rowKey(r.chain, r.address)), fourth: fourthChain, onFourth: (c) => { fourthChain = c; draw(); }, onOpen: userPick, favourites: { has: (r) => favourites.has(r.chain, r.address), toggle: toggleFavourite } })
+          ? marketBoard({ ...(phoneBoard ? { single: m.chain === '' ? ('all' as const) : m.chain, ...(m.kind === 'favourites' ? { singleTitle: 'Favourites' } : {}) } : {}), onTrade: (r) => (swapHandler(r) ?? (() => userPick(r)))(), rows: shownRows, listKey: `${m.kind}:${m.window}:${phoneBoard ? m.chain || 'all' : ''}`, isFill: (r) => boardFill.has(rowKey(r.chain, r.address)), fourth: fourthChain, onFourth: (c) => { fourthChain = c; draw(); }, onOpen: userPick, favourites: { has: (r) => favourites.has(r.chain, r.address), toggle: toggleFavourite } })
           : tableEl;
         stopBoardWatch?.();
         stopBoardWatch = null;

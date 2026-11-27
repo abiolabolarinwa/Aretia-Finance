@@ -305,11 +305,14 @@ export function mountIsland(deps: IslandDeps): void {
       root.classList.remove('is-ping');
       void root.offsetWidth;
       root.classList.add('is-ping');
-      setOpen(true);
-      clearTimeout(announceTimer);
-      announceTimer = setTimeout(() => {
-        if (!pinned) setOpen(false);
-      }, ANNOUNCE_MS);
+      // On a phone (no hover) the pill only pulses: it opens when the person taps it, never by itself.
+      if (window.matchMedia('(hover: hover)').matches) {
+        setOpen(true);
+        clearTimeout(announceTimer);
+        announceTimer = setTimeout(() => {
+          if (!pinned) setOpen(false);
+        }, ANNOUNCE_MS);
+      }
     }
     first = false;
     draw();

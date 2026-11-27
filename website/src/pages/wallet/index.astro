@@ -163,7 +163,8 @@ const sendTips = [
 
       <div class="wapp__gate" data-gate>
         <h2>Connect your wallet</h2>
-        <p>
+        <p class="wapp__gate-short">Phantom, Solflare, Backpack or another wallet. Aretia never holds your keys.</p>
+        <p class="wapp__gate-long">
           Connect Phantom, Solflare, Backpack, the Aretia extension or another Solana wallet. Aretia never holds your keys or your recovery phrase: this page only reads public data for the wallet you connect, and your own wallet asks you to approve anything that moves money.
         </p>
         <button type="button" class="wapp__btn wapp__btn--primary" data-connect>Connect wallet</button>
@@ -2382,5 +2383,35 @@ const sendTips = [
     .wapp:has(.wapp-tp:not([hidden]) > .wapp-tp__dock) .wapp__side { display: none; }
     .wapp-tp__dock { display: block; position: fixed; inset: auto 12px calc(10px + env(safe-area-inset-bottom)) 12px; z-index: 81; }
     .wapp-tp__dock .wapp__btn { width: 100%; min-height: 52px; font-size: 15px; border-radius: 999px; box-shadow: 0 12px 28px -10px rgba(0, 0, 0, 0.4); }
+  }
+  /* The island sits under the fixed site bar when the page scrolls, not over it. */
+  .wapp__top .wapp-island { z-index: 40; }
+  .wapp__gate-short { display: none; }
+  /* Phones, third round: the bar stays on one line however large the phone's text is, and the dashboard fits one screen:
+     the portfolio card, the holdings (scrolling inside their card) and the services. Rising buyers, the wallet card and recent
+     activity live under their own sections (Markets, the header wallet button, Activity). */
+  @media (max-width: 720px) {
+    .wapp__nav { flex-wrap: nowrap; }
+    .wapp__nav > button { flex: 0 1 auto; min-width: 44px; padding: 0 12px; }
+    .wapp__nav > button[aria-current='page'] .wapp__label { max-width: 92px; overflow: hidden; text-overflow: ellipsis; }
+    .wapp__main { padding-top: 10px; align-content: start; }
+    .wapp-dash, .wapp-dash__main, .wapp-dash__side { align-content: start; }
+    .wapp[data-connected='false']:is([data-view='dashboard'], [data-view='send'], [data-view='activity']) .wapp__main { grid-template-rows: none; gap: 10px; }
+    .wapp__gate { align-self: start; }
+    .wapp__gate-long, .wapp__gate .wapp__fine { display: none; }
+    .wapp__gate-short { display: block; }
+    .wapp__gate { gap: 8px; padding: 16px; }
+    .wapp__gate h2 { font-size: 1rem; }
+    .wapp-dash, .wapp-dash__main, .wapp-dash__side { gap: 10px; }
+    .wapp-dash__rising, .wapp-dash__wallet, .wapp-dash__recent { display: none; }
+    .wapp-dash__holdings { padding: 12px 14px; }
+    .wapp-dash__holdings [data-holdings] { max-height: 150px; overflow-y: auto; }
+    .wapp-dash__hero { gap: 12px; padding: 16px; }
+    .wapp-dash__hero .wapp__total { margin: 2px 0; font-size: 1.9rem; }
+    .wapp-dash__hero .wapp-dash__action > span { width: 44px; height: 44px; }
+    .wapp-dash__services { padding: 14px; }
+    .wapp-dash__services .wapp__h2 { margin-bottom: 8px; font-size: 14px; }
+    .wapp-svc__grid .wapp-svc__tile { min-height: 64px; padding: 8px 2px; }
+    .wapp-svc__grid .wapp-svc__tile svg, .wapp-svc__grid .wapp-svc__tile img { width: 28px; height: 28px; }
   }
 </style>

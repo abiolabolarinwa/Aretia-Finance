@@ -15,6 +15,7 @@ import { compactCount, compactUsd, formatAge, formatChange, formatPrice } from '
 import { cachedLogo } from '../swings/tokens/logos.js';
 import { tokenShare } from './tokenPageCore';
 import { shareButton } from './walletShareButton';
+import { openInsight } from './walletInsights';
 
 export interface TokenPageOptions {
   chain: ChainId;
@@ -121,14 +122,34 @@ export function createTokenPage(finder = new DexScreenerPoolFinder()) {
       const buy = el('button', 'wapp__btn wapp__btn--primary', `Buy ${o.symbol}`);
       buy.type = 'button';
       buy.addEventListener('click', () => {
-        if (swapHost) {
-          swapHost.scrollIntoView({ behavior: 'smooth', block: 'start' });
-          swapHost.querySelector<HTMLElement>('input, button')?.focus({ preventScroll: true });
-        } else o.onSwap?.();
+        // The swap card opens in a sheet from the bottom of the screen (it is put back under the chart when the sheet closes).
+        if (swapHost) openInsight({ label: `Buy ${o.symbol}`, el: swapHost });
+        else o.onSwap?.();
       });
       dock.append(buy);
       root.append(dock);
     }
+    // Phones: Chart, Trades and About as tabs under the header, one at a time (wider screens show everything; see wallet/index.astro).
+    const tabs = el('div', 'wapp-tp__tabs');
+    tabs.setAttribute('role', 'tablist');
+    tabs.setAttribute('aria-label', `${o.symbol} views`);
+    const tabList: [string, string][] = [['chart', 'Chart'], ['trades', 'Trades'], ['about', 'About']];
+    const pick = (key: string): void => {
+      root.dataset.tpTab = key;
+      tabs.querySelectorAll<HTMLButtonElement>('button').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === key)));
+      // The chart measures its box when it is shown again.
+      if (key === 'chart') window.setTimeout(() => window.dispatchEvent(new Event('resize')), 50);
+    };
+    for (const [key, label] of tabList) {
+      const b = el('button', 'wapp-tp__tab', label);
+      b.type = 'button';
+      b.dataset.tab = key;
+      b.setAttribute('role', 'tab');
+      b.addEventListener('click', () => pick(key));
+      tabs.append(b);
+    }
+    bar.after(tabs);
+    pick('chart');
     return { chart, side, title };
   }
 

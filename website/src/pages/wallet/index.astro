@@ -2652,4 +2652,26 @@ const sendTips = [
     .wapp-toasts { left: 12px; right: 12px; bottom: calc(92px + env(safe-area-inset-bottom)); justify-items: stretch; }
     .wapp-bell-pop { bottom: calc(92px + env(safe-area-inset-bottom)); }
   }
+  /* Phones: Launch Box as an app screen. No tour row or big heading; the three totals as a compact row; the four lists as a
+     segmented control; the networks as round logos; each token a tight card; the chart box only once a token is picked. */
+  @media (max-width: 720px) {
+    .wapp[data-view='launchbox'] .wapp__top { display: none; }
+    .wapp[data-view='launchbox'] .wapp__main { padding-top: 8px; gap: 8px; }
+    .wapp-lb__headline, .wapp-lb__sub { display: none; }
+    .wapp-lb__hero { padding: 0; }
+    .wapp-lb__stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; width: 100%; }
+    .wapp-lb__stat { gap: 2px; padding: 8px 10px; background: var(--color-bg-alt); border: 1px solid var(--color-border); border-radius: 12px; }
+    .wapp-lb__stat small { font-size: 10.5px; }
+    .wapp-lb__stat strong { font-size: 15px; }
+    .wapp-lb__tabs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; padding: 4px; background: var(--color-bg-alt); border: 1px solid var(--color-border); border-radius: 999px; }
+    .wapp-lb__tab { min-height: 36px; padding: 0 4px; font-size: 12.5px; font-weight: 600; line-height: 1.1; white-space: nowrap; border-radius: 999px; }
+    .wapp-lb__tab[aria-pressed='true'] { color: var(--color-strong); background: var(--color-bg); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2); }
+    .wapp-lb__chains { gap: 8px; }
+    .wapp-lb__chains .wapp__chip { min-height: 40px; }
+    .wapp-lb__chainchip { width: 40px; height: 40px; border-radius: 50%; }
+    .wapp-lb__row { gap: 4px 8px; padding: 10px 12px; border-radius: 12px; }
+    .wapp-lb__row td { font-size: 12.5px; }
+    .wapp-lb__row td::before { font-size: 9.5px; }
+    .wapp-lb__chart:has(> .wapp-lb__chartempty:only-child) { display: none; }
+  }
 </style>

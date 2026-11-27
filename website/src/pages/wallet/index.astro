@@ -2522,6 +2522,7 @@ const sendTips = [
      island, search or tour). Connected: the portfolio card and holdings, without the services, island and search. */
   @media (max-width: 720px) {
     .wapp[data-view='dashboard'] :is(.wapp-dash__services, .wapp-island, .wapp-search) { display: none; }
+    body:has(.wapp[data-view='dashboard']) .nav__bar > .wapp-search { display: none; }
     .wapp[data-view='dashboard'][data-connected='false'] .wapp__top { display: none; }
     .wapp[data-view='dashboard'][data-connected='false'] .wapp__main { min-height: calc(100svh - var(--nav-height) - 96px - env(safe-area-inset-bottom)); grid-template-rows: minmax(0, 1fr); align-content: stretch; }
     .wapp[data-view='dashboard'][data-connected='false'] .wapp__gate { align-self: center; }
@@ -2548,4 +2549,12 @@ const sendTips = [
   .wapp-ins-sheet__body > * { display: grid; max-height: none; margin: 0; border: 0; padding: 0; }
   .wapp-ins-sheet__body > .wapp-mt__stats { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
   .wapp-ins-sheet__body .wapp-ov__title, .wapp-ins-sheet__body .wapp-ov__ptitle { display: none; }
+  /* Phones: the search box sits in the site bar beside the logo, and Markets shows one board (every network under the Aretia mark,
+     or the network picked in the row above it). */
+  @media (max-width: 720px) {
+    .nav--wallet .nav__bar > .wapp-search { flex: 1 1 auto; min-width: 0; max-width: none; margin: 0 8px 0 4px; }
+    .nav--wallet .nav__bar > .wapp-search .wapp-search__list { position: fixed; left: 12px; right: 12px; width: auto; }
+    .wapp-bd--single { grid-template-columns: minmax(0, 1fr); }
+    .wapp-bd--single .wapp-bd__list { height: calc(100dvh - var(--nav-height) - 260px - env(safe-area-inset-bottom)); min-height: 320px; }
+  }
 </style>

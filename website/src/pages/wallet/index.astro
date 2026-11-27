@@ -2005,8 +2005,8 @@ const sendTips = [
   .wapp-mt__num.is-pending { color: #8a8f98; }
   /* A price that just moved (a live update) flashes for a moment, green for up and red for down. */
   .wapp-mt__num.is-tick-up, .wapp-mt__num.is-tick-down { border-radius: 4px; }
-  .wapp-mt__num.is-tick-up { animation: wapp-tick-up 0.9s ease-out; }
-  .wapp-mt__num.is-tick-down { animation: wapp-tick-down 0.9s ease-out; }
+  .wapp-mt__num.is-tick-up { animation: wapp-tick-up 0.5s ease-out; }
+  .wapp-mt__num.is-tick-down { animation: wapp-tick-down 0.5s ease-out; }
   /* The text takes the colour of the move too, and both fade back to the cell's own colours, as on the board. */
   @keyframes wapp-tick-up { from { color: #15803d; background-color: rgba(27, 138, 75, .24); } to { background-color: transparent; } }
   @keyframes wapp-tick-down { from { color: #b42318; background-color: rgba(179, 38, 30, .22); } to { background-color: transparent; } }

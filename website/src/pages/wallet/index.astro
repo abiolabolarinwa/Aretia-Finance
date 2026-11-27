@@ -2313,6 +2313,12 @@ const sendTips = [
     .wapp__nav > button:not([data-nav='dashboard'], [data-nav='swings'], [data-nav='send'], [data-nav='launch'], .wapp__more) { display: none; }
     .wapp__nav .wapp__more { display: flex; }
     .wapp__more-logo { display: block; width: 26px; height: 26px; border-radius: 8px; }
+    /* Home sits in the centre of the bar: Markets, Pay, Home, Launch, More */
+    .wapp:not([data-more-open]) .wapp__nav > [data-nav='swings'] { order: 1; }
+    .wapp:not([data-more-open]) .wapp__nav > [data-nav='send'] { order: 2; }
+    .wapp:not([data-more-open]) .wapp__nav > [data-nav='dashboard'] { order: 3; }
+    .wapp:not([data-more-open]) .wapp__nav > [data-nav='launch'] { order: 4; }
+    .wapp:not([data-more-open]) .wapp__nav > .wapp__more { order: 5; }
     /* When the current section lives under More, More is the pill */
     .wapp__nav:has(> button:not([data-nav='dashboard'], [data-nav='swings'], [data-nav='send'], [data-nav='launch'], .wapp__more)[aria-current='page']) .wapp__more { color: #fff; background: var(--color-brand); }
     /* More open: every section as a grid sheet, icons with names */

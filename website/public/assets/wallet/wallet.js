@@ -835,6 +835,57 @@
   // stub). Rendered as a logo-only grid further down: clicking a logo here
   // always opens that wallet's install page, since by construction none of
   // these are currently connectable.
+  // On a phone, wallets live in their own apps and cannot reach this page from the phone's browser (or from the Aretia app).
+  // These are each wallet's published "open in app" links: they open this page inside the wallet app's own browser, where the
+  // wallet is detected and connects as usual. Nothing is sent to the wallet but this page's address.
+  var OPEN_IN_APP = [
+    { name: "Phantom", href: function (u) { return "https://phantom.app/ul/browse/" + encodeURIComponent(u) + "?ref=" + encodeURIComponent(location.origin); } },
+    { name: "Solflare", href: function (u) { return "https://solflare.com/ul/v1/browse/" + encodeURIComponent(u) + "?ref=" + encodeURIComponent(location.origin); } },
+    { name: "Backpack", href: function (u) { return "https://backpack.app/ul/v1/browse/" + encodeURIComponent(u) + "?ref=" + encodeURIComponent(location.origin); } },
+    { name: "Trust", href: function (u) { return "https://link.trustwallet.com/open_url?coin_id=501&url=" + encodeURIComponent(u); } },
+  ];
+
+  function isPhone() {
+    var nativeApp = !!(window.Capacitor && typeof window.Capacitor.isNativePlatform === "function" && window.Capacitor.isNativePlatform());
+    var touch = (navigator.maxTouchPoints || 0) > 0 && !(window.matchMedia && window.matchMedia("(pointer: fine)").matches);
+    return nativeApp || touch;
+  }
+
+  function openInAppHref(name) {
+    for (var i = 0; i < OPEN_IN_APP.length; i++) if (OPEN_IN_APP[i].name === name) return OPEN_IN_APP[i].href(location.href);
+    return null;
+  }
+
+  // The "Open in your wallet app" list shown on a phone when no wallet was detected.
+  function buildOpenInApp() {
+    var box = document.createElement("div");
+    box.className = "aw-openapp";
+    var h = document.createElement("p");
+    h.className = "aw-openapp-title";
+    h.textContent = "Open Aretia in your wallet app";
+    box.appendChild(h);
+    var ul = document.createElement("ul");
+    ul.className = "aw-list";
+    OPEN_IN_APP.forEach(function (w) {
+      var known = KNOWN_WALLETS.filter(function (k) { return k.name === w.name; })[0];
+      var li = document.createElement("li");
+      var a = document.createElement("a");
+      a.className = "aw-item";
+      a.href = w.href(location.href);
+      a.target = "_blank";
+      a.rel = "noopener";
+      a.setAttribute("aria-label", "Open this page in " + w.name);
+      a.innerHTML =
+        (known && known.icon ? '<img class="aw-item-icon" src="' + known.icon + '" alt="" />' : '<span class="aw-item-icon aw-item-letter">' + w.name.charAt(0) + '</span>') +
+        '<span class="aw-item-name"></span><span class="aw-item-state">Open</span>';
+      a.querySelector(".aw-item-name").textContent = w.name;
+      li.appendChild(a);
+      ul.appendChild(li);
+    });
+    box.appendChild(ul);
+    return box;
+  }
+
   function getKnownWalletsGrid() {
     var detectedNames = {};
     state.wallets.forEach(function (wallet) { detectedNames[wallet.name] = true; });
@@ -890,7 +941,9 @@
     // backing so the glyph doesn't disappear against the default white one.
     if (known.bg) item.querySelector("img").style.background = known.bg;
     item.addEventListener("click", function () {
-      window.open(known.installUrl, "_blank", "noopener");
+      // On a phone, a wallet that has an "open in app" link opens this page inside it; otherwise its install page.
+      var inApp = isPhone() ? openInAppHref(known.name) : null;
+      window.open(inApp || known.installUrl, "_blank", "noopener");
     });
     li.appendChild(item);
     return li;
@@ -923,11 +976,11 @@
       var note = document.createElement("p");
       note.className = "aw-sheet-sub";
       note.style.marginTop = "-10px";
-      var touch = (navigator.maxTouchPoints || 0) > 0 && !(window.matchMedia && window.matchMedia("(pointer: fine)").matches);
-      note.textContent = touch
-        ? "No Solana wallet was detected. On a phone, open this page inside your wallet app's built-in browser, or install a wallet below."
+      note.textContent = isPhone()
+        ? "Wallet apps cannot connect to this page directly on a phone. Pick yours below: Aretia opens inside it and your wallet connects there."
         : "No Solana wallet was detected in this browser yet. If you just installed one, reload this page.";
       body.appendChild(note);
+      if (isPhone()) body.appendChild(buildOpenInApp());
     }
 
     var searchInput = null;

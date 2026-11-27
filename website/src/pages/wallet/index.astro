@@ -2491,4 +2491,24 @@ const sendTips = [
     .wapp-lb__sort { flex: none; max-width: 46%; }
     .wapp-lb__chart { padding: 10px; }
   }
+  /* Phones: the Create a token form in four steps (src/scripts/launchSteps.ts adds the step bar and the Back / Next buttons). */
+  .wapp-ln__form[data-ln-step='1'] > [data-ln-page]:not([data-ln-page='1']),
+  .wapp-ln__form[data-ln-step='2'] > [data-ln-page]:not([data-ln-page='2']),
+  .wapp-ln__form[data-ln-step='3'] > [data-ln-page]:not([data-ln-page='3']),
+  .wapp-ln__form[data-ln-step='4'] > [data-ln-page]:not([data-ln-page='4']) { display: none !important; }
+  .lh-steps-head { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 8px; margin-bottom: 4px; }
+  .lh-steps-head > span:first-child { font-size: 11px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--color-muted); }
+  .lh-steps-head > strong { font-size: 15px; color: var(--color-strong); }
+  .lh-steps-dots { display: flex; gap: 4px; margin-left: auto; }
+  .lh-steps-dots i { display: block; width: 18px; height: 4px; background: var(--color-border-strong); border-radius: 2px; }
+  .lh-steps-dots i.is-on { background: var(--color-brand); }
+  .lh-steps-nav { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 8px; margin-top: 6px; }
+  .lh-steps-nav .wapp__btn { min-height: 52px; font-size: 15px; border-radius: 999px; }
+  .lh-steps-nav .wapp__btn[hidden] { display: none; }
+  @media (max-width: 720px) {
+    /* The picture-and-links step: a shorter description box, X and Telegram side by side */
+    .wapp-ln__form[data-ln-step] .lh-det textarea { min-height: 72px; }
+    .wapp-ln__form[data-ln-step] .lh-det__links { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 6px 8px; }
+    .wapp-ln__form[data-ln-step] .lh-det__links > :first-child { grid-column: 1 / -1; }
+  }
 </style>

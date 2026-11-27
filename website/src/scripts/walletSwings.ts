@@ -2802,9 +2802,11 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
         tableEl = marketTable({ rows: shown, rankStart: ix ? (ix.page - 1) * ix.size + 1 : m.kind !== 'favourites' ? (pageNo - 1) * pageSize + 1 : 1, sort: tsort, showRisk: false, selectedKey: panel.selectedKey(), ratingState: ratings.stateOf, favourites: { has: (r) => favourites.has(r.chain, r.address), toggle: toggleFavourite }, onSort: (key) => { tsort = tsort.key === key ? { key, dir: tsort.dir === 'desc' ? 'asc' : 'desc' } : { key, dir: 'desc' }; if (m.kind !== 'favourites') pageNo = 1; const server = ix ? serverSort(key, tsort.dir) : null; if (server) { ixSort = { kind: m.kind, ...server }; void load(true); } else draw(); }, onOpen: userPick, ...(m.chain === '' ? { showSpark: true, onTrade: (r: MarketRow) => (swapHandler(r) ?? (() => userPick(r)))() } : {}) });
         watchRows(shown);
         const featured = featuredForMarkets();
-        const boardMode = m.kind !== 'favourites' && m.chain === '';
+        // Phones show one board: every network together under the Aretia mark, or the one network picked in the network row.
+        const phoneBoard = window.matchMedia('(max-width: 720px)').matches;
+        const boardMode = m.kind !== 'favourites' && (m.chain === '' || phoneBoard);
         const body = boardMode
-          ? marketBoard({ rows: shownRows, listKey: `${m.kind}:${m.window}`, isFill: (r) => boardFill.has(rowKey(r.chain, r.address)), fourth: fourthChain, onFourth: (c) => { fourthChain = c; draw(); }, onOpen: userPick, favourites: { has: (r) => favourites.has(r.chain, r.address), toggle: toggleFavourite } })
+          ? marketBoard({ ...(phoneBoard ? { single: m.chain === '' ? ('all' as const) : m.chain } : {}), rows: shownRows, listKey: `${m.kind}:${m.window}:${phoneBoard ? m.chain || 'all' : ''}`, isFill: (r) => boardFill.has(rowKey(r.chain, r.address)), fourth: fourthChain, onFourth: (c) => { fourthChain = c; draw(); }, onOpen: userPick, favourites: { has: (r) => favourites.has(r.chain, r.address), toggle: toggleFavourite } })
           : tableEl;
         stopBoardWatch?.();
         stopBoardWatch = null;

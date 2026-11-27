@@ -49,16 +49,17 @@ export function mountTokenSearch(): void {
   const list = el('ul', { class: 'wapp-search__list', attrs: { id: 'wapp-search-list', role: 'listbox', hidden: '', 'data-lenis-prevent': '' } });
   wrap.append(icon, input, list);
 
-  // On a wide screen the box sits in the site bar next to the chips; on a narrow one it sits at the top of the page.
+  // On a wide screen the box sits in the site bar next to the chips, and on a phone beside the logo; in between it sits at the top of the page.
   const place = (): void => {
     const bar = document.querySelector<HTMLElement>('header.nav .nav__bar');
     const actions = bar?.querySelector<HTMLElement>('.nav__actions') ?? null;
     const home = document.querySelector<HTMLElement>('.wapp__top');
-    const wide = window.matchMedia('(min-width: 1081px)').matches;
-    if (wide && bar && actions) bar.insertBefore(wrap, actions);
+    const inBar = window.matchMedia('(min-width: 1081px)').matches || window.matchMedia('(max-width: 720px)').matches;
+    if (inBar && bar && actions) bar.insertBefore(wrap, actions);
     else if (home) home.append(wrap);
   };
   window.matchMedia('(min-width: 1081px)').addEventListener('change', place);
+  window.matchMedia('(max-width: 720px)').addEventListener('change', place);
   place();
 
   let hits: SearchHit[] = [];

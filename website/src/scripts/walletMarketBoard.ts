@@ -24,6 +24,8 @@ export const FIXED_COLUMNS: readonly BoardColumn[] = [
 ];
 export const FOURTH_TITLES: Readonly<Record<FourthChain, string>> = { base: 'Base', robinhood: 'Robinhood' };
 export const FOURTH_CHOICES: readonly FourthChain[] = ['base', 'robinhood'];
+/** Column titles for every network a single board can show. */
+const ALL_TITLES: Readonly<Partial<Record<ChainId, string>>> = { solana: 'Solana', ethereum: 'Ethereum', bnb: 'BNB Chain', polygon: 'Polygon', base: 'Base', robinhood: 'Robinhood' };
 
 /** Every network the board can show, in the order it asks the index for them. */
 export const BOARD_CHAINS: readonly ChainId[] = ['solana', 'ethereum', 'bnb', 'base', 'robinhood'];
@@ -52,6 +54,8 @@ export interface BoardOptions {
   /** The key of the token on screen elsewhere (the selected one), to mark. */
   selectedKey?: string | null;
   favourites?: { has(row: MarketRow): boolean; toggle(row: MarketRow): void };
+  /** Phones: one board instead of the four columns. 'all' lists every network's tokens together (the rows' own order); a network lists only its own. */
+  single?: ChainId | 'all';
 }
 
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls = '', text?: string): HTMLElementTagNameMap[K] {
@@ -63,9 +67,13 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls = '', text?: stri
 
 /** The rows of one network, in the order they came, with those that carry no price or market cap last so a card is never mostly dashes. */
 export function columnRows(rows: readonly MarketRow[], chain: ChainId): MarketRow[] {
-  const mine = rows.filter((r) => r.chain === chain);
+  return withPriceFirst(rows.filter((r) => r.chain === chain));
+}
+
+/** The rows in the order they came, those with a price and a market cap first. */
+export function withPriceFirst(rows: readonly MarketRow[]): MarketRow[] {
   const full = (r: MarketRow): boolean => r.priceUsd !== null && r.capUsd !== null;
-  return [...mine.filter(full), ...mine.filter((r) => !full(r))];
+  return [...rows.filter(full), ...rows.filter((r) => !full(r))];
 }
 
 /** Which fourth network to open on: the chosen one, unless it has nothing and the other has something. */
@@ -154,12 +162,12 @@ function card(r: MarketRow, o: BoardOptions): HTMLElement {
   return c;
 }
 
-function column(title: string, chain: ChainId, rows: readonly MarketRow[], o: BoardOptions, switcher?: HTMLElement): HTMLElement {
+function column(title: string, chain: ChainId | 'all', rows: readonly MarketRow[], o: BoardOptions, switcher?: HTMLElement): HTMLElement {
   const col = el('section', 'wapp-bd__col');
   col.dataset.chain = chain;
   const head = el('header', 'wapp-bd__head');
   const logo = el('img', 'wapp-bd__chain');
-  logo.src = `/assets/chains/${chain}.png`;
+  logo.src = chain === 'all' ? '/assets/logo-mark.png' : `/assets/chains/${chain}.png`;
   logo.alt = '';
   logo.width = 22;
   logo.height = 22;
@@ -214,6 +222,14 @@ export function marketBoard(o: BoardOptions): HTMLElement {
     drawnCount.clear();
   }
   const board = el('div', 'wapp-bd');
+  if (o.single) {
+    // One board: every network together under the Aretia mark, or the one network picked in the network row.
+    board.classList.add('wapp-bd--single');
+    const title = o.single === 'all' ? 'All networks' : (ALL_TITLES[o.single] ?? o.single);
+    const rows = o.single === 'all' ? withPriceFirst(o.rows) : columnRows(o.rows, o.single);
+    board.append(column(title, o.single, rows, o));
+    return board;
+  }
   for (const c of FIXED_COLUMNS) board.append(column(c.title, c.chain, columnRows(o.rows, c.chain), o));
   const fourth = pickFourth(o.rows, o.fourth);
   const sw = el('div', 'wapp-bd__switch');

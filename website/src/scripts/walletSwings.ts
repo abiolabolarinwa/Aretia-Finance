@@ -1705,13 +1705,18 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
     const fmt = (raw: bigint, d: number): string => shortAmount(fromSmallestUnit(raw, d));
     const inN = Number(fromSmallestUnit(sum.swap.amountIn, from.decimals));
     const outN = Number(fromSmallestUnit(sum.swap.expectedOut, to.decimals));
-    const impactBps = s.sizeImpact === null ? null : Math.round(s.sizeImpact * 10_000);
+    // The slip shows only what a person needs to decide: the rate (above), the least they get, the slippage and what it costs. The network
+    // fee and Aretia's fee are shown as one line, added together when both are in the same coin; the route is not shown.
     const rows: [string, string][] = [['Minimum you receive', `${fmt(sum.swap.minOut, to.decimals)} ${to.symbol}`]];
-    if (impactBps !== null) rows.push(['Price impact', `${(impactBps / 100).toFixed(2)}%`]);
     rows.push(['Slippage allowed', `${(q.request.slippageBps / 100).toFixed(2)}%`]);
-    rows.push(['Network fee', sum.network ? `About ${fmt(sum.network.amount, info.nativeDecimals)} ${info.nativeSymbol}` : `Paid in ${info.nativeSymbol}, shown by your wallet`]);
-    rows.push(['Aretia fee', sum.aretiaFee.state === 'ready' ? `${fmt(sum.aretiaFee.amount, from.decimals)} ${from.symbol} (${FEE_PERCENT})` : 'None']);
-    rows.push(['Route', `${providerLabel(q.providerId)}${sum.swap.route.length > 0 ? ` · ${sum.swap.route.join(' + ')}` : ''}`]);
+    const payIsCoin = (from.mint === EVM_NATIVE_ADDRESS || from.mint === SOL_MINT) && from.decimals === info.nativeDecimals;
+    const aretia = sum.aretiaFee.state === 'ready' && sum.aretiaFee.amount > 0n ? sum.aretiaFee.amount : 0n;
+    let fees: string;
+    if (sum.network && (aretia === 0n || payIsCoin)) fees = `About ${fmt(sum.network.amount + aretia, info.nativeDecimals)} ${info.nativeSymbol}`;
+    else if (sum.network) fees = `About ${fmt(sum.network.amount, info.nativeDecimals)} ${info.nativeSymbol} + ${fmt(aretia, from.decimals)} ${from.symbol}`;
+    else if (aretia > 0n) fees = `${fmt(aretia, from.decimals)} ${from.symbol}, plus the network fee your wallet shows`;
+    else fees = `The network fee your wallet shows, in ${info.nativeSymbol}`;
+    rows.push(['Fees', fees]);
     const ex = s.execution;
     const ok = s.prepared?.simulation.ok === true && s.extraBlockers.length === 0 && !safetyNeedsAck();
     return {
@@ -1720,14 +1725,14 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
       pay: { symbol: from.symbol, amount: fmt(sum.swap.amountIn + sum.aretiaFee.amount, from.decimals), icon: logoOf(s.chain, from) },
       receive: { symbol: to.symbol, amount: fmt(sum.swap.expectedOut, to.decimals), icon: logoOf(s.chain, to) },
       rate: rateLabel(inN, outN, from.symbol, to.symbol),
-      rows: stage === 'review' ? rows : stage === 'done' ? rows.filter(([k]) => k === 'Network fee' || k === 'Route') : [],
+      rows: stage === 'review' ? rows : stage === 'done' ? rows.filter(([k]) => k === 'Fees') : [],
       refreshAt: stage === 'review' ? s.quotedAt + REFRESH_MS : null,
       blockers: stage === 'review' ? [...(s.prepared?.simulation.blockers ?? []), ...s.extraBlockers] : [],
       notices: stage === 'review' ? [...(q.notes ?? []), ...(s.notice ? [s.notice] : [])] : [],
       canConfirm: ok,
       confirmLabel: safetyNeedsAck() ? 'Tick the box to continue' : 'Confirm & swap',
       ack: stage === 'review' ? safetyBlock() : null,
-      details: stage === 'review' ? summaryRows(q) : null,
+      details: null,
       walletName: isEvm(q.request.chain) ? (evm.walletName ?? null) : host.getWalletName(),
       error: stage === 'failed' ? (s.error ?? ex?.error ?? 'The transaction failed on-chain.') : stage === 'unconfirmed' ? 'The network has not confirmed this swap yet. It may still go through.' : null,
       hint: stage === 'failed' ? 'The usual reasons: the price moved more than your slippage allows (new tokens can move several percent in seconds), or the token keeps a fee on every trade. Open Details under the swap, choose a higher slippage such as 3%, and try again.' : stage === 'unconfirmed' ? 'Check the transaction before trying again.' : null,

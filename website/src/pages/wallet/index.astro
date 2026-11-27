@@ -2646,4 +2646,10 @@ const sendTips = [
     .wapp[data-view='launch'] .lh__head { align-items: stretch; text-align: left; }
     .lh__step.wapp__card, .lh__side .wapp__card { padding: 14px; border-radius: 12px; }
   }
+  /* Phones: the Favourites alert threshold gets its own line under the list icons; pop-up notices sit above the bottom bar. */
+  @media (max-width: 720px) {
+    .wapp-mt__bar > select.wapp__input { flex: 1 1 100%; min-width: 0; min-height: 40px; }
+    .wapp-toasts { left: 12px; right: 12px; bottom: calc(92px + env(safe-area-inset-bottom)); justify-items: stretch; }
+    .wapp-bell-pop { bottom: calc(92px + env(safe-area-inset-bottom)); }
+  }
 </style>

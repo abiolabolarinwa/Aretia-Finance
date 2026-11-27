@@ -2413,4 +2413,22 @@ const sendTips = [
     .wapp-svc__grid .wapp-svc__tile { min-height: 64px; padding: 8px 2px; }
     .wapp-svc__grid .wapp-svc__tile svg, .wapp-svc__grid .wapp-svc__tile img { width: 28px; height: 28px; }
   }
+  /* Phones: Markets. The tabs come first, the overview becomes one row of cards to swipe, then the token list; the island and the
+     tour button share a line above the search box. Wider screens are untouched. */
+  @media (max-width: 720px) {
+    .wapp:is([data-view='swings'], [data-view='swap']) .wapp__top { gap: 8px; }
+    .wapp:is([data-view='swings'], [data-view='swap']) .wapp__top .wapp-island { order: 1; flex: 1 1 0; flex-basis: 0; min-width: 0; margin: 0; }
+    .wapp:is([data-view='swings'], [data-view='swap']) .wapp__top .wapp__chips { order: 2; margin-left: 0; }
+    .wapp:is([data-view='swings'], [data-view='swap']) .wapp__top .wapp-search { order: 3; }
+    .wapp-mt__card > .wapp-mt__bar { order: 1; }
+    .wapp-mt__card > .wapp-mt__stats { order: 2; }
+    .wapp-mt__card > .wapp-ov { order: 3; }
+    .wapp-mt__card > .wapp-mt__main { order: 4; }
+    .wapp-mt__bar { gap: 8px; }
+    .wapp-mt__bar > .wapp__seg { flex: 1 1 200px; min-width: 0; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin: 0 -2px; padding: 2px; }
+    .wapp-mt__bar > .wapp__seg .wapp__chip { flex: none; padding: 7px 14px; font-size: 13px; }
+    .wapp-ov { display: flex; gap: 8px; margin: 0; padding: 0 0 4px; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; }
+    .wapp-ov > .wapp-ov__cards, .wapp-ov > .wapp-ov__lists { display: contents; }
+    .wapp-ov .wapp-ov__card, .wapp-ov .wapp-ov__panel { flex: 0 0 78%; max-height: 180px; overflow: hidden; scroll-snap-align: start; }
+  }
 </style>

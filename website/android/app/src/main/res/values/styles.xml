@@ -13,6 +13,12 @@
         <item name="windowActionBar">false</item>
         <item name="windowNoTitle">true</item>
         <item name="android:background">@null</item>
+        <!-- Status and navigation bars in the page colour: light grey with dark icons, or near-black with light icons in night mode (values-night). -->
+        <item name="android:windowBackground">@color/aretia_bars</item>
+        <item name="android:statusBarColor">@color/aretia_bars</item>
+        <item name="android:navigationBarColor">@color/aretia_bars</item>
+        <item name="android:windowLightStatusBar">@bool/aretia_light_bars</item>
+        <item name="android:windowLightNavigationBar">@bool/aretia_light_bars</item>
     </style>
 
 

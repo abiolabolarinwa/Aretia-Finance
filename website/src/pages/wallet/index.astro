@@ -131,7 +131,13 @@ const sendTips = [
           <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h10" /></svg>
           <span class="wapp__label">Activity</span>
         </button>
+        <!-- Phones only: the bottom bar shows four sections and this button opens the rest. Hidden on wider screens. -->
+        <button type="button" class="wapp__more" data-more aria-expanded="false" aria-controls="wapp-nav">
+          <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><circle cx="5" cy="12" r="1.6" /><circle cx="12" cy="12" r="1.6" /><circle cx="19" cy="12" r="1.6" /></svg>
+          <span class="wapp__label" data-more-label>More</span>
+        </button>
       </nav>
+      <div class="wapp__more-scrim" data-more-scrim hidden></div>
       <div class="wapp__side-foot">
         <button type="button" class="wapp__lock wapp__bell" data-bell title="Notifications">
           <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M6 17V11a6 6 0 0 1 12 0v6l1.5 2h-15zM10 21h4" /></svg>
@@ -1859,7 +1865,6 @@ const sendTips = [
   .wapp-mt__stat { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: center; gap: 4px 8px; padding: 10px 12px; border: 1px solid var(--color-border); border-radius: 12px; background: var(--color-bg); font-variant-numeric: tabular-nums; }
   .wapp-mt__stat strong { color: var(--color-strong); font-size: 14px; }
   .wapp-mt__stat { align-content: center; }
-  @media (max-width: 720px) { .wapp-mt__stats { grid-template-columns: 1fr; } }
   /* The overview band above the Markets list: three cards, then three short lists. */
   .wapp-ov { display: grid; gap: 8px; margin: 0 0 8px; }
   .wapp-ov__cards, .wapp-ov__lists { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
@@ -2290,5 +2295,38 @@ const sendTips = [
     .wapp__total { font-size: 1.7rem; }
     .wapp-table th:nth-child(3), .wapp-table td:nth-child(3), .wapp-table th:nth-child(5), .wapp-table td:nth-child(5) { display: none; }
     .wapp-trades th, .wapp-trades td { display: table-cell !important; }
+  }
+  /* Phones: an app-style floating bottom bar. Home, Markets, Pay and Launch stay in the bar (the current one as an indigo pill
+     with its name, the others as icons); More opens every other section as a sheet. Wider screens keep the sidebar as before. */
+  .wapp__nav .wapp__more, .wapp__more-scrim { display: none; }
+  @media (max-width: 720px) {
+    .wapp__side { position: fixed; inset: auto 12px calc(10px + env(safe-area-inset-bottom)) 12px; z-index: 80; display: block; height: auto; padding: 6px; overflow: visible; background: var(--color-bg); border: 1px solid var(--color-border); border-radius: 999px; box-shadow: 0 12px 32px -10px rgba(0, 0, 0, 0.28), 0 2px 8px rgba(0, 0, 0, 0.06); }
+    .wapp__account { display: none; }
+    .wapp__nav { display: flex; align-items: center; justify-content: space-between; gap: 4px; }
+    .wapp__nav > button { flex: 0 0 auto; justify-content: center; gap: 8px; min-width: 48px; min-height: 48px; padding: 0 14px; font-size: 13px; font-weight: 600; color: var(--color-muted); border-radius: 999px; }
+    .wapp__nav > button svg { width: 21px; height: 21px; }
+    .wapp__nav > button .wapp__label { display: none; white-space: nowrap; }
+    .wapp__nav > button:hover { color: var(--color-strong); background: var(--color-bg-alt); }
+    .wapp__nav > button[aria-current='page'] { color: #fff; background: var(--color-brand); }
+    .wapp__nav > button[aria-current='page'] .wapp__label { display: inline; }
+    .wapp__nav > button:not([data-nav='dashboard'], [data-nav='swings'], [data-nav='send'], [data-nav='launch'], .wapp__more) { display: none; }
+    .wapp__nav .wapp__more { display: flex; }
+    /* When the current section lives under More, More is the pill */
+    .wapp__nav:has(> button:not([data-nav='dashboard'], [data-nav='swings'], [data-nav='send'], [data-nav='launch'], .wapp__more)[aria-current='page']) .wapp__more { color: #fff; background: var(--color-brand); }
+    /* More open: every section as a grid sheet, icons with names */
+    .wapp[data-more-open] .wapp__side { padding: 16px 10px 10px; border-radius: 24px; }
+    .wapp[data-more-open] .wapp__nav { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+    .wapp[data-more-open] .wapp__nav > button { display: flex; flex-direction: column; gap: 5px; min-height: 64px; padding: 8px 2px; font-size: 11px; font-weight: 500; border-radius: 16px; }
+    .wapp[data-more-open] .wapp__nav > button .wapp__label { display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+    .wapp[data-more-open] .wapp__more-scrim:not([hidden]) { display: block; position: fixed; inset: 0; z-index: 79; background: rgba(0, 0, 0, 0.4); }
+    .wapp__main { padding: 14px 14px calc(96px + env(safe-area-inset-bottom)); }
+    /* Markets: smaller network buttons and a compact three-up stats row */
+    .wapp:is([data-view='swings'], [data-view='swap']) .wapp__rail { gap: 8px; padding: 8px 14px; }
+    .wapp__netbtn { width: 40px; height: 40px; }
+    .wapp__netbtn img { width: 30px; height: 30px; }
+    .wapp-mt__stats { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+    .wapp-mt__stat { flex-direction: column; flex-wrap: nowrap; align-items: center; gap: 2px; padding: 8px 6px; text-align: center; }
+    .wapp-mt__stat .wapp__fine { font-size: 9.5px; line-height: 1.2; letter-spacing: 0.02em; }
+    .wapp-mt__stat strong { font-size: 13px; }
   }
 </style>

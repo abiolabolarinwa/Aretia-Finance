@@ -17,6 +17,7 @@ import { initWalletLock } from './walletLock';
 import { initNotifications } from './walletNotifications';
 import { initWalletConnectSolana } from './solanaWc';
 import { initMoreSheet } from './walletMoreSheet';
+import { initLaunchSteps } from './launchSteps';
 import type { initReferrals } from './walletReferrals';
 import type { initShield } from './walletShield';
 import { AddressBook } from '../swings/shield/addressBook.js';
@@ -1409,6 +1410,7 @@ export function initWalletApp(): void {
   // Inside the Aretia app only: lets phone wallets connect through WalletConnect (no effect on the website).
   initWalletConnectSolana();
   initMoreSheet();
+  initLaunchSteps();
 
   function clearSessionOutputs(): void {
     for (const sel of ['[data-send-review]']) $(sel)?.replaceChildren();

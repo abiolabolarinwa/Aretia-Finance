@@ -56,6 +56,68 @@ export interface BoardOptions {
   favourites?: { has(row: MarketRow): boolean; toggle(row: MarketRow): void };
   /** Phones: one board instead of the four columns. 'all' lists every network's tokens together (the rows' own order); a network lists only its own. */
   single?: ChainId | 'all';
+  /** Swiping a card left (touch only) opens a trade for it; without this, a left swipe does nothing. */
+  onTrade?(row: MarketRow): void;
+}
+
+/** How far a finger must travel sideways before a swipe counts. */
+export const SWIPE_AT = 72;
+
+/** What a sideways swipe of `dx` pixels does: left trades, right favourites, a short move nothing. */
+export function swipeAction(dx: number): 'trade' | 'favourite' | null {
+  return dx <= -SWIPE_AT ? 'trade' : dx >= SWIPE_AT ? 'favourite' : null;
+}
+
+/** Touch only: a card follows the finger sideways; let go past SWIPE_AT to trade (left) or add to favourites (right). Scrolling up and down is untouched. */
+function addSwipe(c: HTMLElement, r: MarketRow, o: BoardOptions): void {
+  if (!o.onTrade && !o.favourites) return;
+  let startX = 0;
+  let startY = 0;
+  let dx = 0;
+  let active = false;
+  let swallowClick = false;
+  c.addEventListener('pointerdown', (e) => {
+    if (e.pointerType !== 'touch') return;
+    startX = e.clientX;
+    startY = e.clientY;
+    dx = 0;
+    active = true;
+  });
+  c.addEventListener('pointermove', (e) => {
+    if (!active) return;
+    const mx = e.clientX - startX;
+    // A mostly vertical move is a scroll: let it go.
+    if (Math.abs(mx) < 8 || Math.abs(mx) < Math.abs(e.clientY - startY)) return;
+    dx = Math.max(-140, Math.min(140, mx));
+    c.style.transform = `translateX(${dx}px)`;
+    const act = swipeAction(dx);
+    c.dataset.swipe = dx < 0 ? 'trade' : 'favourite';
+    c.classList.toggle('is-swipe-ready', act !== null);
+  });
+  const end = (): void => {
+    if (!active) return;
+    active = false;
+    const act = swipeAction(dx);
+    c.style.transform = '';
+    c.classList.remove('is-swipe-ready');
+    delete c.dataset.swipe;
+    if (Math.abs(dx) > 8) swallowClick = true;
+    if (act === 'trade' && o.onTrade) o.onTrade(r);
+    else if (act === 'favourite' && o.favourites) {
+      o.favourites.toggle(r);
+      const star = c.querySelector<HTMLElement>('.wapp-bd__star');
+      if (star) star.textContent = o.favourites.has(r) ? '★' : '☆';
+    }
+  };
+  c.addEventListener('pointerup', end);
+  c.addEventListener('pointercancel', end);
+  // The click that follows a swipe is not a tap on the card.
+  c.addEventListener('click', (e) => {
+    if (!swallowClick) return;
+    swallowClick = false;
+    e.stopImmediatePropagation();
+    e.preventDefault();
+  }, true);
 }
 
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls = '', text?: string): HTMLElementTagNameMap[K] {
@@ -151,6 +213,7 @@ function card(r: MarketRow, o: BoardOptions): HTMLElement {
   right.append(big, chg);
 
   c.append(marketLogo(r), mid, right);
+  addSwipe(c, r, o);
   if (o.favourites) {
     const fav = o.favourites;
     const star = el('button', 'wapp-bd__star', fav.has(r) ? '★' : '☆');

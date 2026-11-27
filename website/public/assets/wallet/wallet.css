@@ -252,3 +252,9 @@
 .aw-token-name { color: rgba(255,255,255,.85); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .aw-token-amount { font-family: var(--mono, ui-monospace, monospace); font-weight: 700; color: #fff; white-space: nowrap; }
 .aw-token-net { margin-left: 6px; font-size: 10.5px; font-weight: 600; color: rgba(255,255,255,.5); }
+
+/* Phones: "Open Aretia in your wallet app" (wallet.js, shown when no wallet is detected on a phone). */
+.aw-openapp { display: grid; gap: 8px; margin: 2px 0 14px; }
+.aw-openapp-title { margin: 0; font-size: 13px; font-weight: 700; }
+.aw-openapp a.aw-item { color: inherit; text-decoration: none; }
+.aw-item-letter { display: grid; place-items: center; font-weight: 700; color: #111; }

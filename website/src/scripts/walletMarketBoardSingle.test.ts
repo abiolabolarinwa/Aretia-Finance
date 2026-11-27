@@ -31,3 +31,14 @@ describe('the phone board', () => {
     expect(withPriceFirst(rows).map((r) => r.symbol)).toEqual(['A', 'B', 'D', 'C']);
   });
 });
+
+describe('swiping a token card', () => {
+  it('trades on a long swipe left, favourites on a long swipe right, and ignores a short move', async () => {
+    const { swipeAction, SWIPE_AT } = await import('./walletMarketBoard');
+    expect(swipeAction(-SWIPE_AT)).toBe('trade');
+    expect(swipeAction(-140)).toBe('trade');
+    expect(swipeAction(SWIPE_AT)).toBe('favourite');
+    expect(swipeAction(30)).toBeNull();
+    expect(swipeAction(-30)).toBeNull();
+  });
+});

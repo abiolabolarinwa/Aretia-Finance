@@ -2348,23 +2348,23 @@ const sendTips = [
     .wapp-svc__grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
     .wapp-svc__grid .wapp-svc__tile { gap: 6px; padding: 10px 2px; font-size: 11px; }
 
-    /* Markets: each token as a row: logo and name, a 24-hour line, then price over the day's change */
-    .wapp-mt { overflow: visible; background: transparent; border: 0; }
-    .wapp-mt__table { display: block; min-width: 0; }
-    .wapp-mt__table thead { display: none; }
-    .wapp-mt__table tbody { display: grid; gap: 6px; }
-    .wapp-mt__table .wapp-mt__row { display: grid; grid-template-columns: minmax(0, 1fr) 60px minmax(76px, auto); grid-template-areas: 'tok spark price' 'tok spark chg'; align-items: center; column-gap: 10px; padding: 10px 12px; background: var(--color-bg); border: 1px solid var(--color-border); border-radius: 16px; }
-    .wapp-mt__table .wapp-mt__row > td { display: none; padding: 0; border: 0; background: none; }
-    .wapp-mt__table .wapp-mt__row:hover > td { background: none; }
-    .wapp-mt__table .wapp-mt__row > td.wapp-mt__token { display: block; grid-area: tok; min-width: 0; text-align: left; }
-    .wapp-mt__table .wapp-mt__row > td.wapp-mt__spark { display: block; grid-area: spark; }
-    .wapp-mt__table .wapp-mt__row > td.wapp-mt__spark svg { display: block; width: 60px; height: auto; }
-    .wapp-mt__table .wapp-mt__row > td.wapp-mt__price { display: block; grid-area: price; font-size: 13.5px; font-weight: 650; color: var(--color-strong); text-align: right; }
-    .wapp-mt__table .wapp-mt__row > td.wapp-mt__h24 { display: block; grid-area: chg; font-size: 11.5px; font-weight: 600; text-align: right; }
-    .wapp-mt__table .wapp-mt__logo { width: 36px; height: 36px; font-size: 11px; }
-    .wapp-mt__table .wapp-mt__line strong { font-size: 14px; }
-    .wapp-mt__table .wapp-mt__fullname { max-width: none; }
-    .wapp-mt__table .wapp-mt__dex { display: none; }
+    /* Market tables (not Launch Box, which has its own phone rows): each token as a row: logo and name, a 24-hour line, then price over the day's change */
+    .wapp-mt:not(.wapp-lb__table) { overflow: visible; background: transparent; border: 0; }
+    .wapp-mt:not(.wapp-lb__table) .wapp-mt__table { display: block; min-width: 0; }
+    .wapp-mt:not(.wapp-lb__table) .wapp-mt__table thead { display: none; }
+    .wapp-mt:not(.wapp-lb__table) .wapp-mt__table tbody { display: grid; gap: 6px; }
+    .wapp-mt__table .wapp-mt__row:not(.wapp-lb__row) { display: grid; grid-template-columns: minmax(0, 1fr) 60px minmax(76px, auto); grid-template-areas: 'tok spark price' 'tok spark chg'; align-items: center; column-gap: 10px; padding: 10px 12px; background: var(--color-bg); border: 1px solid var(--color-border); border-radius: 16px; }
+    .wapp-mt__table .wapp-mt__row:not(.wapp-lb__row) > td { display: none; padding: 0; border: 0; background: none; }
+    .wapp-mt__table .wapp-mt__row:not(.wapp-lb__row):hover > td { background: none; }
+    .wapp-mt__table .wapp-mt__row:not(.wapp-lb__row) > td.wapp-mt__token { display: block; grid-area: tok; min-width: 0; text-align: left; }
+    .wapp-mt__table .wapp-mt__row:not(.wapp-lb__row) > td.wapp-mt__spark { display: block; grid-area: spark; }
+    .wapp-mt__table .wapp-mt__row:not(.wapp-lb__row) > td.wapp-mt__spark svg { display: block; width: 60px; height: auto; }
+    .wapp-mt__table .wapp-mt__row:not(.wapp-lb__row) > td.wapp-mt__price { display: block; grid-area: price; font-size: 13.5px; font-weight: 650; color: var(--color-strong); text-align: right; }
+    .wapp-mt__table .wapp-mt__row:not(.wapp-lb__row) > td.wapp-mt__h24 { display: block; grid-area: chg; font-size: 11.5px; font-weight: 600; text-align: right; }
+    .wapp-mt:not(.wapp-lb__table) .wapp-mt__table .wapp-mt__logo { width: 36px; height: 36px; font-size: 11px; }
+    .wapp-mt:not(.wapp-lb__table) .wapp-mt__table .wapp-mt__line strong { font-size: 14px; }
+    .wapp-mt:not(.wapp-lb__table) .wapp-mt__table .wapp-mt__fullname { max-width: none; }
+    .wapp-mt:not(.wapp-lb__table) .wapp-mt__table .wapp-mt__dex { display: none; }
 
     /* Token page: compact header (back, name, share; big price; stats scroll sideways), shorter chart, a Buy button fixed at the bottom
        instead of the section bar */
@@ -2416,10 +2416,10 @@ const sendTips = [
   /* Phones: Markets. The tabs come first, the overview becomes one row of cards to swipe, then the token list; the island and the
      tour button share a line above the search box. Wider screens are untouched. */
   @media (max-width: 720px) {
-    .wapp:is([data-view='swings'], [data-view='swap']) .wapp__top { gap: 8px; }
-    .wapp:is([data-view='swings'], [data-view='swap']) .wapp__top .wapp-island { order: 1; flex: 1 1 0; flex-basis: 0; min-width: 0; margin: 0; }
-    .wapp:is([data-view='swings'], [data-view='swap']) .wapp__top .wapp__chips { order: 2; margin-left: 0; }
-    .wapp:is([data-view='swings'], [data-view='swap']) .wapp__top .wapp-search { order: 3; }
+    .wapp .wapp__top { gap: 8px; }
+    .wapp .wapp__top .wapp-island { order: 1; flex: 1 1 0; flex-basis: 0; min-width: 0; margin: 0; }
+    .wapp .wapp__top .wapp__chips { order: 2; margin-left: 0; }
+    .wapp .wapp__top .wapp-search { order: 3; }
     .wapp-mt__card > .wapp-mt__bar { order: 1; }
     .wapp-mt__card > .wapp-mt__stats { order: 2; }
     .wapp-mt__card > .wapp-ov { order: 3; }
@@ -2460,5 +2460,35 @@ const sendTips = [
     .wapp-pay [data-send-form] .wapp__eyebrow { margin-top: 4px; }
     .wapp-pay .wapp__input { min-height: 46px; }
     .wapp-pay [data-send-form] > .wapp__btn--primary { width: 100%; min-height: 52px; margin-top: 6px; font-size: 15px; border-radius: 999px; }
+  }
+  /* Phones: Launch and Launch Box, and an opaque site bar so the page never shows through it while scrolling. */
+  @media (max-width: 720px) {
+    .nav--wallet { background: var(--color-bg); border-bottom: 1px solid var(--color-border); }
+    /* Launch: short heading, one row of network chips, a compact three-step bar, roomier fields and a full-width Review */
+    .lh__title { font-size: 1.35rem; }
+    .lh__lead { display: none; }
+    .lh__net { justify-items: stretch; gap: 6px; }
+    .lh__net .wapp__eyebrow { display: none; }
+    .lh-chips[data-hub-networks] { flex-wrap: nowrap; justify-content: flex-start; overflow-x: auto; scrollbar-width: none; padding: 2px; }
+    .lh-chips[data-hub-networks] .lh-chip { flex: none; min-height: 38px; padding: 0 12px; }
+    .lh__rail { gap: 6px; }
+    .lh-step { border-radius: 14px; }
+    .lh-step .lh-step__btn { flex-direction: column; align-items: center; gap: 4px; padding: 8px 4px; text-align: center; border-radius: 14px; }
+    .lh-step .lh-step__mark { width: 26px; height: 26px; font-size: 11.5px; }
+    .lh-step .lh-step__text { justify-items: center; }
+    .lh-step .lh-step__text strong { font-size: 11.5px; line-height: 1.25; }
+    .lh-step .lh-step__text small { display: none; }
+    .lh__step.wapp__card { padding: 16px; }
+    .wapp-ln > .wapp__h2 + .wapp__fine { display: none; }
+    .wapp-ln__form .wapp__input { min-height: 46px; font-size: 15px; border-radius: 14px; }
+    .wapp-ln__form > .wapp__btn--primary { width: 100%; min-height: 52px; font-size: 15px; border-radius: 999px; }
+    /* Launch Box: short heading, filters closer together, the chart placeholder smaller */
+    .wapp-lb__headline { margin-bottom: 4px; font-size: 22px; }
+    .wapp-lb__sub { display: none; }
+    .wapp-lb__hero { gap: 10px; }
+    .wapp-lb__tools { gap: 8px; }
+    .wapp-lb__tools .wapp-lb__search { flex: 1 1 0; flex-basis: 0; min-width: 0; }
+    .wapp-lb__sort { flex: none; max-width: 46%; }
+    .wapp-lb__chart { padding: 10px; }
   }
 </style>

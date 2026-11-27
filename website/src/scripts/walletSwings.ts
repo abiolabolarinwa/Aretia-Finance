@@ -257,14 +257,66 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
   /** Latest price seen for each token that has a price order, so the Swap page can show it beside the target. */
   const orderPrices: Record<string, number | null> = {};
   let ordersChanged: () => void = () => undefined;
+  /** Which order token each followed pool prices (pool key -> token key). */
+  let orderPools = new Map<string, string>();
+
+  /** A notification from the system (outside the page), for when the person is looking at another tab or window. Asked for when the first order is set. */
+  function systemNotify(title: string, body: string, icon: string | null): void {
+    try {
+      if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
+      if (!document.hidden && document.hasFocus()) return;
+      const n = new Notification(title, { body, ...(icon ? { icon } : {}), tag: `aretia-order-${title}` });
+      n.onclick = () => {
+        window.focus();
+        n.close();
+      };
+    } catch {
+      // Not allowed here: the bell and the pop-up still have it.
+    }
+  }
+
+  /** Tells the person about every watching order the latest prices have reached, once each. */
+  function reportOrderHits(): void {
+    const hits = evaluateOrders(orders.watching(), orderPrices);
+    hits.forEach(({ order, price }, i) => {
+      orders.markHit(order.id, price);
+      const note = { title: `${order.symbol} reached ${formatPrice(order.targetUsd)}`, detail: `Your ${order.side} price. Now ${formatPrice(price)}. Open it to swap.`, tone: 'info', icon: order.icon } as const;
+      if (i < 5) toaster.show(note);
+      notify({ ...note, token: { chain: order.chain, address: order.address, symbol: order.symbol, name: order.name } }, { quiet: i > 0 });
+      if (i < 3) systemNotify(note.title, note.detail, order.icon);
+    });
+    if (hits.length > 0) {
+      pushOrders();
+      ordersChanged();
+    }
+  }
+
+  // The price of each order's token is read from its pool on the chain every two seconds, so a price that touches the target only briefly is
+  // still caught. It keeps reading while the tab is in the background (the browser may slow it to about once a minute there).
+  const orderFeed = createBoardFeed({
+    everyMs: 2_000,
+    isHidden: () => false,
+    onPrices: (list) => {
+      for (const c of list) {
+        const token = orderPools.get(c.key);
+        if (token) orderPrices[token] = c.usd;
+      }
+      reportOrderHits();
+    },
+  });
+
   /**
-   * Reads the price of every token with a price order and tells the person about each one that has reached its target. Runs only while the
-   * page is open and visible. It never trades: the person opens the swap and confirms it themselves.
+   * Finds each order token's main pool and price, and tells the person about each order that has reached its target. Runs every 30 seconds,
+   * also while the tab is in the background; between runs the chain reads above follow the price. It never trades: the person opens the swap
+   * and confirms it themselves.
    */
   async function checkPriceOrders(): Promise<void> {
-    if (document.hidden) return;
     const watching = orders.watching();
-    if (watching.length === 0) return;
+    if (watching.length === 0) {
+      orderPools = new Map();
+      orderFeed.setPools([]);
+      return;
+    }
     const seen = new Map(watching.map((o) => [`${o.chain}:${o.address}`, o]));
     let rows: MarketRow[];
     try {
@@ -272,14 +324,16 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
     } catch {
       return;
     }
-    for (const r of rows) orderPrices[watchKey(r.chain, r.address)] = r.priceUsd;
-    const hits = evaluateOrders(watching, orderPrices);
-    hits.forEach(({ order, price }, i) => {
-      orders.markHit(order.id, price);
-      const note = { title: `${order.symbol} reached ${formatPrice(order.targetUsd)}`, detail: `Your ${order.side} price. Now ${formatPrice(price)}. Open it to swap.`, tone: 'info', icon: order.icon } as const;
-      if (i < 5) toaster.show(note);
-      notify({ ...note, token: { chain: order.chain, address: order.address, symbol: order.symbol, name: order.name } }, { quiet: i > 0 });
-    });
+    const pools = new Map<string, string>();
+    for (const r of rows) {
+      const token = watchKey(r.chain, r.address);
+      // A chain price already arriving for this token is newer than the price service's; it is not replaced.
+      if (r.priceUsd !== null && !(r.pool && orderPools.has(boardKey(r.chain, r.pool)) && orderPrices[token] != null)) orderPrices[token] = r.priceUsd;
+      if (r.pool) pools.set(boardKey(r.chain, r.pool), token);
+    }
+    orderPools = pools;
+    orderFeed.setPools(rows.filter((r) => r.pool).map((r) => ({ chain: r.chain, pool: r.pool, address: r.address })));
+    reportOrderHits();
     ordersChanged();
   }
   setTimeout(() => void checkPriceOrders(), 6_000);
@@ -1661,6 +1715,12 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
         if (target === null) { msg.textContent = 'Enter a price above zero, like 0.25.'; return; }
         const made = orders.add({ chain: s.chain, address: picked.mint, symbol: picked.symbol, name: picked.name, icon: picked.icon ?? null, side, targetUsd: target });
         if (!made) { msg.textContent = 'You have as many price orders as can be kept. Remove one first.'; return; }
+        // Asked once, on this press: with it, Aretia can tell the person even while they are on another tab or window.
+        try {
+          if (typeof Notification !== 'undefined' && Notification.permission === 'default') void Notification.requestPermission();
+        } catch {
+          // Not offered here; the bell still tells them.
+        }
         void checkPriceOrders();
         pushOrders();
         render();
@@ -1674,7 +1734,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
         }).catch(() => undefined);
       }
     } else box.append(el('p', { class: 'wapp__fine', text: 'Choose a token above to set a price for it.' }));
-    box.append(el('p', { class: 'wapp__fine', text: 'Aretia tells you when the price is reached, while this page is open. Nothing is bought or sold for you: you open the swap and confirm it yourself.' }));
+    box.append(el('p', { class: 'wapp__fine', text: 'Aretia follows the price from the chain every few seconds and tells you when it is reached, while this page is open (on another tab too, if you allow notifications). Nothing is bought or sold for you: you open the swap and confirm it yourself.' }));
     if (all.length > 0) {
       const list = el('ul', { class: 'wapp-po__list' });
       for (const o of all) {

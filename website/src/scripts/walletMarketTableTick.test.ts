@@ -10,11 +10,11 @@ describe('which live cells flash, and which way', () => {
     expect(tickDirection(1, row(1, 0), row(2, 0))).toBe('down');
     expect(tickDirection(1, row(1, 0), row(1, 0))).toBeNull();
   });
-  it('flashes the 5M and 1H changes too, the same way', () => {
-    expect(tickDirection(6, row(1, 12), row(1, 10))).toBe('up');
-    expect(tickDirection(6, row(1, -3), row(1, 4))).toBe('down');
-    expect(tickDirection(5, row(1, 0, 5), row(1, 0, 6))).toBe('down');
-    expect(tickDirection(7, row(1, 0), row(1, 0))).toBeNull();
+  it('does not flash the 5M, 1H, 6H or 24H changes, even when they move', () => {
+    expect(tickDirection(6, row(1, 12), row(1, 10))).toBeNull();
+    expect(tickDirection(6, row(1, -3), row(1, 4))).toBeNull();
+    expect(tickDirection(5, row(1, 0, 5), row(1, 0, 6))).toBeNull();
+    expect(tickDirection(8, row(1, 0), row(1, 0))).toBeNull();
   });
   it('does not flash without something to compare with, or for other cells', () => {
     expect(tickDirection(1, row(2, 0), undefined)).toBeNull();

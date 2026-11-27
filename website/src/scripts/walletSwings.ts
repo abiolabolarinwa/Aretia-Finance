@@ -2808,7 +2808,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
         } else {
           boardEl = null;
           // As on the board: once a second the rows inside the window are asked of DexScreener for a fresh price and price changes, so the
-          // price and change columns keep moving (and flash) whether or not Aretia's own stream has seen a trade yet. A second request is
+          // price (which flashes) and the change columns keep moving whether or not Aretia's own stream has seen a trade yet. A second request is
           // never started before the last one has come back. A price read from the chain in the last few seconds is kept.
           const rowsAt = new Map(shownRows.map((r) => [tableRowKey(r), r]));
           let busy = false;

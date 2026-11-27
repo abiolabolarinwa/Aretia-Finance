@@ -194,6 +194,9 @@ function liveCells(r: MarketRow): HTMLElement[] {
   cells.forEach((c, i) => {
     c.dataset.live = String(i);
   });
+  // Named so the phone layout can show just these beside the token (see the max-width 720px rules in wallet/index.astro).
+  cells[1]!.classList.add('wapp-mt__price');
+  cells[8]!.classList.add('wapp-mt__h24');
   return cells;
 }
 

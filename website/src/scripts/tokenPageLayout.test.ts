@@ -43,7 +43,7 @@ describe('the token page numbers', () => {
 describe('the chart opens on one-minute candles', () => {
   const read = (f: string): string => readFileSync(new URL(f, import.meta.url), 'utf8');
   it('on the token page, the Launch Box chart and as the default of the chart itself', () => {
-    expect(read('./walletTokenPage.ts')).toContain("interval: '1', toolbar: true");
+    expect(read('./walletTokenPage.ts')).toContain("interval: '1', toolbar: !window.matchMedia('(max-width: 720px)').matches");
     expect(read('./walletLaunchBox.ts')).toContain("interval: '1', toolbar: true");
     const tv = read('./walletTvChart.ts');
     expect(tv).toContain("o.interval ?? '1'");

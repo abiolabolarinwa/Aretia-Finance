@@ -2329,4 +2329,58 @@ const sendTips = [
     .wapp-mt__stat .wapp__fine { font-size: 9.5px; line-height: 1.2; letter-spacing: 0.02em; }
     .wapp-mt__stat strong { font-size: 13px; }
   }
+  /* Phones, second round: the dashboard card, Markets as a list and the token page, after the owner's reference design.
+     Wider screens are untouched. */
+  .wapp-tp__dock { display: none; }
+  @media (max-width: 720px) {
+    /* Dashboard: one rounded portfolio card with round quick actions */
+    .wapp-dash__hero { gap: 18px; padding: 20px; border-radius: 24px; }
+    .wapp-dash__hero .wapp__total { font-size: 2.15rem; letter-spacing: -0.03em; }
+    .wapp-dash__actions { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+    .wapp-dash__hero .wapp-dash__action { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 0; font-size: 11.5px; font-weight: 600; color: rgba(255, 255, 255, 0.86); background: none; border: 0; box-shadow: none; }
+    .wapp-dash__hero .wapp-dash__action > span { display: grid; place-items: center; width: 48px; height: 48px; color: #fff; background: rgba(255, 255, 255, 0.12); border: 1px solid rgba(255, 255, 255, 0.16); border-radius: 50%; }
+    .wapp-dash__hero .wapp-dash__action > span svg { width: 20px; height: 20px; }
+    .wapp-dash__hero .wapp-dash__action:hover > span { background: rgba(255, 255, 255, 0.2); }
+    .wapp__gate { gap: 10px; padding: 20px; border-radius: 24px; text-align: center; justify-items: center; }
+    .wapp__gate p { font-size: 13px; line-height: 1.5; }
+    .wapp__gate .wapp__btn--primary { width: 100%; min-height: 48px; border-radius: 999px; }
+    .wapp-svc__grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+    .wapp-svc__grid .wapp-svc__tile { gap: 6px; padding: 10px 2px; font-size: 11px; }
+
+    /* Markets: each token as a row: logo and name, a 24-hour line, then price over the day's change */
+    .wapp-mt { overflow: visible; background: transparent; border: 0; }
+    .wapp-mt__table { display: block; min-width: 0; }
+    .wapp-mt__table thead { display: none; }
+    .wapp-mt__table tbody { display: grid; gap: 6px; }
+    .wapp-mt__table .wapp-mt__row { display: grid; grid-template-columns: minmax(0, 1fr) 60px minmax(76px, auto); grid-template-areas: 'tok spark price' 'tok spark chg'; align-items: center; column-gap: 10px; padding: 10px 12px; background: var(--color-bg); border: 1px solid var(--color-border); border-radius: 16px; }
+    .wapp-mt__table .wapp-mt__row > td { display: none; padding: 0; border: 0; background: none; }
+    .wapp-mt__table .wapp-mt__row:hover > td { background: none; }
+    .wapp-mt__table .wapp-mt__row > td.wapp-mt__token { display: block; grid-area: tok; min-width: 0; text-align: left; }
+    .wapp-mt__table .wapp-mt__row > td.wapp-mt__spark { display: block; grid-area: spark; }
+    .wapp-mt__table .wapp-mt__row > td.wapp-mt__spark svg { display: block; width: 60px; height: auto; }
+    .wapp-mt__table .wapp-mt__row > td.wapp-mt__price { display: block; grid-area: price; font-size: 13.5px; font-weight: 650; color: var(--color-strong); text-align: right; }
+    .wapp-mt__table .wapp-mt__row > td.wapp-mt__h24 { display: block; grid-area: chg; font-size: 11.5px; font-weight: 600; text-align: right; }
+    .wapp-mt__table .wapp-mt__logo { width: 36px; height: 36px; font-size: 11px; }
+    .wapp-mt__table .wapp-mt__line strong { font-size: 14px; }
+    .wapp-mt__table .wapp-mt__fullname { max-width: none; }
+    .wapp-mt__table .wapp-mt__dex { display: none; }
+
+    /* Token page: compact header (back, name, share; big price; stats scroll sideways), shorter chart, a Buy button fixed at the bottom
+       instead of the section bar */
+    .wapp-tp__top { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 12px; border-radius: 20px; }
+    .wapp-tp__top > .wapp-tp__back { grid-area: 1 / 1; display: grid; place-items: center; width: 40px; height: 40px; padding: 0; font-size: 0; color: var(--color-strong); border-color: var(--color-border-strong); border-radius: 50%; }
+    .wapp-tp__top > .wapp-tp__back::before { content: '←'; font-size: 18px; line-height: 1; }
+    .wapp-tp__top > .wapp-tp__title { grid-area: 1 / 2; }
+    .wapp-tp__top > :last-child { grid-area: 1 / 3; }
+    .wapp-tp__top > .wapp-tp__headline { grid-area: 2 / 1 / 3 / -1; margin: 2px 0 0; }
+    .wapp-tp__top > .wapp-tp__stats { grid-area: 3 / 1 / 4 / -1; flex-wrap: nowrap; justify-content: flex-start; overflow-x: auto; margin: 0 -12px; padding: 0 12px 2px; scrollbar-width: none; }
+    .wapp-tp__top > .wapp-tp__stats > * { flex: 0 0 auto; }
+    .wapp-tp__price { font-size: 28px; }
+    /* With a token open, the network row, the ticker and the search box step aside so the token starts at the top */
+    .wapp:has(.wapp-tp:not([hidden]) > .wapp-tp__dock) :is(.wapp__rail, .wapp-island, .wapp-search) { display: none; }
+    .wapp-tp__frame { height: calc(380px + var(--dex-footer-crop)); }
+    .wapp:has(.wapp-tp:not([hidden]) > .wapp-tp__dock) .wapp__side { display: none; }
+    .wapp-tp__dock { display: block; position: fixed; inset: auto 12px calc(10px + env(safe-area-inset-bottom)) 12px; z-index: 81; }
+    .wapp-tp__dock .wapp__btn { width: 100%; min-height: 52px; font-size: 15px; border-radius: 999px; box-shadow: 0 12px 28px -10px rgba(0, 0, 0, 0.4); }
+  }
 </style>

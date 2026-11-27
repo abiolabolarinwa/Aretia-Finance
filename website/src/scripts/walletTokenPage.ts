@@ -115,6 +115,20 @@ export function createTokenPage(finder = new DexScreenerPoolFinder()) {
     chart.append(el('p', 'wapp__fine', 'Finding the main pool for this token…'));
     mountSwapInto(o, side);
     side.append(el('p', 'wapp__fine', 'Loading the numbers…'));
+    // Phones: a buy button fixed at the bottom of the screen that takes you to the swap card under the chart (hidden on wider screens).
+    if (swapHost || o.onSwap) {
+      const dock = el('div', 'wapp-tp__dock');
+      const buy = el('button', 'wapp__btn wapp__btn--primary', `Buy ${o.symbol}`);
+      buy.type = 'button';
+      buy.addEventListener('click', () => {
+        if (swapHost) {
+          swapHost.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          swapHost.querySelector<HTMLElement>('input, button')?.focus({ preventScroll: true });
+        } else o.onSwap?.();
+      });
+      dock.append(buy);
+      root.append(dock);
+    }
     return { chart, side, title };
   }
 
@@ -127,7 +141,7 @@ export function createTokenPage(finder = new DexScreenerPoolFinder()) {
     plot.setAttribute('aria-label', `${o.symbol} price chart`);
     const tradesHost = el('div', 'wapp-tp__trades');
     parts.chart.replaceChildren(plot, tradesHost);
-    tv = mountTvChart(plot, { chain: o.chain, pool, symbol: o.symbol, target: o.address, ...(d?.quoteSymbol ? { quoteSymbol: d.quoteSymbol } : {}), priceHint: d?.priceUsd ?? null, interval: '1', toolbar: true, fallbackUrl: embedUrl({ network: GECKO_NETWORK[o.chain], pool }), title: `${o.symbol} price chart` });
+    tv = mountTvChart(plot, { chain: o.chain, pool, symbol: o.symbol, target: o.address, ...(d?.quoteSymbol ? { quoteSymbol: d.quoteSymbol } : {}), priceHint: d?.priceUsd ?? null, interval: '1', toolbar: !window.matchMedia('(max-width: 720px)').matches, fallbackUrl: embedUrl({ network: GECKO_NETWORK[o.chain], pool }), title: `${o.symbol} price chart` });
     // The pool's recent trades, under the chart.
     trades = mountTrades(tradesHost, { chain: o.chain, pool, symbol: d?.baseSymbol ?? o.symbol, quoteSymbol: d?.quoteSymbol });
 

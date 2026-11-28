@@ -2818,4 +2818,50 @@ const sendTips = [
     .wapp-lb__table tbody { gap: 0; }
     .wapp-lb__row { padding: 12px 4px; background: transparent; border: 0; border-bottom: 1px solid var(--color-border); border-radius: 0; }
   }
+  /* Phones, Launch: the chosen network opens into an indigo pill with its logo and name; the others stay round logos and slide
+     aside (walletLaunchHub.ts slideChips). The preview card comes last: hidden while the token form is on steps 1 to 3, shown at
+     "Check and review" under the form, so it shows what has been filled in. */
+  @media (max-width: 720px) {
+    .lh-chips[data-hub-networks] .lh-chip .lh-chip__name { display: none; }
+    .lh-chips[data-hub-networks] .lh-chip.is-on { display: inline-flex; gap: 8px; width: auto; min-width: 0; padding: 0 16px 0 6px; font-size: 14px; font-weight: 700; color: #fff; background: var(--color-brand); border-color: var(--color-brand); border-radius: 999px; box-shadow: 0 8px 20px -10px var(--color-brand); }
+    .lh-chips[data-hub-networks] .lh-chip.is-on .lh-chip__name { display: inline; white-space: nowrap; }
+    .lh-chips[data-hub-networks] .lh-chip.is-on .lh-chip__logo { box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.85); }
+    .lh-chips[data-hub-networks] .lh-chips__sep { flex: none; }
+    .lh[data-view='token']:has(.wapp-ln__form[data-ln-step]:not([data-ln-step='4'])) .lh__side { display: none; }
+    .lh[data-view='token'] .lh__side { order: 1; }
+  }
+  /* Share and Back carry an icon; wider screens keep their words beside it. */
+  .wapp-tp__share { display: inline-flex; align-items: center; gap: 6px; }
+  .wapp-tp__share.is-done { color: #16a34a; }
+  .wapp-tp__back { display: inline-flex; align-items: center; gap: 6px; }
+  .wapp-tp__backicon { width: 16px; height: 16px; }
+
+  /* Phones, token page: a plain chevron to go back, the share icon alone, the name and the coin's full name close together, the 24h
+     change opposite the price, and the numbers in a Detail tab after About. */
+  @media (max-width: 720px) {
+    .wapp-tp__top > .wapp-tp__back { width: 40px; height: 40px; margin-left: -8px; font-size: 0; color: var(--color-strong); background: none; border: 0; box-shadow: none; }
+    .wapp-tp__top > .wapp-tp__back::before { content: none; }
+    .wapp-tp__top > .wapp-tp__back:active { background: var(--color-bg-alt); }
+    .wapp-tp__top > .wapp-tp__back .wapp-tp__backicon { width: 24px; height: 24px; }
+    .wapp-tp__backtext { display: none; }
+    .wapp-tp__top .wapp-tp__share { display: grid; place-items: center; width: 40px; min-width: 40px; height: 40px; min-height: 40px; padding: 0; border-radius: 50%; }
+    .wapp-tp__top .wapp-tp__share .wapp-share__text { display: none; }
+    .wapp-tp__top .wapp-tp__fav { width: 40px; min-width: 40px; height: 40px; padding: 0; border-radius: 50%; }
+    .wapp-tp__top .wapp-tp__title { column-gap: 8px; row-gap: 0; }
+    .wapp-tp__top .wapp-tp__name { line-height: 1.1; }
+    .wapp-tp__top .wapp-tp__net { margin-top: 0; line-height: 1.2; }
+    .wapp-tp__top > .wapp-tp__headline { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+    .wapp-tp__tabs { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .wapp-tp__detail { display: none; margin: 10px 14px 0; }
+    .wapp-tp[data-tp-tab='detail'] .wapp-tp__detail { display: block; }
+    .wapp-tp[data-tp-tab='detail'] :is(.wapp-tp__side, .wapp-tp__trades) { display: none; }
+    .wapp-tp__detail > .wapp-tp__stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 0; padding: 0; overflow: visible; }
+    .wapp-tp__detail .wapp-tp__stat { white-space: normal; }
+
+    /* The wallet's value in the site bar is never cut short: it keeps its width, and Deposit becomes a round + button. */
+    .nav-balance__value { flex: none; overflow: visible; font-size: 18px; }
+    .nav-balance__btn:not(:only-of-type) { margin-left: 0; }
+    .nav-balance__deposit { display: grid; place-items: center; width: 36px; min-width: 36px; padding: 0; font-size: 0; border-radius: 50%; }
+    .nav-balance__deposit::before { content: '+'; font-size: 22px; font-weight: 600; line-height: 1; }
+  }
 </style>

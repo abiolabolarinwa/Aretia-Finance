@@ -31,7 +31,8 @@ export function initTopBar(): void {
   const connect = el('button', 'nav-balance__btn', 'Connect');
   connect.type = 'button';
   connect.addEventListener('click', () => document.querySelector<HTMLElement>('[data-connect]')?.click());
-  const deposit = el('button', 'nav-balance__btn', 'Deposit');
+  const deposit = el('button', 'nav-balance__btn nav-balance__deposit', 'Deposit');
+  deposit.setAttribute('aria-label', 'Deposit');
   deposit.type = 'button';
   deposit.title = 'Receive crypto, or top up with a card or bank transfer';
   deposit.addEventListener('click', () => {

@@ -83,6 +83,7 @@ export function createTokenPage(finder = new DexScreenerPoolFinder()) {
   let trades: TradesTable | null = null;
   let swapHost: HTMLElement | null = null;
   let tabsEl: HTMLElement | null = null;
+  let detailEl: HTMLElement | null = null;
   let unmountSwap: (() => void) | undefined;
 
   /** The swap card sits above the numbers, like a trading screen: chart on the left, trade on the right. */
@@ -103,8 +104,10 @@ export function createTokenPage(finder = new DexScreenerPoolFinder()) {
     trades = null;
     root.replaceChildren();
     const bar = el('div', 'wapp-tp__top');
-    const back = el('button', 'wapp__btn wapp__btn--ghost wapp-tp__back', 'Back to the list');
+    const back = el('button', 'wapp__btn wapp__btn--ghost wapp-tp__back');
     back.type = 'button';
+    back.setAttribute('aria-label', 'Back to the list');
+    back.innerHTML = '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" class="wapp-tp__backicon"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="wapp-tp__backtext">Back to the list</span>';
     back.addEventListener('click', () => o.onBack());
     const title = el('div', 'wapp-tp__title');
     const headline = el('div', 'wapp-tp__headline');
@@ -169,7 +172,7 @@ export function createTokenPage(finder = new DexScreenerPoolFinder()) {
     const tabs = el('div', 'wapp-tp__tabs');
     tabs.setAttribute('role', 'tablist');
     tabs.setAttribute('aria-label', `${o.symbol} views`);
-    const tabList: [string, string][] = [['trades', 'Trades'], ['about', 'About']];
+    const tabList: [string, string][] = [['trades', 'Trades'], ['about', 'About'], ['detail', 'Detail']];
     const pick = (key: string): void => {
       root.dataset.tpTab = key;
       tabs.querySelectorAll<HTMLButtonElement>('button').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === key)));
@@ -185,6 +188,11 @@ export function createTokenPage(finder = new DexScreenerPoolFinder()) {
     // Under the chart, after its timeframe buttons (fill puts them there once the chart is drawn).
     chart.after(tabs);
     tabsEl = tabs;
+    // Phones: the numbers (price in the quote token, liquidity, FDV, market cap, trades) move to the Detail tab.
+    if (window.matchMedia('(max-width: 720px)').matches) {
+      detailEl = el('div', 'wapp-tp__detail');
+      detailEl.append(stats);
+    } else detailEl = null;
     pick('trades');
     return { chart, side, title };
   }
@@ -213,7 +221,7 @@ export function createTokenPage(finder = new DexScreenerPoolFinder()) {
       });
       frames.append(b);
     }
-    parts.chart.replaceChildren(plot, frames, ...(tabsEl ? [tabsEl] : []), tradesHost);
+    parts.chart.replaceChildren(plot, frames, ...(tabsEl ? [tabsEl] : []), tradesHost, ...(detailEl ? [detailEl] : []));
     tv = mountTvChart(plot, { chain: o.chain, pool, symbol: o.symbol, target: o.address, ...(d?.quoteSymbol ? { quoteSymbol: d.quoteSymbol } : {}), priceHint: d?.priceUsd ?? null, interval: '1', toolbar: !phone, minimal: phone, fallbackUrl: embedUrl({ network: GECKO_NETWORK[o.chain], pool }), title: `${o.symbol} price chart` });
     // The pool's recent trades, under the chart.
     trades = mountTrades(tradesHost, { chain: o.chain, pool, symbol: d?.baseSymbol ?? o.symbol, quoteSymbol: d?.quoteSymbol });

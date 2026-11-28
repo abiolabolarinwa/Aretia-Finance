@@ -59,6 +59,38 @@ export interface LaunchHub {
   onShow(): void;
 }
 
+/** Where each network chip sits now, so a redraw can slide them from there. */
+function chipSpots(box: HTMLElement): Map<string, number> {
+  const at = new Map<string, number>();
+  box.querySelectorAll<HTMLElement>('.lh-chip[data-net]').forEach((c) => at.set(c.dataset.net ?? '', c.getBoundingClientRect().left));
+  return at;
+}
+
+/**
+ * After a network is picked: the chosen chip opens into an indigo pill (logo and name) and the others slide from where they were,
+ * pushed briefly away from it before they settle. Nothing moves for people who ask for less motion.
+ */
+export function slideChips(box: HTMLElement, before: Map<string, number>): void {
+  const on = box.querySelector<HTMLElement>('.lh-chip.is-on');
+  if (!on || before.size === 0) return;
+  const target = on.offsetLeft - (box.clientWidth - on.offsetWidth) / 2;
+  if (box.scrollWidth > box.clientWidth) box.scrollTo?.({ left: Math.max(0, target), behavior: 'smooth' });
+  if (typeof on.animate !== 'function' || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
+  const centre = on.getBoundingClientRect().left + on.offsetWidth / 2;
+  box.querySelectorAll<HTMLElement>('.lh-chip[data-net]').forEach((c) => {
+    const was = before.get(c.dataset.net ?? '');
+    const r = c.getBoundingClientRect();
+    if (c === on) {
+      on.animate([{ transform: 'scale(0.82)' }, { transform: 'scale(1.04)', offset: 0.6 }, { transform: 'none' }], { duration: 420, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)' });
+      c.querySelector('.lh-chip__name')?.animate([{ opacity: 0, transform: 'translateX(-6px)' }, { opacity: 1, transform: 'none' }], { duration: 300, delay: 120, fill: 'backwards', easing: 'ease-out' });
+      return;
+    }
+    const dx = was === undefined ? 0 : was - r.left;
+    const away = (r.left + r.width / 2 < centre ? -1 : 1) * 14;
+    c.animate([{ transform: `translateX(${dx}px)` }, { transform: `translateX(${away}px)`, offset: 0.55 }, { transform: 'none' }], { duration: 480, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)' });
+  });
+}
+
 export function initLaunchHub(launch: LaunchApi, opts: { curveOn: boolean; /** Clears every form, for launching another token. */ resetAll?: () => void; /** Told when the Your pools stage opens. */ onPools?: () => void }): LaunchHub | null {
   const found = document.querySelector<HTMLElement>('[data-launch-hub]');
   if (!found) return null;
@@ -100,6 +132,7 @@ export function initLaunchHub(launch: LaunchApi, opts: { curveOn: boolean; /** C
 
   function drawChips(): void {
     if (!chips) return;
+    const before = chipSpots(chips);
     chips.textContent = '';
     const current = launch.getNetwork();
     const all = launch.networks();
@@ -110,7 +143,7 @@ export function initLaunchHub(launch: LaunchApi, opts: { curveOn: boolean; /** C
       b.dataset.net = n.key;
       b.disabled = !n.enabled;
       if (!n.enabled) b.title = 'Not available yet';
-      b.append(logo(n.key, 'lh-chip__logo'), document.createTextNode(n.name));
+      b.append(logo(n.key, 'lh-chip__logo'), h('span', 'lh-chip__name', n.name));
       if (n.key === current) b.append(h('span', 'lh-chip__check', '✓'));
       b.addEventListener('click', () => {
         if (n.key === launch.getNetwork()) return;
@@ -135,6 +168,7 @@ export function initLaunchHub(launch: LaunchApi, opts: { curveOn: boolean; /** C
       chips.append(sep);
       for (const n of test) add(n, chips);
     }
+    slideChips(chips, before);
   }
 
   // ---------------------------------------------------------------- journey rail

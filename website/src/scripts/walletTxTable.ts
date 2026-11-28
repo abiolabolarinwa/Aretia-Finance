@@ -98,7 +98,7 @@ export function mountTrades(host: HTMLElement, o: TradesOptions, deps: { fetchIm
     viewButtons.set(value, b);
     views.append(b);
   }
-  head.append(chips, views, node('span', 'wapp-tx__note wapp__fine', 'Last 24 hours, up to 300 trades'));
+  head.append(chips, views);
   const scroll = node('div', 'wapp-tx__scroll');
   // Lenis (smooth scrolling) would swallow the mouse wheel here; this list scrolls by itself.
   scroll.setAttribute('data-lenis-prevent', '');

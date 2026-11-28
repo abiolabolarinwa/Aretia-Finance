@@ -49,7 +49,17 @@ export function mountTokenSearch(): void {
   const list = el('ul', { class: 'wapp-search__list', attrs: { id: 'wapp-search-list', role: 'listbox', hidden: '', 'data-lenis-prevent': '' } });
   // Paste: puts a copied contract address in the box and searches it at once (shown while the box is empty).
   const paste = el('button', { class: 'wapp-search__paste', attrs: { type: 'button', 'aria-label': 'Paste a token address' } });
-  paste.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><rect x="8" y="3" width="8" height="4" rx="1.2"/><path d="M8 5H6.5A1.5 1.5 0 0 0 5 6.5v13A1.5 1.5 0 0 0 6.5 21h11a1.5 1.5 0 0 0 1.5-1.5v-13A1.5 1.5 0 0 0 17.5 5H16"/></svg><span>Paste</span>';
+  const clip = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  clip.setAttribute('viewBox', '0 0 24 24');
+  clip.setAttribute('width', '16');
+  clip.setAttribute('height', '16');
+  clip.setAttribute('aria-hidden', 'true');
+  const board = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+  for (const [k, v] of Object.entries({ x: '8', y: '3', width: '8', height: '4', rx: '1.2' })) board.setAttribute(k, v);
+  const sheetPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  sheetPath.setAttribute('d', 'M8 5H6.5A1.5 1.5 0 0 0 5 6.5v13A1.5 1.5 0 0 0 6.5 21h11a1.5 1.5 0 0 0 1.5-1.5v-13A1.5 1.5 0 0 0 17.5 5H16');
+  clip.append(board, sheetPath);
+  paste.append(clip, el('span', { text: 'Paste' }));
   wrap.append(icon, input, paste, list);
 
   // On a wide screen the box sits in the site bar next to the chips, and on a phone beside the logo; in between it sits at the top of the page.

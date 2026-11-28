@@ -13,8 +13,7 @@ export interface Insight {
 /** The overview pieces in one Markets card, in page order, each with a short name for its chip. */
 export function insightsOf(card: ParentNode): Insight[] {
   const out: Insight[] = [];
-  const stats = card.querySelector<HTMLElement>(':scope > .wapp-mt__stats');
-  if (stats && !stats.hidden && stats.childElementCount > 0) out.push({ label: '24H activity', el: stats });
+  // The 24H activity figures are not offered on phones (the owner asked for the list without them).
   const band = card.querySelector<HTMLElement>(':scope > .wapp-ov');
   band?.querySelectorAll<HTMLElement>('.wapp-ov__card, .wapp-ov__panel').forEach((el) => {
     const title = el.querySelector('.wapp-ov__title, .wapp-ov__ptitle')?.textContent?.trim();

@@ -20,7 +20,7 @@ function page(): HTMLElement {
 
 describe('the Markets overview on phones', () => {
   it('names each piece, the mood with its score', () => {
-    expect(insightsOf(page()).map((i) => i.label)).toEqual(['24H activity', 'Market mood 62', 'Rising or falling', 'Top gainers']);
+    expect(insightsOf(page()).map((i) => i.label)).toEqual(['Market mood 62', 'Rising or falling', 'Top gainers']);
   });
 
   it('puts one chip per piece right after the tabs, and does not rebuild them when nothing changed', () => {
@@ -28,7 +28,7 @@ describe('the Markets overview on phones', () => {
     syncInsightChips();
     const row = card.querySelector('.wapp-ins')!;
     expect(row.previousElementSibling?.className).toBe('wapp-mt__bar');
-    expect([...row.querySelectorAll('button')].map((b) => b.textContent)).toEqual(['24H activity', 'Market mood 62', 'Rising or falling', 'Top gainers']);
+    expect([...row.querySelectorAll('button')].map((b) => b.textContent)).toEqual(['Market mood 62', 'Rising or falling', 'Top gainers']);
     const first = row.querySelector('button');
     syncInsightChips();
     expect(card.querySelector('.wapp-ins button')).toBe(first);
@@ -38,7 +38,7 @@ describe('the Markets overview on phones', () => {
     const card = page();
     syncInsightChips();
     const mood = card.querySelectorAll<HTMLElement>('.wapp-ov__card')[0]!;
-    card.querySelectorAll<HTMLButtonElement>('.wapp-ins button')[1]!.click();
+    card.querySelectorAll<HTMLButtonElement>('.wapp-ins button')[0]!.click();
     const sheet = document.querySelector('.wapp-ins-sheet')!;
     expect(sheet.hasAttribute('open')).toBe(true);
     expect(sheet.querySelector('.wapp-ins-sheet__body')!.firstElementChild).toBe(mood);

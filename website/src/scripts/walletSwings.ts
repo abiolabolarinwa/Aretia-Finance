@@ -2718,7 +2718,8 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
       }
       bar.append(kindBox);
       if (m.kind === 'trending' || m.kind === 'gainers' || m.kind === 'rising') {
-        const win = el('div', { class: 'wapp__seg', attrs: { role: 'group', 'aria-label': 'Time window' } });
+        // Phones leave the time window out (wallet/index.astro): the list keeps the window last chosen, 24 hours by default.
+        const win = el('div', { class: 'wapp__seg wapp-mt__win', attrs: { role: 'group', 'aria-label': 'Time window' } });
         for (const [w, label] of [['m5', '5M'], ['h1', '1H'], ['h6', '6H'], ['h24', '24H']] as [MarketWindow, string][]) {
           win.append(chip(label, m.window === w, () => {
             m.window = w;

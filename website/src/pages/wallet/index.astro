@@ -3157,4 +3157,25 @@ const sendTips = [
   @media (max-width: 720px) {
     .nav--wallet .nav__bar > .wapp-search .wapp-search__list { top: calc(var(--nav-height) + 56px); max-height: calc(100dvh - var(--nav-height) - 190px - env(safe-area-inset-bottom)); }
   }
+  /* Appearance and Wallet tiles in the logo's sheet: phones only (walletMoreSheet.ts). */
+  .wapp__nav > .wapp__nav-extra { display: none; }
+
+  /* Phones: the site bar holds the logo, the wallet's value and one Deposit button (a rounded rectangle, no +). The theme switch and
+     the wallet button move into the logo's sheet. */
+  @media (max-width: 720px) {
+    .nav--wallet .nav__bar .theme-toggle, .nav--wallet .nav__bar .aw-connect-btn { position: absolute !important; width: 1px !important; height: 1px !important; overflow: hidden !important; clip-path: inset(50%) !important; opacity: 0; pointer-events: none; }
+    .wapp[data-more-open] .wapp__nav > .wapp__nav-extra { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px; min-height: 64px; padding: 8px 2px; font: inherit; font-size: 11px; font-weight: 500; color: var(--color-strong); background: none; border: 0; border-radius: 16px; cursor: pointer; }
+    .wapp[data-more-open] .wapp__nav > .wapp__nav-extra svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+    .wapp[data-more-open] .wapp__nav > .wapp__nav-extra .wapp__label { position: static; display: block; width: auto; height: auto; clip-path: none; }
+    .wapp[data-more-open] .wapp__nav > .wapp__nav-wallet.is-connected { color: #16a34a; }
+    .nav-balance { margin-right: 0; }
+    .nav-balance > .nav-balance__btn, .nav-balance > .nav-balance__btn:not(:only-of-type) { margin-left: auto; min-height: 38px; padding: 0 18px; font-size: 14px; font-weight: 700; border-radius: 10px; }
+    .nav-balance__deposit { display: inline-flex; align-items: center; width: auto; min-width: 0; padding: 0 18px; font-size: 14px; border-radius: 10px; }
+    .nav-balance__deposit::before { content: none; }
+  }
+  /* Phones, Markets: only the seven list icons above the board; no time window row and no count beside the network's name. */
+  @media (max-width: 720px) {
+    .wapp-mt__bar > .wapp-mt__win { display: none; }
+    .wapp-bd__head .wapp-bd__count { display: none; }
+  }
 </style>

@@ -3178,4 +3178,35 @@ const sendTips = [
     .wapp-mt__bar > .wapp-mt__win { display: none; }
     .wapp-bd__head .wapp-bd__count { display: none; }
   }
+  /* Settings (walletSettings.ts): grouped rows in the bottom sheet, phone style. */
+  .wst { display: grid; gap: 18px; padding-bottom: 6px; }
+  .wst__sec { display: grid; gap: 6px; }
+  .wst__title { margin: 0; padding: 0 4px; font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--color-muted); }
+  .wst__list { display: grid; overflow: hidden; background: var(--color-bg-alt); border: 1px solid var(--color-border); border-radius: 16px; }
+  .wst__row { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; min-height: 56px; padding: 10px 14px; font: inherit; color: var(--color-strong); text-align: left; text-decoration: none; background: none; border: 0; border-top: 1px solid var(--color-border); cursor: pointer; }
+  .wst__list > .wst__row:first-child { border-top: 0; }
+  div.wst__row { cursor: default; }
+  .wst__text { display: grid; gap: 2px; min-width: 0; }
+  .wst__text strong { font-size: 14.5px; font-weight: 650; }
+  .wst__text small { font-size: 12px; color: var(--color-muted); }
+  .wst__chev { flex: none; font-size: 22px; line-height: 1; color: var(--color-muted); }
+  .wst__seg { flex: none; display: inline-flex; padding: 3px; background: var(--color-bg); border: 1px solid var(--color-border); border-radius: 999px; }
+  .wst__seg button { min-height: 32px; padding: 0 14px; font: inherit; font-size: 13px; font-weight: 650; color: var(--color-muted); background: none; border: 0; border-radius: 999px; cursor: pointer; }
+  .wst__seg button[aria-pressed='true'] { color: #fff; background: var(--color-brand); }
+  .wst__switch { position: relative; flex: none; width: 48px; height: 28px; padding: 0; background: var(--color-border-strong); border: 0; border-radius: 999px; cursor: pointer; transition: background 160ms ease; }
+  .wst__switch::after { content: ''; position: absolute; top: 3px; left: 3px; width: 22px; height: 22px; background: #fff; border-radius: 50%; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3); transition: transform 160ms ease; }
+  .wst__switch[aria-checked='true'] { background: var(--color-brand); }
+  .wst__switch[aria-checked='true']::after { transform: translateX(20px); }
+  .wst__dot { flex: none; width: 10px; height: 10px; background: var(--color-muted); border-radius: 50%; }
+  .wst__dot.is-granted { background: #16a34a; }
+  .wst__dot.is-denied { background: #dc2626; }
+  .wst__dot.is-default { background: #d99a00; }
+  .wst__link { flex: none; padding: 6px 12px; font: inherit; font-size: 13px; font-weight: 650; color: var(--color-brand); background: var(--color-brand-soft); border: 0; border-radius: 999px; cursor: pointer; }
+  .wst__link:disabled { color: var(--color-muted); background: none; cursor: default; }
+  .wst__foot { margin: 0; padding: 0 4px; font-size: 11.5px; color: var(--color-muted); text-align: center; }
+  @media (prefers-reduced-motion: reduce) { .wst__switch, .wst__switch::after { transition: none; } }
+  /* Phones: the new-token island scrolls under the site bar (it sat above it and covered the balance and Deposit). */
+  @media (max-width: 720px) {
+    .wapp > .wapp-island { z-index: 40; }
+  }
 </style>

@@ -22,7 +22,13 @@
     </style>
 
 
+    <!-- The launch screen: the app icon on indigo (not the default white), leading into the indigo opening the page plays. -->
     <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
         <item name="android:background">@drawable/splash</item>
+        <item name="windowSplashScreenBackground">@color/aretia_indigo</item>
+        <item name="windowSplashScreenIconBackgroundColor">@color/aretia_indigo</item>
+        <item name="android:statusBarColor">@color/aretia_indigo</item>
+        <item name="android:navigationBarColor">@color/aretia_indigo</item>
+        <item name="postSplashScreenTheme">@style/AppTheme.NoActionBar</item>
     </style>
 </resources>

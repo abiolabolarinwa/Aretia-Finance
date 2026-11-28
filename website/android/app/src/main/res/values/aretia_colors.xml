@@ -2,4 +2,5 @@
 <resources>
     <color name="aretia_bars">#F6F6F7</color>
     <bool name="aretia_light_bars">true</bool>
+    <color name="aretia_indigo">#3730A3</color>
 </resources>

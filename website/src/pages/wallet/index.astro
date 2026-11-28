@@ -72,7 +72,7 @@ const sendTips = [
   <script slot="head" is:inline>document.documentElement.dataset.wappSidebar = 'collapsed';</script>
   <!-- The Android and iPhone apps open on a short indigo celebration: swirling smoke, rising bubbles, the logo bursting in. Shown only
        inside the app (the website never sees it), once per launch, and not after a pull-to-refresh. -->
-  <script slot="head" is:inline>(function () { try { var c = window.Capacitor; if (!c || !c.isNativePlatform || !c.isNativePlatform()) return; if (sessionStorage.getItem('aretia.intro')) return; sessionStorage.setItem('aretia.intro', '1'); var h = document.documentElement; h.classList.add('app-intro'); setTimeout(function () { h.classList.add('app-intro--out'); }, 2300); setTimeout(function () { h.classList.remove('app-intro', 'app-intro--out'); }, 2900); } catch (e) {} })();</script>
+  <script slot="head" is:inline>(function () { try { const c = window.Capacitor; if (!c || !c.isNativePlatform || !c.isNativePlatform()) return; if (sessionStorage.getItem('aretia.intro')) return; sessionStorage.setItem('aretia.intro', '1'); const h = document.documentElement; h.classList.add('app-intro'); setTimeout(function () { h.classList.add('app-intro--out'); }, 2300); setTimeout(function () { h.classList.remove('app-intro', 'app-intro--out'); }, 2900); } catch { /* storage blocked: no opening */ } })();</script>
   <div class="app-intro" aria-hidden="true">
     <div class="app-intro__smoke app-intro__smoke--a"></div>
     <div class="app-intro__smoke app-intro__smoke--b"></div>

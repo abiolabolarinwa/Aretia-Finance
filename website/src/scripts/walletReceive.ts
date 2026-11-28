@@ -3,6 +3,7 @@
  * the address is the one the wallet already shared with this page, and the QR code is drawn in the browser.
  */
 import { CHAINS, type ChainId } from '../swings/core/types.js';
+import { systemShare } from './walletShareButton';
 
 export interface ReceiveSources {
   /** The Solana address of the connected wallet, or null. */
@@ -45,7 +46,8 @@ export function initReceive(panel: HTMLElement, src: ReceiveSources): { draw(): 
     try {
       const mod = await import('qrcode');
       const toCanvas = mod.toCanvas ?? mod.default.toCanvas;
-      await toCanvas(canvas, text, { width: 220, margin: 2, errorCorrectionLevel: 'M', color: { dark: '#111114', light: '#ffffff' } });
+      // High error correction, so the network's logo can sit in the middle of the code and it still scans.
+      await toCanvas(canvas, text, { width: 220, margin: 2, errorCorrectionLevel: 'H', color: { dark: '#111114', light: '#ffffff' } });
     } catch {
       canvas.replaceWith(el('p', 'wapp__fine', 'The QR code could not be drawn here. The address above is still correct.'));
     }
@@ -62,26 +64,40 @@ export function initReceive(panel: HTMLElement, src: ReceiveSources): { draw(): 
     }
     if (!choices.some((c) => c.chain === chain)) chain = choices[0]!.chain;
     const pick = choices.find((c) => c.chain === chain)!;
-    card.append(el('p', 'wapp__fine', 'Share this address to be paid. Anyone can send to it; only your wallet can move what arrives.'));
-    const label = el('label', 'wapp__eyebrow', 'Network');
-    label.htmlFor = 'receive-network';
-    const select = el('select', 'wapp__input');
-    select.id = 'receive-network';
+    card.append(el('p', 'wapp__fine wapp-rx__lead', 'Share this address to be paid. Anyone can send to it; only your wallet can move what arrives.'));
+    // The networks as chips, each with its logo and name; the chosen one in indigo.
+    const nets = el('div', 'wapp-rx__nets');
+    nets.setAttribute('role', 'group');
+    nets.setAttribute('aria-label', 'Network');
     for (const c of choices) {
-      const o = el('option', '', c.name);
-      o.value = c.chain;
-      o.selected = c.chain === chain;
-      select.append(o);
+      const b = el('button', 'wapp-rx__net');
+      b.type = 'button';
+      b.setAttribute('aria-pressed', String(c.chain === chain));
+      const logo = el('img', 'wapp-rx__netlogo');
+      logo.src = `/assets/chains/${c.chain}.png`;
+      logo.alt = '';
+      logo.width = 22;
+      logo.height = 22;
+      b.append(logo, el('span', '', c.name));
+      b.addEventListener('click', () => {
+        if (chain === c.chain) return;
+        chain = c.chain;
+        draw();
+        panel.querySelector<HTMLElement>('.wapp-rx__net[aria-pressed="true"]')?.scrollIntoView?.({ block: 'nearest', inline: 'center' });
+      });
+      nets.append(b);
     }
-    select.addEventListener('change', () => {
-      chain = select.value as ChainId;
-      draw();
-    });
     const canvas = el('canvas', 'wapp-rx__qr');
     canvas.width = 220;
     canvas.height = 220;
     canvas.setAttribute('role', 'img');
     canvas.setAttribute('aria-label', `QR code of your ${pick.name} address`);
+    // The QR code on a white tile with the network's logo in its middle.
+    const tile = el('div', 'wapp-rx__tile');
+    const mid = el('img', 'wapp-rx__qrlogo');
+    mid.src = `/assets/chains/${pick.chain}.png`;
+    mid.alt = '';
+    tile.append(canvas, mid);
     const addr = el('code', 'wapp-rx__addr', pick.address);
     const copy = el('button', 'wapp__btn wapp__btn--primary', 'Copy address');
     copy.type = 'button';
@@ -92,7 +108,16 @@ export function initReceive(panel: HTMLElement, src: ReceiveSources): { draw(): 
       };
       if (navigator.clipboard?.writeText) void navigator.clipboard.writeText(pick.address).then(done, () => undefined);
     });
-    card.append(label, select, canvas, addr, copy, el('p', 'wapp__fine wapp-rx__note', pick.note));
+    // Share: the phone's share sheet (WhatsApp, Telegram, mail, Copy...) with the address and its network.
+    const share = el('button', 'wapp__btn wapp__btn--ghost', 'Share');
+    share.type = 'button';
+    share.addEventListener('click', async () => {
+      const r = await systemShare({ title: `My ${pick.name} address`, text: `My ${pick.name} address (send only ${pick.name} assets): ${pick.address}` });
+      if (r === 'unavailable') copy.click();
+    });
+    const acts = el('div', 'wapp-rx__acts');
+    acts.append(copy, share);
+    card.append(nets, tile, el('span', 'wapp__eyebrow wapp-rx__addrlabel', `Your ${pick.name} address`), addr, acts, el('p', 'wapp__fine wapp-rx__note', pick.note));
     panel.append(card);
     void qr(canvas, pick.address);
   }

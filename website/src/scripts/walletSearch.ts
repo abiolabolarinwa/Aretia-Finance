@@ -227,6 +227,10 @@ export function mountTokenSearch(): void {
       choose(hits[active]!);
     }
   });
+  // The round search button on phones opens the list itself too (the box may already have had focus, so no focus event comes).
+  input.addEventListener('wapp-search-open', () => {
+    if (input.value.trim() === '') showRecent();
+  });
   input.addEventListener('focus', () => {
     if (input.value.trim() === '') showRecent();
     else if (hits.length > 0) paint();

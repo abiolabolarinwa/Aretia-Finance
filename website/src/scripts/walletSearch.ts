@@ -8,6 +8,7 @@ import { searchTokens, type SearchHit } from '../swings/tokens/globalSearch.js';
 import { lookupAddress } from './walletAddressLookup.js';
 import { imitationChip } from '../lib/imitationChip';
 import { clearRecent, loadRecent } from './walletRecentTokens';
+import { readClipboard } from './walletClipboard';
 
 export const OPEN_TOKEN_EVENT = 'aretia:open-token';
 
@@ -176,12 +177,8 @@ export function mountTokenSearch(): void {
   };
   paste.addEventListener('mousedown', (e) => e.preventDefault());
   paste.addEventListener('click', async () => {
-    let text = '';
-    try {
-      text = (await navigator.clipboard.readText()).trim();
-    } catch {
-      // The phone did not let the page read the clipboard: the box is focused so a long press offers its own Paste.
-    }
+    // The app's own clipboard, or the browser's; when neither can be read, the box is focused so a long press offers its own Paste.
+    const text = await readClipboard();
     input.focus();
     if (!text) {
       hits = [];

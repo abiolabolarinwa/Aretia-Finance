@@ -10,6 +10,7 @@ import { CHAINS, type ChainId } from '../swings/core/types.js';
 import { loadBook, suitsNetwork, type SavedRecipient } from './walletAddressBook';
 import { closeInsight, openInsight } from './walletInsights';
 import { isSolanaAddress } from './walletTools';
+import { readClipboard } from './walletClipboard';
 import type { StorageLike } from '../swings/history.js';
 
 const EVM = /^0x[0-9a-fA-F]{40}$/;
@@ -231,16 +232,13 @@ export function initPaySend(store: StorageLike | null): void {
   to.before(field);
   field.append(to, paste);
   paste.addEventListener('click', async () => {
-    try {
-      const t = (await navigator.clipboard.readText()).trim();
-      if (t) {
-        to.value = t.slice(0, 120);
-        to.dispatchEvent(new Event('input', { bubbles: true }));
-        return;
-      }
-    } catch {
-      // The phone did not let the page read the clipboard: a long press in the box offers its own Paste.
+    const t = await readClipboard();
+    if (t) {
+      to.value = t.slice(0, 120);
+      to.dispatchEvent(new Event('input', { bubbles: true }));
+      return;
     }
+    // Nothing could be read: a long press in the box offers the phone's own Paste.
     to.focus();
     check.textContent = 'Press and hold in the box, then choose Paste.';
     check.dataset.tone = 'none';

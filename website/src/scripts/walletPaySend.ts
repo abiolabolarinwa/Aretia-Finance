@@ -56,15 +56,24 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls = '', text?: stri
   return n;
 }
 
+/** The network's logo; the name is looked up in Aretia's own list, never taken from the page as it is. */
 function chainLogo(chain: string, cls: string): HTMLImageElement {
   const img = el('img', cls);
-  img.src = `/assets/chains/${chain}.png`;
+  const known = (Object.keys(CHAINS) as string[]).find((c) => c === chain) ?? 'solana';
+  img.src = `/assets/chains/${known}.png`;
   img.alt = '';
   return img;
 }
 
 function coinPic(o: HTMLOptionElement | null, chain: string): HTMLElement {
-  const icon = o?.dataset.icon;
+  // Only a plain https picture address is used.
+  let icon: string | null = null;
+  try {
+    const u = new URL(o?.dataset.icon ?? '');
+    if (u.protocol === 'https:') icon = `https://${u.host}${u.pathname}${u.search}`;
+  } catch {
+    icon = null;
+  }
   if (icon) {
     const img = el('img', 'wps-coin__pic');
     img.src = icon;

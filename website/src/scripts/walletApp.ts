@@ -22,6 +22,7 @@ import { initLaunchSteps } from './launchSteps';
 import { initInsights, openInsight } from './walletInsights';
 import { initTopBar } from './walletTopBar';
 import { initPullRefresh, restorePullReturn } from './walletPullRefresh';
+import { initPaySend } from './walletPaySend';
 import { isNativeApp } from '../lib/nativeApp';
 import type { initReferrals } from './walletReferrals';
 import type { initShield } from './walletShield';
@@ -1034,6 +1035,8 @@ export function initWalletApp(): void {
   });
   // Saved recipients, kept in this browser only; choosing one fills the recipient box and nothing else.
   mountAddressBook(browserStorage());
+  // Phones: the coin sheet, dollar value, quick shares, recipient chips and checks on top of this form (walletPaySend.ts).
+  initPaySend(browserStorage());
 
   /** The wallet that signs for the Ethereum-style account: the one already allowed on this page, or the sidebar's wallet asked now. */
   async function ensureEvmWallet(): Promise<NonNullable<EvmSession['adapter']>> {
@@ -1144,12 +1147,28 @@ export function initWalletApp(): void {
     const previous = asset.value;
     asset.textContent = '';
     asset.disabled = true;
+    // Your own addresses, so the phone layout can say so before Review (Review refuses them anyway).
+    const form = $<HTMLFormElement>('[data-send-form]');
+    if (form) form.dataset.own = [address ?? '', evmAccount ?? ''].join(',');
+    /** What the phone layout shows for each choice: symbol, name, balance, dollar price and value, picture. */
+    const describe = (o: HTMLOptionElement, d: { symbol: string; name: string; amount: number; price: number | null; value: number | null; decimals: number | null; icon?: string | null; native: boolean }): HTMLOptionElement => {
+      o.dataset.symbol = d.symbol;
+      o.dataset.name = d.name;
+      o.dataset.amount = String(d.amount);
+      o.dataset.amountText = formatAmount(d.amount);
+      if (d.price !== null) o.dataset.price = String(d.price);
+      if (d.value !== null) o.dataset.value = String(d.value);
+      if (d.decimals !== null) o.dataset.decimals = String(d.decimals);
+      if (d.icon) o.dataset.icon = d.icon;
+      if (d.native) o.dataset.native = '1';
+      return o;
+    };
     if (isEvmSend()) {
       if (!evmAccount) return void asset.append(new Option('Connect your Ethereum-style wallet in Swap first', ''));
       const rows = evmHoldings.filter((e) => e.chain === sendChain());
       if (rows.length === 0) return void asset.append(new Option(`No ${CHAINS[sendChain()].name} coins or known tokens found`, ''));
       asset.disabled = false;
-      for (const e of rows) asset.append(new Option(`${e.symbol} · ${formatAmount(e.amount)}`, e.mint));
+      for (const e of rows) asset.append(describe(new Option(`${e.symbol} · ${formatAmount(e.amount)}`, e.mint), { symbol: e.symbol, name: e.name, amount: e.amount, price: e.price, value: e.value, decimals: e.decimals, native: e.mint.endsWith(':native') }));
       if (rows.some((e) => e.mint === previous)) asset.value = previous;
       return;
     }
@@ -1159,7 +1178,7 @@ export function initWalletApp(): void {
     asset.disabled = false;
     // Priced tokens first, so airdropped spam sits at the bottom of the list.
     const ordered = [...holdings.filter((h) => h.value !== null || h.mint === SOL_MINT), ...holdings.filter((h) => h.value === null && h.mint !== SOL_MINT)];
-    for (const h of ordered) asset.append(new Option(sendAssetLabel(h, holdings, formatAmount(h.amount), SOL_MINT, shorten), h.mint));
+    for (const h of ordered) asset.append(describe(new Option(sendAssetLabel(h, holdings, formatAmount(h.amount), SOL_MINT, shorten), h.mint), { symbol: h.symbol, name: h.name, amount: h.amount, price: h.price, value: h.value, decimals: h.decimals, icon: h.icon, native: h.mint === SOL_MINT }));
     if (holdings.some((h) => h.mint === previous)) asset.value = previous;
   }
 

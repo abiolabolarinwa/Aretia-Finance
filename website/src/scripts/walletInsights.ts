@@ -28,6 +28,11 @@ export function insightsOf(card: ParentNode): Insight[] {
 let sheet: { dialog: HTMLDialogElement; title: HTMLElement; body: HTMLElement } | null = null;
 let restore: (() => void) | null = null;
 
+/** Closes the sheet (when something picked inside it is done). */
+export function closeInsight(): void {
+  closeSheet();
+}
+
 function closeSheet(): void {
   restore?.();
   restore = null;

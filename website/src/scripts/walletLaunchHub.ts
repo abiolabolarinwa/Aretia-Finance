@@ -60,9 +60,9 @@ export interface LaunchHub {
 }
 
 /** Where each network chip sits now, so a redraw can slide them from there. */
-function chipSpots(box: HTMLElement): Map<string, number> {
+export function chipSpots(box: HTMLElement, item = '.lh-chip[data-net]'): Map<string, number> {
   const at = new Map<string, number>();
-  box.querySelectorAll<HTMLElement>('.lh-chip[data-net]').forEach((c) => at.set(c.dataset.net ?? '', c.getBoundingClientRect().left));
+  box.querySelectorAll<HTMLElement>(item).forEach((c) => at.set(c.dataset.net ?? '', c.getBoundingClientRect().left));
   return at;
 }
 
@@ -70,19 +70,19 @@ function chipSpots(box: HTMLElement): Map<string, number> {
  * After a network is picked: the chosen chip opens into an indigo pill (logo and name) and the others slide from where they were,
  * pushed briefly away from it before they settle. Nothing moves for people who ask for less motion.
  */
-export function slideChips(box: HTMLElement, before: Map<string, number>): void {
-  const on = box.querySelector<HTMLElement>('.lh-chip.is-on');
+export function slideChips(box: HTMLElement, before: Map<string, number>, item = '.lh-chip[data-net]', chosen = '.lh-chip.is-on'): void {
+  const on = box.querySelector<HTMLElement>(chosen);
   if (!on || before.size === 0) return;
   const target = on.offsetLeft - (box.clientWidth - on.offsetWidth) / 2;
   if (box.scrollWidth > box.clientWidth) box.scrollTo?.({ left: Math.max(0, target), behavior: 'smooth' });
   if (typeof on.animate !== 'function' || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
   const centre = on.getBoundingClientRect().left + on.offsetWidth / 2;
-  box.querySelectorAll<HTMLElement>('.lh-chip[data-net]').forEach((c) => {
+  box.querySelectorAll<HTMLElement>(item).forEach((c) => {
     const was = before.get(c.dataset.net ?? '');
     const r = c.getBoundingClientRect();
     if (c === on) {
       on.animate([{ transform: 'scale(0.82)' }, { transform: 'scale(1.04)', offset: 0.6 }, { transform: 'none' }], { duration: 420, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)' });
-      c.querySelector('.lh-chip__name')?.animate([{ opacity: 0, transform: 'translateX(-6px)' }, { opacity: 1, transform: 'none' }], { duration: 300, delay: 120, fill: 'backwards', easing: 'ease-out' });
+      c.querySelector('.lh-chip__name, .wapp-lb__chainname')?.animate([{ opacity: 0, transform: 'translateX(-6px)' }, { opacity: 1, transform: 'none' }], { duration: 300, delay: 120, fill: 'backwards', easing: 'ease-out' });
       return;
     }
     const dx = was === undefined ? 0 : was - r.left;

@@ -2864,4 +2864,60 @@ const sendTips = [
     .nav-balance__deposit { display: grid; place-items: center; width: 36px; min-width: 36px; padding: 0; font-size: 0; border-radius: 50%; }
     .nav-balance__deposit::before { content: '+'; font-size: 22px; font-weight: 600; line-height: 1; }
   }
+  /* Launch Box: a network's name beside its logo shows on phones once chosen; wider screens keep logos only. */
+  .wapp-lb__chainname { display: none; }
+
+  /* Phones: Launch Box redesigned. The three totals as one plain strip; the lists as a slim segmented bar; the chosen network as an
+     indigo pill with its name while the others slide aside; search full width with sorting as a round button; notices as a quiet
+     line; each token a two-line row (logo and name, price and 24h on the right, then age, value, liquidity and volume small); a tap
+     opens the token's own page, so no chart box under the list. */
+  @media (max-width: 720px) {
+    .wapp-lb__stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; width: 100%; padding: 2px 0 8px; border-bottom: 1px solid var(--color-border); }
+    .wapp-lb__stat { gap: 1px; padding: 0 10px; background: none; border: 0; border-left: 1px solid var(--color-border); border-radius: 0; }
+    .wapp-lb__stat:first-child { padding-left: 2px; border-left: 0; }
+    .wapp-lb__stat small { font-size: 10.5px; font-weight: 600; letter-spacing: 0.02em; }
+    .wapp-lb__stat strong { font-size: 17px; font-weight: 750; letter-spacing: -0.01em; }
+
+    .wapp-lb__tabs { padding: 3px; }
+    .wapp-lb__tab { min-height: 34px; font-size: 12.5px; }
+
+    .wapp-lb__tools { display: grid; grid-template-columns: minmax(0, 1fr) 44px; gap: 8px; }
+    .wapp-lb__tools > .wapp-lb__chains { grid-column: 1 / -1; flex-wrap: nowrap; gap: 8px; overflow-x: auto; padding: 2px; scrollbar-width: none; }
+    .wapp-lb__chains > .wapp__chip { flex: none; min-height: 40px; }
+    .wapp-lb__chains > .wapp__chip[data-net='all'] { padding: 0 16px; font-weight: 650; }
+    .wapp-lb__chains > .wapp-lb__chainchip { display: grid; place-items: center; width: 40px; min-width: 40px; height: 40px; padding: 0; background: var(--color-bg-alt); border: 0; border-radius: 50%; }
+    .wapp-lb__chains > .wapp-lb__chainchip .wapp-lb__chainlogo { width: 28px; height: 28px; border-radius: 50%; }
+    .wapp-lb__chains > .wapp-lb__chainchip[aria-pressed='true'] { display: inline-flex; gap: 8px; width: auto; padding: 0 16px 0 6px; color: #fff; background: var(--color-brand); box-shadow: 0 8px 20px -10px var(--color-brand); }
+    .wapp-lb__chains > .wapp-lb__chainchip[aria-pressed='true'] .wapp-lb__chainlogo { box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.85); }
+    .wapp-lb__chains > .wapp-lb__chainchip[aria-pressed='true'] .wapp-lb__chainname { display: inline; font-size: 13.5px; font-weight: 700; white-space: nowrap; }
+    .wapp-lb__tools .wapp-lb__search { min-height: 44px; padding-left: 40px; font-size: 14.5px; background: var(--color-bg-alt) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Ccircle cx='11' cy='11' r='6.5' fill='none' stroke='%23888' stroke-width='2.4'/%3E%3Cpath d='M16 16l4.5 4.5' stroke='%23888' stroke-width='2.4' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat 14px center / 18px; border: 0; border-radius: 999px; }
+    .wapp-lb__tools .wapp-lb__sort { width: 44px; min-width: 44px; height: 44px; min-height: 44px; padding: 0; color: transparent; background: var(--color-bg-alt) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M7 4v15M3.5 15.5 7 19l3.5-3.5M17 20V5M13.5 8.5 17 5l3.5 3.5' fill='none' stroke='%23888' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat center / 20px; border: 0; border-radius: 50%; appearance: none; -webkit-appearance: none; cursor: pointer; }
+    .wapp-lb__tools .wapp-lb__sort option { color: var(--color-strong); background: var(--color-bg); }
+
+    .wapp-lb__note { padding: 0 2px; font-size: 11.5px; line-height: 1.4; color: var(--color-muted); background: none; border: 0; border-radius: 0; }
+    .wapp-lb__note p::before { content: '⚠ '; color: #d99a00; }
+
+    .wapp-lb__chart { display: none; }
+    .wapp-lb__table thead { display: none; }
+    .wapp-lb__row { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); grid-template-areas: 'tok tok tok price' 'tok tok tok chg' 'age cap liq vol'; align-items: center; gap: 2px 8px; padding: 12px 2px; }
+    .wapp-lb__row td { gap: 1px; }
+    .wapp-lb__row > td.wapp-mt__token { grid-area: tok; }
+    .wapp-lb__row > td:nth-child(3) { grid-area: age; }
+    .wapp-lb__row > td:nth-child(4) { grid-area: cap; }
+    .wapp-lb__row > td:nth-child(5) { grid-area: price; justify-items: end; text-align: right; font-size: 14px; font-weight: 700; color: var(--color-strong); }
+    .wapp-lb__row > td:nth-child(6) { grid-area: chg; justify-items: end; text-align: right; font-size: 12px; font-weight: 650; }
+    .wapp-lb__row > td:nth-child(7) { grid-area: liq; }
+    .wapp-lb__row > td:nth-child(8) { grid-area: vol; }
+    .wapp-lb__row > td:is(:nth-child(5), :nth-child(6))::before { content: none; }
+    .wapp-lb__row > td:is(:nth-child(3), :nth-child(4), :nth-child(7), :nth-child(8)) { margin-top: 8px; font-size: 12px; font-weight: 600; color: var(--color-strong); }
+    .wapp-lb__row > td:is(:nth-child(3), :nth-child(4), :nth-child(7), :nth-child(8))::before { font-size: 9.5px; font-weight: 600; letter-spacing: 0.03em; }
+    .wapp-lb__row > td:nth-child(5).wapp-lb__muted { font-size: 12px; font-weight: 600; color: var(--color-muted); }
+    .wapp-lb__row .wapp-mt__logo { width: 40px; height: 40px; }
+    .wapp-lb__row .wapp-lb__desc { display: -webkit-box; overflow: hidden; -webkit-line-clamp: 1; -webkit-box-orient: vertical; white-space: normal; }
+    .wapp-lb__row .wapp-lb__links { display: none; }
+    .wapp-lb__row:active { background: var(--color-bg-alt); }
+    .wapp-lb__foot { font-size: 11px; color: var(--color-muted); }
+  }
+  /* The Solana picture carries its own black margin: no extra padding, or the logo shrinks to a speck in the round chips. */
+  .lh-chip__logo[src$='/solana.png'], .lh-token__netlogo[src$='/solana.png'] { padding: 0; }
 </style>

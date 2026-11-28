@@ -70,6 +70,48 @@ const sendTips = [
   <link slot="head" rel="preconnect" href="https://api.geckoterminal.com" crossorigin />
   <link slot="head" rel="preconnect" href="https://api.dexscreener.com" crossorigin />
   <script slot="head" is:inline>document.documentElement.dataset.wappSidebar = 'collapsed';</script>
+  <!-- The Android and iPhone apps open on a short indigo celebration: swirling smoke, rising bubbles, the logo bursting in. Shown only
+       inside the app (the website never sees it), once per launch, and not after a pull-to-refresh. -->
+  <script slot="head" is:inline>(function () { try { var c = window.Capacitor; if (!c || !c.isNativePlatform || !c.isNativePlatform()) return; if (sessionStorage.getItem('aretia.intro')) return; sessionStorage.setItem('aretia.intro', '1'); var h = document.documentElement; h.classList.add('app-intro'); setTimeout(function () { h.classList.add('app-intro--out'); }, 2300); setTimeout(function () { h.classList.remove('app-intro', 'app-intro--out'); }, 2900); } catch (e) {} })();</script>
+  <div class="app-intro" aria-hidden="true">
+    <div class="app-intro__smoke app-intro__smoke--a"></div>
+    <div class="app-intro__smoke app-intro__smoke--b"></div>
+    <div class="app-intro__smoke app-intro__smoke--c"></div>
+    <div class="app-intro__bubbles">
+    <i style="--x:8%;--s:10px;--d:0.0s;--t:2.2s"></i>
+    <i style="--x:18%;--s:18px;--d:0.35s;--t:2.6s"></i>
+    <i style="--x:27%;--s:8px;--d:0.15s;--t:1.9s"></i>
+    <i style="--x:36%;--s:14px;--d:0.6s;--t:2.4s"></i>
+    <i style="--x:45%;--s:22px;--d:0.1s;--t:2.8s"></i>
+    <i style="--x:54%;--s:9px;--d:0.45s;--t:2.0s"></i>
+    <i style="--x:62%;--s:16px;--d:0.25s;--t:2.5s"></i>
+    <i style="--x:71%;--s:11px;--d:0.7s;--t:2.1s"></i>
+    <i style="--x:80%;--s:20px;--d:0.05s;--t:2.7s"></i>
+    <i style="--x:88%;--s:8px;--d:0.5s;--t:1.8s"></i>
+    <i style="--x:93%;--s:13px;--d:0.3s;--t:2.3s"></i>
+    <i style="--x:14%;--s:12px;--d:0.8s;--t:2.2s"></i>
+    <i style="--x:50%;--s:10px;--d:0.9s;--t:2.0s"></i>
+    <i style="--x:66%;--s:24px;--d:0.55s;--t:3.0s"></i>
+    <i style="--x:32%;--s:20px;--d:0.95s;--t:2.6s"></i>
+    <i style="--x:76%;--s:9px;--d:0.2s;--t:1.9s"></i>
+    </div>
+    <div class="app-intro__burst">
+    <b style="--a:0deg;--d:0.55s"></b>
+    <b style="--a:30deg;--d:0.62s"></b>
+    <b style="--a:60deg;--d:0.58s"></b>
+    <b style="--a:90deg;--d:0.66s"></b>
+    <b style="--a:120deg;--d:0.6s"></b>
+    <b style="--a:150deg;--d:0.64s"></b>
+    <b style="--a:180deg;--d:0.57s"></b>
+    <b style="--a:210deg;--d:0.63s"></b>
+    <b style="--a:240deg;--d:0.59s"></b>
+    <b style="--a:270deg;--d:0.65s"></b>
+    <b style="--a:300deg;--d:0.61s"></b>
+    <b style="--a:330deg;--d:0.56s"></b>
+    </div>
+    <img class="app-intro__logo" src="/assets/logo-mark.png" alt="" width="96" height="96" />
+  </div>
+
 
   <div class="wapp" data-wapp data-connected="false" data-view="dashboard" data-game={gameOn ? '1' : '0'}>
     <aside class="wapp__side" aria-label="Wallet" data-lenis-prevent>
@@ -2995,6 +3037,30 @@ const sendTips = [
     .wapp-rx__nets { flex-wrap: nowrap; overflow-x: auto; margin: 0 -14px; padding: 2px 14px; scrollbar-width: none; }
     .wapp-rx__net { flex: none; }
     .wapp-rx__acts .wapp__btn { min-height: 50px; border-radius: 999px; }
+  /* The app's opening (see the inline script at the top of the page): indigo smoke turning, bubbles rising, a burst of light and
+     the logo popping in, then the whole thing fades into the wallet. Only inside the app; a still frame for reduced motion. */
+  .app-intro { display: none; }
+  html.app-intro .app-intro { position: fixed; inset: 0; z-index: 10000; display: grid; place-items: center; overflow: hidden; background: radial-gradient(120% 90% at 50% 45%, #4f46e5 0%, #3730a3 45%, #1e1b6b 100%); }
+  html.app-intro--out .app-intro { animation: app-intro-out 600ms ease forwards; }
+  .app-intro__smoke { position: absolute; width: 150vmax; height: 150vmax; border-radius: 50%; filter: blur(42px); opacity: 0.75; mix-blend-mode: screen; }
+  .app-intro__smoke--a { background: conic-gradient(from 0deg, transparent 0 15%, rgba(129, 140, 248, 0.55) 25%, transparent 40% 60%, rgba(99, 102, 241, 0.5) 72%, transparent 85%); animation: app-intro-swirl 5s linear infinite; }
+  .app-intro__smoke--b { width: 110vmax; height: 110vmax; background: conic-gradient(from 120deg, transparent 0 20%, rgba(196, 181, 253, 0.45) 32%, transparent 48% 66%, rgba(165, 180, 252, 0.4) 80%, transparent 92%); animation: app-intro-swirl 3.6s linear infinite reverse; }
+  .app-intro__smoke--c { width: 70vmax; height: 70vmax; background: radial-gradient(circle, rgba(224, 231, 255, 0.55) 0%, rgba(129, 140, 248, 0.25) 40%, transparent 70%); animation: app-intro-breathe 1.6s ease-in-out infinite alternate; }
+  .app-intro__bubbles { position: absolute; inset: 0; }
+  .app-intro__bubbles i { position: absolute; bottom: -40px; left: var(--x); width: var(--s); height: var(--s); border: 1.5px solid rgba(255, 255, 255, 0.55); border-radius: 50%; background: radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.7), rgba(255, 255, 255, 0.08) 55%, transparent 70%); opacity: 0; animation: app-intro-rise var(--t) cubic-bezier(0.3, 0.5, 0.4, 1) var(--d) infinite; }
+  .app-intro__burst { position: absolute; top: 50%; left: 50%; width: 0; height: 0; }
+  .app-intro__burst b { position: absolute; top: -3px; left: -3px; width: 6px; height: 6px; background: #fff; border-radius: 50%; box-shadow: 0 0 12px 3px rgba(199, 210, 254, 0.9); opacity: 0; transform: rotate(var(--a)) translateY(0); animation: app-intro-spark 900ms cubic-bezier(0.15, 0.7, 0.3, 1) var(--d) forwards; }
+  .app-intro__logo { position: relative; width: 96px; height: 96px; border-radius: 24px; box-shadow: 0 0 0 0 rgba(199, 210, 254, 0.6), 0 20px 50px -10px rgba(0, 0, 0, 0.5); transform: scale(0.4); opacity: 0; animation: app-intro-pop 900ms cubic-bezier(0.2, 1.4, 0.4, 1) 0.45s forwards, app-intro-glow 1.4s ease-out 0.9s forwards; }
+  @keyframes app-intro-swirl { to { transform: rotate(360deg); } }
+  @keyframes app-intro-breathe { from { transform: scale(0.85); opacity: 0.5; } to { transform: scale(1.15); opacity: 0.85; } }
+  @keyframes app-intro-rise { 0% { opacity: 0; transform: translate(0, 0) scale(0.6); } 15% { opacity: 1; } 50% { transform: translate(14px, -50vh) scale(1); } 100% { opacity: 0; transform: translate(-10px, -105vh) scale(1.2); } }
+  @keyframes app-intro-spark { 0% { opacity: 0; transform: rotate(var(--a)) translateY(0) scale(0.5); } 20% { opacity: 1; } 100% { opacity: 0; transform: rotate(var(--a)) translateY(-130px) scale(1); } }
+  @keyframes app-intro-pop { to { transform: scale(1); opacity: 1; } }
+  @keyframes app-intro-glow { 0% { box-shadow: 0 0 0 0 rgba(199, 210, 254, 0.6), 0 20px 50px -10px rgba(0, 0, 0, 0.5); } 100% { box-shadow: 0 0 0 40px rgba(199, 210, 254, 0), 0 20px 50px -10px rgba(0, 0, 0, 0.5); } }
+  @keyframes app-intro-out { to { opacity: 0; transform: scale(1.06); visibility: hidden; } }
+  @media (prefers-reduced-motion: reduce) {
+    .app-intro__smoke, .app-intro__bubbles i, .app-intro__burst b { animation: none; }
+    .app-intro__logo { animation: none; transform: none; opacity: 1; }
   }
   /* Bottom sheets (Sell, Buy and the Markets figures): a grab bar instead of a Close button, a tight head, and the swap card without
      its own frame inside the sheet. */

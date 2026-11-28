@@ -301,19 +301,19 @@ const sendTips = [
           <div class="wapp-pay__hub" role="tablist" aria-label="Pay">
             <button type="button" class="wapp-pay__card" role="tab" data-pay-tab="send" aria-selected="true">
               <span class="wapp-pay__icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22"><path d="M7 17L17 7M9 7h8v8" /></svg></span>
-              <span class="wapp-pay__text"><strong>Send</strong><span>Send a coin or token to any address, on any network.</span></span>
+              <span class="wapp-pay__text"><strong>Send</strong><b class="wapp-pay__short">Send</b><span>Send a coin or token to any address, on any network.</span></span>
             </button>
             <button type="button" class="wapp-pay__card" role="tab" data-pay-tab="receive" aria-selected="false">
               <span class="wapp-pay__icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22"><path d="M17 7L7 17M15 17H7V9" /></svg></span>
-              <span class="wapp-pay__text"><strong>Receive</strong><span>Show your address and a QR code to be paid.</span></span>
+              <span class="wapp-pay__text"><strong>Receive</strong><b class="wapp-pay__short">Receive</b><span>Show your address and a QR code to be paid.</span></span>
             </button>
             <button type="button" class="wapp-pay__card" role="tab" data-pay-tab="ramp" aria-selected="false">
               <span class="wapp-pay__icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22"><rect x="3" y="6" width="18" height="12" rx="2" /><circle cx="12" cy="12" r="2.5" /><path d="M6.5 9.5v.01M17.5 14.5v.01" /></svg></span>
-              <span class="wapp-pay__text"><strong>Cash out or top up</strong><span>Turn USDC into cash, or buy USDC with a card or bank transfer.</span></span>
+              <span class="wapp-pay__text"><strong>Cash out or top up</strong><b class="wapp-pay__short">Cash</b><span>Turn USDC into cash, or buy USDC with a card or bank transfer.</span></span>
             </button>
             <button type="button" class="wapp-pay__card" role="tab" data-pay-tab="transfer" aria-selected="false">
               <span class="wapp-pay__icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22"><path d="M4 8h13l-3-3M20 16H7l3 3" /></svg></span>
-              <span class="wapp-pay__text"><strong>Move USDC</strong><span>Send USDC from one network to another.</span></span>
+              <span class="wapp-pay__text"><strong>Move USDC</strong><b class="wapp-pay__short">Move</b><span>Send USDC from one network to another.</span></span>
             </button>
           </div>
           <p class="wapp__intro" data-pay-intro aria-live="polite"></p>
@@ -3074,4 +3074,87 @@ const sendTips = [
   .wapp-search__paste[hidden] { display: none; }
   .wapp-search__paste svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
   .wapp-search:has(.wapp-search__paste:not([hidden])) .wapp-search__input { padding-right: 86px; }
+  /* Pay tabs: short names on phones only. */
+  .wapp-pay__short { display: none; }
+
+  /* Phones: Send as what, how much, to whom (walletPaySend.ts). The network and asset boxes give way to one coin button and a sheet;
+     the amount gets its dollar value, quick shares and the fee; the recipient gets Paste, saved people as chips and a live check;
+     Review stays at the bottom of the screen and lights up once everything is right. */
+  @media (max-width: 720px) {
+    .wapp-pay__card .wapp-pay__text strong { display: none; }
+    .wapp-pay__card .wapp-pay__short { display: block; font-size: 11.5px; font-weight: 650; }
+
+    .wapp-pay .wps .wapp-pay__hero > :is(select, label[for='send-network'], label[for='send-asset']) { display: none; }
+    .wapp-pay .wps .wapp-pay__hero > label[for='send-amount'] { display: none; }
+    .wps-coin { order: 0; justify-self: center; display: inline-flex; align-items: center; gap: 10px; max-width: 100%; min-height: 52px; padding: 6px 14px 6px 6px; font: inherit; color: #fff; text-align: left; background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 999px; cursor: pointer; }
+    .wps-coin__pics { position: relative; flex: none; width: 40px; height: 40px; }
+    .wps-coin__pic { display: grid; place-items: center; width: 40px; height: 40px; font-size: 12px; font-weight: 700; color: #fff; background: rgba(255, 255, 255, 0.18); border-radius: 50%; object-fit: cover; }
+    .wps-coin__net { position: absolute; right: -3px; bottom: -3px; width: 18px; height: 18px; background: #fff; border: 2px solid #17171c; border-radius: 50%; }
+    .wps-coin__text { display: grid; min-width: 0; }
+    .wps-coin__text strong { font-size: 15px; }
+    .wps-coin__text small { overflow: hidden; font-size: 11.5px; color: rgba(255, 255, 255, 0.65); text-overflow: ellipsis; white-space: nowrap; }
+    .wps-coin__chev { margin-left: 2px; font-size: 16px; opacity: 0.7; }
+    .wapp-pay .wps .wapp-pay__hero > .wapp__amount { order: 2; }
+    .wapp-pay .wps .wapp-pay__hero .wapp__amount > [data-send-max] { display: none; }
+    .wps-usd { min-height: 60px; padding: 0; font-size: 46px; font-weight: 750; letter-spacing: -0.03em; text-align: center; color: #fff; background: none; border: 0; box-shadow: none; }
+    .wps-usd::placeholder { color: rgba(255, 255, 255, 0.35); }
+    .wps-usd:focus { outline: none; }
+    .wps-line { order: 3; display: flex; justify-content: center; align-items: center; gap: 10px; font-size: 13.5px; color: rgba(255, 255, 255, 0.75); }
+    .wps-flip { padding: 4px 10px; font: inherit; font-size: 12px; font-weight: 650; color: #fff; background: rgba(255, 255, 255, 0.12); border: 0; border-radius: 999px; cursor: pointer; }
+    .wps-flip[hidden] { display: none; }
+    .wps-shares { order: 4; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+    .wps-share { min-height: 36px; font: inherit; font-size: 13px; font-weight: 650; color: #fff; background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.18); border-radius: 999px; cursor: pointer; }
+    .wps-fee { order: 5; margin: 0; font-size: 11.5px; text-align: center; color: rgba(255, 255, 255, 0.6); }
+    .wps-fee[data-tone='bad'] { color: #fca5a5; }
+
+    .wapp-pay .wps .wapp-pay__to { position: relative; }
+    .wapp-pay .wps .wapp-pay__to .wapp-book { display: none; }
+    .wps-people { display: flex; gap: 12px; overflow-x: auto; padding: 2px 0 4px; scrollbar-width: none; }
+    .wps-person { flex: none; display: grid; justify-items: center; gap: 4px; width: 54px; padding: 0; font: inherit; color: var(--color-strong); background: none; border: 0; cursor: pointer; }
+    .wps-person__dot { display: grid; place-items: center; width: 44px; height: 44px; font-size: 16px; font-weight: 700; color: var(--color-brand); background: var(--color-brand-soft); border: 2px solid transparent; border-radius: 50%; }
+    .wps-person[aria-pressed='true'] .wps-person__dot { color: #fff; background: var(--color-brand); }
+    .wps-person--add .wps-person__dot { color: var(--color-muted); background: none; border: 1.5px dashed var(--color-border-strong); }
+    .wps-person__name { max-width: 54px; overflow: hidden; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+    .wapp-pay .wps [data-send-to] { padding-right: 76px; }
+    .wps-people[hidden] { display: none; }
+    .wps-field { position: relative; }
+    .wps-save { justify-self: start; padding: 0; font: inherit; font-size: 12.5px; font-weight: 650; color: var(--color-brand); background: none; border: 0; cursor: pointer; }
+    .wps-save[hidden] { display: none; }
+    .wps-paste { position: absolute; top: 50%; right: 8px; transform: translateY(-50%); padding: 6px 12px; font: inherit; font-size: 12px; font-weight: 650; color: var(--color-brand); background: var(--color-brand-soft); border: 0; border-radius: 999px; cursor: pointer; }
+    .wps-paste[hidden] { display: none; }
+    .wps-check { min-height: 18px; margin: 0; font-size: 12px; color: var(--color-muted); }
+    .wps-check[data-tone='ok'] { color: #16a34a; }
+    .wps-check[data-tone='ok']::before { content: '✓ '; }
+    .wps-check[data-tone='warn'] { color: #b7791f; }
+    .wps-check[data-tone='bad'] { color: #dc2626; }
+
+    .wapp-pay .wps > .wapp__btn--primary { position: sticky; bottom: calc(92px + env(safe-area-inset-bottom)); z-index: 5; box-shadow: 0 10px 24px -12px rgba(0, 0, 0, 0.5); }
+    .wapp-pay .wps:not(.is-ready) > .wapp__btn--primary { color: var(--color-muted); background: var(--color-bg-alt); border-color: var(--color-border); box-shadow: none; }
+    .wapp-pay .wapp-pay__tips-btn { display: none; }
+
+    .wps-sheet { display: grid; gap: 12px; }
+    .wps-sheet__nets { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; }
+    .wps-net { flex: none; display: inline-flex; align-items: center; gap: 6px; min-height: 38px; padding: 0 12px 0 5px; font: inherit; font-size: 12.5px; font-weight: 650; color: var(--color-strong); background: var(--color-bg-alt); border: 1px solid var(--color-border); border-radius: 999px; cursor: pointer; }
+    .wps-net[aria-pressed='true'] { color: #fff; background: var(--color-brand); border-color: var(--color-brand); }
+    .wps-net__logo { width: 26px; height: 26px; background: #fff; border-radius: 50%; }
+    .wps-sheet__list { display: grid; margin: 0; padding: 0; list-style: none; }
+    .wps-sheet__note { padding: 14px 4px; font-size: 13px; color: var(--color-muted); }
+    .wps-row { display: grid; grid-template-columns: 40px minmax(0, 1fr) auto; align-items: center; gap: 12px; width: 100%; padding: 10px 2px; font: inherit; color: var(--color-strong); text-align: left; background: none; border: 0; border-bottom: 1px solid var(--color-border); cursor: pointer; }
+    .wps-row[aria-pressed='true'] { background: var(--color-brand-soft); border-radius: 12px; }
+    .wps-row .wps-coin__pic { color: var(--color-strong); background: var(--color-bg-alt); }
+    .wps-row__names, .wps-row__side { display: grid; min-width: 0; }
+    .wps-row__side { text-align: right; }
+    .wps-row small { overflow: hidden; font-size: 11.5px; color: var(--color-muted); text-overflow: ellipsis; white-space: nowrap; }
+    .wps-tips { margin-top: 10px; padding: 10px 12px; font-size: 12.5px; background: var(--color-bg-alt); border-radius: 12px; }
+    .wps-tips summary { font-weight: 650; cursor: pointer; }
+    .wps-tips ul { margin: 8px 0 0; padding-left: 18px; color: var(--color-muted); }
+  }
+  /* Search: "Recently viewed" when the box opens empty, with a Clear link under the list. */
+  .wapp-search__list.is-recent > .wapp-search__note:first-child { padding: 8px 12px 4px; font-size: 11px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; }
+  .wapp-search__foot { display: flex; justify-content: center; padding: 4px; }
+  .wapp-search__clear { padding: 6px 10px; font: inherit; font-size: 12px; font-weight: 600; color: var(--color-muted); background: none; border: 0; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+  /* Phones: the search list opens just under the search box (a fixed list measured "100%" from the screen and sat below it). */
+  @media (max-width: 720px) {
+    .nav--wallet .nav__bar > .wapp-search .wapp-search__list { top: calc(var(--nav-height) + 56px); max-height: calc(100dvh - var(--nav-height) - 190px - env(safe-area-inset-bottom)); }
+  }
 </style>

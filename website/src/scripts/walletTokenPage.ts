@@ -14,6 +14,7 @@ import { mountTrades, type TradesTable } from './walletTxTable';
 import { compactCount, compactUsd, formatAge, formatChange, formatPrice } from '../swings/market/types.js';
 import { cachedLogo } from '../swings/tokens/logos.js';
 import { tokenShare } from './tokenPageCore';
+import { rememberToken } from './walletRecentTokens';
 import { shareButton } from './walletShareButton';
 import { openInsight } from './walletInsights';
 
@@ -198,6 +199,8 @@ export function createTokenPage(finder = new DexScreenerPoolFinder()) {
   }
 
   function fill(o: TokenPageOptions, parts: { chart: HTMLElement; side: HTMLElement }, pool: string, d: PairDetail | null, problem: string | null): void {
+    // Once the pool is read, the recent list gets the token's real symbol, name and picture (a page opened from a link only had the address).
+    if (d) rememberToken({ chain: o.chain, address: o.address, symbol: d.baseSymbol || o.symbol, name: d.name || o.name || '', icon: d.icon ?? o.icon ?? null });
     // Aretia's own TradingView chart, drawn in the page.
     tv?.dispose();
     trades?.dispose();
@@ -410,6 +413,8 @@ export function createTokenPage(finder = new DexScreenerPoolFinder()) {
     chainAt = 0;
     const parts = skeleton(o);
     root.hidden = false;
+    // Kept on this device so the search box can offer it again (walletRecentTokens.ts).
+    rememberToken({ chain: o.chain, address: o.address, symbol: o.symbol, name: o.name ?? '', icon: o.icon ?? null });
     try {
       const info = await finder.find(o.chain, o.address, ctl.signal);
       if (mine !== seq) return;

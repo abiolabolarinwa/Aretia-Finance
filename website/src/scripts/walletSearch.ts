@@ -7,6 +7,7 @@ import { CHAINS } from '../swings/core/types.js';
 import { searchTokens, type SearchHit } from '../swings/tokens/globalSearch.js';
 import { lookupAddress } from './walletAddressLookup.js';
 import { imitationChip } from '../lib/imitationChip';
+import { clearRecent, loadRecent } from './walletRecentTokens';
 
 export const OPEN_TOKEN_EVENT = 'aretia:open-token';
 
@@ -105,6 +106,7 @@ export function mountTokenSearch(): void {
   function paint(message?: string): void {
     list.replaceChildren();
     if (message) list.append(el('li', { class: 'wapp-search__note', text: message }));
+    list.classList.toggle('is-recent', showingRecent);
     hits.forEach((h, i) => {
       const row = el('li', { class: 'wapp-search__row', attrs: { role: 'option', 'aria-selected': String(i === active) } });
       const btn = el('button', { class: 'wapp-search__item', attrs: { type: 'button', tabindex: '-1' } });
@@ -118,11 +120,31 @@ export function mountTokenSearch(): void {
       row.append(btn);
       list.append(row);
     });
+    if (showingRecent && hits.length > 0) {
+      const clear = el('button', { class: 'wapp-search__clear', text: 'Clear recent', attrs: { type: 'button' } });
+      clear.addEventListener('mousedown', (e) => e.preventDefault());
+      clear.addEventListener('click', () => {
+        clearRecent();
+        showRecent();
+      });
+      list.append(el('li', { class: 'wapp-search__foot' }, [clear]));
+    }
     list.hidden = false;
     input.setAttribute('aria-expanded', 'true');
   }
 
+  /** With the box empty: the tokens opened recently on this device, newest first. */
+  let showingRecent = false;
+  function showRecent(): void {
+    const recent = loadRecent();
+    showingRecent = true;
+    hits = recent.map((r) => ({ chain: r.chain, address: r.address, symbol: r.symbol, name: r.name, icon: r.icon, decimals: null, liquidityUsd: null, priceUsd: null, fresh: false, risk: null }));
+    active = -1;
+    paint(hits.length > 0 ? 'Recently viewed' : 'Tokens you open show here, so you can go back to them in one tap.');
+  }
+
   async function run(q: string): Promise<void> {
+    showingRecent = false;
     controller?.abort();
     controller = new AbortController();
     const mine = ++seq;
@@ -181,7 +203,8 @@ export function mountTokenSearch(): void {
       seq++;
       controller?.abort();
       hits = [];
-      close();
+      if (q === '') showRecent();
+      else close();
       return;
     }
     timer = setTimeout(() => void run(q), 250);
@@ -204,8 +227,13 @@ export function mountTokenSearch(): void {
       choose(hits[active]!);
     }
   });
+  // The round search button on phones opens the list itself too (the box may already have had focus, so no focus event comes).
+  input.addEventListener('wapp-search-open', () => {
+    if (input.value.trim() === '') showRecent();
+  });
   input.addEventListener('focus', () => {
-    if (hits.length > 0) paint();
+    if (input.value.trim() === '') showRecent();
+    else if (hits.length > 0) paint();
   });
   document.addEventListener('click', (e) => {
     if (!wrap.contains(e.target as Node)) close();

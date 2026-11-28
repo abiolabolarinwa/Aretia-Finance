@@ -72,7 +72,12 @@ export function initTopBar(): void {
   fab.addEventListener('click', () => {
     const open = !html.classList.contains('is-searching');
     html.classList.toggle('is-searching', open);
-    if (open) window.setTimeout(() => document.querySelector<HTMLInputElement>('[data-wapp-search] input')?.focus(), 30);
+    if (open)
+      window.setTimeout(() => {
+        const box = document.querySelector<HTMLInputElement>('[data-wapp-search] input');
+        box?.focus();
+        box?.dispatchEvent(new Event('wapp-search-open'));
+      }, 30);
   });
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') close();

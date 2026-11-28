@@ -3205,4 +3205,8 @@ const sendTips = [
   .wst__link:disabled { color: var(--color-muted); background: none; cursor: default; }
   .wst__foot { margin: 0; padding: 0 4px; font-size: 11.5px; color: var(--color-muted); text-align: center; }
   @media (prefers-reduced-motion: reduce) { .wst__switch, .wst__switch::after { transition: none; } }
+  /* Phones: the new-token island scrolls under the site bar (it sat above it and covered the balance and Deposit). */
+  @media (max-width: 720px) {
+    .wapp > .wapp-island { z-index: 40; }
+  }
 </style>

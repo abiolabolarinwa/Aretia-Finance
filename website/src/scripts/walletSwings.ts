@@ -427,22 +427,24 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
     const session = sessionNow();
     const sg = signerNow();
     if (session) {
-      const off = el('button', { class: 'wapp__btn wapp__btn--ghost', text: 'Sign out', attrs: { type: 'button' } });
+      // One plain status: where the list lives, and a quiet way out. The "Saved" message after signing in would only repeat it.
+      const off = el('button', { class: 'wapp-acct__link', text: 'Sign out', attrs: { type: 'button' } });
       off.addEventListener('click', () => {
         account.signOut(sg!.family, sg!.address);
         accountMessage = null;
         redrawAccount();
       });
-      bar.append(el('span', { class: 'wapp__fine', text: `Saved to ${short(session.address)}: your favourites and swaps follow this wallet on every device.` }), off);
+      bar.append(el('span', { class: 'wapp-acct__pill wapp-acct__pill--on', text: `Synced to ${short(session.address)}` }), el('span', { class: 'wapp__fine', text: 'Favourites and this list follow your wallet on every device.' }), off);
     } else if (sg) {
       const on = el('button', { class: 'wapp__btn wapp__btn--ghost', text: accountBusy ? 'Waiting for your wallet…' : 'Save to my wallet', attrs: { type: 'button' } });
       on.disabled = accountBusy;
       on.addEventListener('click', () => void signInNow());
-      bar.append(on, el('span', { class: 'wapp__fine', text: 'Sign a free message (it is not a transaction and cannot move funds) to keep favourites and swap history on every device.' }));
-    } else bar.append(el('span', { class: 'wapp__fine', text: 'Connect a wallet to save favourites and swaps to it.' }));
-    if (accountMessage) bar.append(el('span', { class: 'wapp__fine', text: accountMessage }));
+      bar.append(el('span', { class: 'wapp-acct__pill', text: 'Only on this browser' }), el('span', { class: 'wapp__fine', text: 'Sign a free message (not a transaction; it cannot move funds) to keep favourites and swaps on every device.' }), on);
+    } else bar.append(el('span', { class: 'wapp-acct__pill', text: 'Not connected' }), el('span', { class: 'wapp__fine', text: 'Connect a wallet to see and save your swaps.' }));
+    if (accountMessage && !session) bar.append(el('span', { class: 'wapp__fine wapp-acct__msg', text: accountMessage }));
     return bar;
   }
+
   const chainRuntime = createCrossChainRuntime(evm, (c) => isChainEnabled(c), () => host.getAddress());
   const crossChain = initCrossChain(movePanel, chainRuntime);
   const planTab = initPlan(planPanel, chainRuntime);
@@ -3147,9 +3149,13 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
   function renderActivity(): void {
     activityPanel.replaceChildren();
     const card = activityPanel;
-    card.append(el('h2', { class: 'wapp__h2', text: 'Your swaps and moves' }));
+    const synced = sessionNow() !== null;
+    card.append(
+      el('div', { class: 'wapp-acthead' }, [
+        el('div', {}, [el('h2', { class: 'wapp__h2', text: 'Swaps and moves in Aretia' }), el('p', { class: 'wapp__fine', text: synced ? 'Swaps and USDC moves you made in Aretia, kept with your wallet.' : 'Swaps and USDC moves you made in Aretia from this browser. The list stays on this device unless you save it to your wallet.' })]),
+      ]),
+    );
     card.append(accountBar());
-    card.append(el('p', { class: 'wapp__fine', text: 'Swaps and USDC transfers made through Aretia Swings in this browser. This list is stored only on this device and is not sent to Aretia.' }));
     void chainRuntime.orchestrator.active().then((moves) => {
       if (moves.length === 0) return;
       const box = el('div', { class: 'wapp__stack' }, [el('span', { class: 'wapp__eyebrow', text: 'USDC transfers in progress' })]);
@@ -3165,7 +3171,20 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
       card.insertBefore(box, card.children[2] ?? null);
     });
     const items = [...history.list(host.getAddress()), ...history.list(evm.account)].sort((a, b) => b.at - a.at);
-    if (items.length === 0) card.append(el('p', { class: 'wapp__fine', text: host.getAddress() || evm.account ? 'No swaps yet.' : 'Connect a wallet to see its swaps.' }));
+    if (items.length === 0) {
+      // An empty list says what will appear here and offers the way to make the first swap.
+      const empty = el('div', { class: 'wapp-empty' }, [el('span', { class: 'wapp-empty__icon', text: '⇄', attrs: { 'aria-hidden': 'true' } }), el('strong', { text: host.getAddress() || evm.account ? 'No swaps yet' : 'Connect a wallet to see its swaps' }), el('span', { class: 'wapp__fine', text: 'Swaps and USDC moves you make in Aretia show up here, with their status and a link to the transaction.' })]);
+      if (host.getAddress() || evm.account) {
+        const go = el('button', { class: 'wapp__btn wapp__btn--primary', text: 'Find a token on Markets', attrs: { type: 'button' } });
+        go.addEventListener('click', () => {
+          location.hash = '#/swings';
+        });
+        empty.append(go);
+      }
+      card.append(empty);
+    }
+    const list = el('div', { class: 'wapp-actlist' });
+    card.append(list);
     for (const i of items) {
       const row = el('div', { class: 'wapp__provider' });
       // Said as a buy or a sell with the price it was quoted at; a swap between two like assets keeps the plain wording.
@@ -3200,7 +3219,7 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
         right.append(check);
       }
       row.append(right);
-      card.append(row);
+      list.append(row);
     }
 
   }

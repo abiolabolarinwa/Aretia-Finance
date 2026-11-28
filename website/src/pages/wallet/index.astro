@@ -482,7 +482,12 @@ const sendTips = [
       <div data-pane="activity" class="wapp__pane" hidden>
         <div class="wapp__card" data-swings-activity></div>
         <div class="wapp__card">
-          <h2 class="wapp__h2">Buys, sells and transfers</h2>
+          <div class="wapp-acthead">
+            <div>
+              <h2 class="wapp__h2">On-chain history</h2>
+              <p class="wapp__fine">Buys, sells and transfers of your Solana wallet, read straight from the network (the latest 25).</p>
+            </div>
+          </div>
           <div data-activity></div>
         </div>
       </div>
@@ -872,6 +877,37 @@ const sendTips = [
   .lh__pools-link { margin: -6px 0 0; text-align: center; }
   .lh-linkbtn { min-height: 44px; padding: 0 12px; font: inherit; font-size: 12.5px; font-weight: 600; color: var(--color-brand); background: none; border: 0; border-radius: 10px; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
   .lh-linkbtn:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; }
+
+  /* Launch page polish: a clearer heading, the networks in one track, the two side links as buttons, and stronger cards. */
+  .lh__title { font-size: clamp(26px, 3vw, 34px); font-weight: 800; letter-spacing: -0.03em; }
+  .lh__lead { font-size: 14px; max-width: 52ch; }
+  .lh-chips { padding: 6px; gap: 6px; background: var(--color-bg-alt); border: 1px solid var(--color-border); border-radius: 999px; }
+  .lh-chips .lh-chip { min-height: 40px; }
+  .lh-chips .lh-chip:not(.is-on) { border-color: transparent; background: transparent; }
+  .lh-chips .lh-chip:hover:not(:disabled):not(.is-on) { background: var(--color-bg); border-color: var(--color-border); }
+  .lh__pools-link { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin: -4px 0 0; font-size: 0; }
+  .lh__pools-link .lh-linkbtn { display: inline-flex; align-items: center; gap: 8px; min-height: 38px; padding: 0 16px; font-size: 12.5px; color: var(--color-strong); text-decoration: none; background: var(--color-bg); border: 1px solid var(--color-border-strong); border-radius: 999px; transition: border-color 140ms ease, background 140ms ease; }
+  .lh__pools-link .lh-linkbtn:hover { border-color: var(--color-brand); background: var(--color-brand-soft); }
+  .lh__pools-link [data-hub-open-pools]::before { content: '◎'; color: var(--color-brand); }
+  .lh__pools-link [data-promote-open]::before { content: '★'; color: #c98a00; }
+  .lh__rail { counter-reset: none; }
+  .lh-step { position: relative; }
+  .lh-step:not(:last-child)::after { content: ''; position: absolute; top: 50%; right: -13px; width: 14px; height: 2px; background: var(--color-border-strong); }
+  .lh-step.is-done:not(:last-child)::after { background: #1f7a46; }
+  .lh__bar { display: none; }
+  .lh__step { padding: 26px 28px; border-radius: 22px; }
+  .lh [data-step='token'] .wapp-ln > .wapp__h2:first-child, .lh [data-step='token'] [data-launch-root] .wapp__h2 { font-size: 19px; letter-spacing: -0.01em; }
+  .lh [data-step='token'] [data-launch-root] .wapp__h2 + .wapp__fine { font-size: 13px; line-height: 1.55; }
+  .lh-side { padding: 22px; border-radius: 22px; border-top: 4px solid var(--color-brand); }
+  .lh-side__h { display: inline-flex; align-items: center; gap: 8px; }
+  [data-hub-preview]:not([data-empty='1']) .lh-side__h::before { content: ''; width: 8px; height: 8px; background: #1f7a46; border-radius: 50%; box-shadow: 0 0 0 4px rgba(31, 122, 70, 0.15); }
+  .lh-token__avatar { box-shadow: 0 8px 20px -10px rgba(79, 70, 229, 0.8); }
+  .lh-token__name { font-size: 16px; }
+  @media (max-width: 720px) {
+    .lh-step:not(:last-child)::after { display: none; }
+    .lh__step { padding: 20px 18px; }
+    .lh-chips { border-radius: 18px; }
+  }
   .lh:not([data-view='pools']) [data-step='pools'] { display: none; }
   .lh[data-view='pools'] [data-step='token'], .lh[data-view='pools'] [data-step='market'], .lh[data-view='pools'] [data-step='live'] { display: none; }
   .lh[data-view='pools'] :is(.lh__rail, .lh__bar, .lh__side, .lh__pools-link) { display: none; }
@@ -1850,6 +1886,27 @@ const sendTips = [
   .wapp-mt__star:hover { color: #d99a00; }
   .wapp-mt__star:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 1px; }
   .wapp-acct { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+  /* Activity: a heading with one line under it, a sync status pill, a friendly empty state, and a tidy list. */
+  [data-pane='activity'] > .wapp__card { gap: 16px; padding: 24px; border-radius: 22px; }
+  .wapp-acthead .wapp__h2 { margin: 0; font-size: 17px; }
+  .wapp-acthead .wapp__fine { margin: 4px 0 0; }
+  .wapp-acct { padding: 10px 12px; background: var(--color-bg-alt); border: 1px solid var(--color-border); border-radius: 14px; }
+  .wapp-acct .wapp__fine { flex: 1 1 240px; margin: 0; }
+  .wapp-acct__pill { display: inline-flex; align-items: center; gap: 6px; min-height: 28px; padding: 0 12px; font-size: 12px; font-weight: 700; color: var(--color-muted); background: var(--color-bg); border: 1px solid var(--color-border); border-radius: 999px; }
+  .wapp-acct__pill::before { content: ''; width: 7px; height: 7px; background: var(--color-muted); border-radius: 50%; }
+  .wapp-acct__pill--on { color: #14532d; background: #e3f6ea; border-color: transparent; }
+  .wapp-acct__pill--on::before { background: #1f7a46; }
+  .wapp-acct__link { min-height: 36px; padding: 0 10px; font: inherit; font-size: 12.5px; font-weight: 600; color: var(--color-muted); background: none; border: 0; border-radius: 8px; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+  .wapp-acct__link:hover { color: var(--color-strong); }
+  .wapp-acct__link:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; }
+  .wapp-acct__msg { flex-basis: 100%; }
+  .wapp-empty { display: grid; justify-items: center; gap: 8px; padding: 28px 16px; text-align: center; border: 1px dashed var(--color-border-strong); border-radius: 16px; }
+  .wapp-empty__icon { display: grid; place-items: center; width: 44px; height: 44px; font-size: 20px; color: var(--color-brand); background: var(--color-brand-soft); border-radius: 50%; }
+  .wapp-empty strong { font-size: 14px; color: var(--color-strong); }
+  .wapp-empty .wapp__fine, .wapp-empty .wapp-sub { max-width: 46ch; margin: 0; }
+  .wapp-empty .wapp__btn { margin-top: 6px; }
+  .wapp-actlist { display: grid; gap: 8px; }
+  .wapp-actlist:empty { display: none; }
   .wapp-mt__lock { display: inline-flex; vertical-align: -2px; margin-right: 5px; color: #16a34a; cursor: help; }
   .wapp-mt__lockhead, .wapp-mt__lockcol { text-align: left; }
   .wapp-mt__lockchip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; font-size: 11px; font-weight: 600; white-space: nowrap; border-radius: 99px; cursor: help; color: var(--color-muted); background: var(--color-bg-alt); }

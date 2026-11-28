@@ -64,6 +64,36 @@ const CSS = `
 .apr__tick{display:grid;place-items:center;width:3rem;height:3rem;margin-bottom:.2rem;border-radius:50%;background:#e6f4ec;color:#0f5c3a;font-size:1.5rem;font-weight:700}
 .apr__sum{width:100%;margin:.6rem 0 0;padding:.6rem .8rem;border-radius:12px;background:#f5f5f7;font-size:.82rem;line-height:1.5;color:#111114;overflow-wrap:anywhere}
 .apr__next{margin:.6rem 0 0;padding-left:1.1rem;font-size:.86rem;line-height:1.5;color:#55555d}
+.apr--wide{width:min(58rem,calc(100vw - 2rem))}
+.apr__top{position:sticky;top:0;z-index:2;margin:-1.25rem -1.25rem .9rem;padding:.75rem 1.25rem;background:rgba(255,255,255,.94);backdrop-filter:blur(8px);border-bottom:1px solid rgba(17,17,20,.08)}
+.apr .apr__lead{max-width:62ch;margin:.35rem 0 0;font-size:.9rem;line-height:1.5;color:#55555d}
+.apr__layout{display:grid;gap:1.25rem;margin-top:1rem}
+.apr__sec{display:grid;gap:.15rem;margin:0 0 .9rem!important;padding:1rem!important;border:1px solid rgba(17,17,20,.1)!important;border-radius:16px;background:#fff}
+.apr__sec>legend{float:left;width:100%;display:flex;align-items:center;gap:.5rem;margin:0 0 .2rem;font-size:.92rem;font-weight:700;color:#111114}
+.apr__sec>legend::before{content:attr(data-n);display:grid;place-items:center;width:1.5rem;height:1.5rem;border-radius:50%;background:#eef0ff;color:var(--color-brand,#3b3a9e);font-size:.75rem;font-weight:800}
+.apr__sec>legend+*{clear:both}
+.apr__sec label,.apr__sec fieldset{margin-top:.65rem}
+.apr__when{display:grid;gap:.8rem;align-items:start}
+.apr__when label{margin-top:0}
+.apr__aside{display:grid;gap:.75rem;align-content:start}
+.apr__panel{padding:.9rem 1rem;border-radius:16px;background:#f6f6f8}
+.apr__panel>span{display:block;margin-bottom:.55rem;font-size:.68rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#6b6b73}
+.apr__fcard{display:grid;grid-template-columns:auto 1fr;gap:.2rem .75rem;align-items:center;padding:.85rem .9rem;border:1px solid rgba(17,17,20,.1);border-radius:14px;background:#fff;box-shadow:0 6px 18px -10px rgba(17,17,20,.35)}
+.apr__favatar{grid-row:span 2;display:grid;place-items:center;width:2.6rem;height:2.6rem;border-radius:50%;background:linear-gradient(135deg,#4f46e5,#3730a3);color:#fff;font-size:.8rem;font-weight:800}
+.apr__fcard b{font-size:.98rem;line-height:1.2;overflow-wrap:anywhere}
+.apr__fbadge{justify-self:start;padding:.1rem .45rem;border-radius:999px;background:#fff4d6;color:#7a5200;font-size:.62rem;font-weight:800;letter-spacing:.06em;text-transform:uppercase}
+.apr__fcard small{grid-column:1/-1;margin-top:.35rem;font-size:.84rem;line-height:1.4;color:#33333a;overflow-wrap:anywhere}
+.apr__fmeta{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:.35rem;margin-top:.45rem}
+.apr__fmeta em{font-style:normal;padding:.15rem .55rem;border-radius:999px;background:#f1f1f3;font-size:.72rem;font-weight:600;color:#55555d}
+.apr__fcard.is-empty b,.apr__fcard.is-empty small{color:#9a9aa2}
+.apr__steps{margin:0;padding:0;list-style:none;display:grid;gap:.5rem;counter-reset:s}
+.apr__steps li{counter-increment:s;display:grid;grid-template-columns:1.4rem 1fr;gap:.55rem;font-size:.82rem;line-height:1.4;color:#44444b}
+.apr__steps li::before{content:counter(s);display:grid;place-items:center;width:1.4rem;height:1.4rem;border-radius:50%;background:#111114;color:#fff;font-size:.7rem;font-weight:700}
+.apr__safe{margin:0!important;font-size:.78rem!important;color:#6b6b73!important}
+.apr__actions--sticky{position:sticky;bottom:0;z-index:2;margin:1rem -1.25rem -1.1rem;padding:.8rem 1.25rem;background:rgba(255,255,255,.96);backdrop-filter:blur(8px);border-top:1px solid rgba(17,17,20,.08);align-items:center}
+.apr__actions--sticky .apr__status{flex:1;margin:0;font-size:.82rem}
+.apr__actions--sticky .apr__send{flex:0 0 auto}
+@media(min-width:760px){.apr__layout{grid-template-columns:minmax(0,1fr) 18rem;align-items:start}.apr__aside{position:sticky;top:4.5rem}.apr__when{grid-template-columns:auto minmax(9rem,1fr)}}
 @media(min-width:520px){.apr__row{grid-template-columns:1fr 1fr}}
 @media(prefers-reduced-motion:reduce){.apr__card{transition:none}}
 `;
@@ -174,7 +204,8 @@ export function openPromote(start: RequestKind = 'featured', prefill: Prefill = 
       step = 'choose';
       draw();
     });
-    body.append(top(`Step 2 of 2 · ${COPY[kind].title}`), back, h('h2', '', kind === 'featured' ? 'Tell us about your token' : 'Which token should we check?'), h('p', '', COPY[kind].lead));
+    body.append(top(`Step 2 of 2 · ${COPY[kind].title}`), back, h('h2', '', kind === 'featured' ? 'Tell us about your token' : 'Which token should we check?'), h('p', 'apr__lead', COPY[kind].lead));
+    dlg.classList.add('apr--wide');
 
     const form = h('form');
     form.noValidate = true;
@@ -214,22 +245,31 @@ export function openPromote(start: RequestKind = 'featured', prefill: Prefill = 
       wrap.append(errFor(name));
       return wrap;
     };
+    /** One numbered group of the form, so the person sees a few short steps instead of one long list. */
+    const section = (n: number, title: string): HTMLFieldSetElement => {
+      const f = h('fieldset', 'apr__sec');
+      const l = h('legend', '', title);
+      l.dataset.n = String(n);
+      f.append(l);
+      return f;
+    };
 
-    // The token address comes first; the network is worked out from it, and only an 0x address needs a choice.
-    form.append(field('token', 'Token address', { hint: 'Paste it from the token page or your launch.', placeholder: 'Solana or 0x… address' }));
+    // 1. The token. The address comes first; the network is worked out from it, and only an 0x address needs a choice.
+    const tokenSec = section(1, 'Your token');
+    tokenSec.append(field('token', 'Token address', { hint: 'Paste it from the token page or your launch.', placeholder: 'Solana or 0x… address' }));
     const netBox = h('fieldset');
     const netLegend = h('legend', '', 'Which network?');
     netBox.append(netLegend);
     const chips = h('div', 'apr__chips');
     netBox.append(chips, errFor('chain'));
-    form.append(netBox);
+    tokenSec.append(netBox);
     const hid = h('input');
     hid.type = 'hidden';
     hid.name = 'chain';
     hid.value = keep.chain ?? '';
-    form.append(hid);
+    tokenSec.append(hid);
+    form.append(tokenSec);
 
-    const preview = h('div', 'apr__preview');
     let drawPreview = (): void => undefined;
 
     const drawNetworks = (): void => {
@@ -266,14 +306,31 @@ export function openPromote(start: RequestKind = 'featured', prefill: Prefill = 
       drawPreview();
     });
 
-    if (kind === 'featured') {
-      form.append(field('title', 'Title', { hint: 'What people see first.', max: REQUEST_LIMITS.title, counter: true }), field('blurb', 'One line about it', { hint: 'Plain words, no promises.', max: REQUEST_LIMITS.blurb, counter: true }));
+    // The side column: the live card, the price, and what happens next. On a phone it follows the form.
+    const aside = h('aside', 'apr__aside');
+    aside.setAttribute('aria-label', 'Summary');
 
+    if (kind === 'featured') {
+      // 2. The card people will see.
+      const cardSec = section(2, 'Your card');
+      cardSec.append(
+        field('title', 'Title', { hint: 'What people see first.', max: REQUEST_LIMITS.title, counter: true }),
+        field('blurb', 'One line about it', { hint: 'Plain words, no promises.', max: REQUEST_LIMITS.blurb, counter: true }),
+        field('project', 'Project link', { type: 'url', placeholder: 'https://', autocomplete: 'url', hint: 'Your website or page.' }),
+      );
+      form.append(cardSec);
+
+      // 3. When: how long and from which day, side by side, with the dates it runs said in words.
+      const whenSec = section(3, 'When it runs');
+      const when = h('div', 'apr__when');
       const dur = h('fieldset');
       dur.append(h('legend', '', 'How long?'));
       const durChips = h('div', 'apr__chips');
+      dur.append(durChips);
       const range = h('span', 'apr__hint');
-      const fromInput = field('from', 'Starts', { type: 'date' });
+      when.append(dur, field('from', 'Starts', { type: 'date' }));
+      whenSec.append(when, range);
+      form.append(whenSec);
       const drawDur = (): void => {
         durChips.textContent = '';
         for (const d of DURATIONS) {
@@ -288,39 +345,62 @@ export function openPromote(start: RequestKind = 'featured', prefill: Prefill = 
         }
         const w = featuredWindow(val('from'), days);
         range.textContent = w ? `Runs ${shortDay(w.from)} to ${shortDay(w.to)}.` : 'Pick a start day.';
+        drawPreview();
       };
-      dur.append(durChips, range);
-      form.append(dur, fromInput);
       (form.elements.namedItem('from') as HTMLInputElement).addEventListener('input', drawDur);
       (form.elements.namedItem('from') as HTMLInputElement).min = tomorrow(new Date());
-      drawDur();
 
-      preview.append(h('span', '', 'How your card will look'));
-      const pc = h('div', 'apr__pcard');
-      preview.append(pc);
+      // The live card, drawn the way it will look on Markets.
+      const previewPanel = h('div', 'apr__panel');
+      previewPanel.append(h('span', '', 'How your card will look'));
+      const pc = h('div', 'apr__fcard');
+      previewPanel.append(pc);
       drawPreview = (): void => {
         pc.textContent = '';
         const chain = val('chain');
-        pc.append(h('i', '', 'Featured'), h('b', '', val('title').trim() || 'Your title'), h('small', '', val('blurb').trim() || 'Your one line about the token.'));
-        const name = chain && (chain in CHAINS) ? CHAINS[chain as keyof typeof CHAINS].name : '';
-        if (name) pc.append(h('em', '', name));
+        const title = val('title').trim();
+        const blurb = val('blurb').trim();
+        pc.classList.toggle('is-empty', !title && !blurb);
+        const words = title.replace(/[^A-Za-z0-9 ]/g, ' ').split(/\s+/).filter(Boolean);
+        const letters = words.slice(0, 2).map((w) => w.charAt(0).toUpperCase()).join('') || '?';
+        const meta = h('div', 'apr__fmeta');
+        const name = chain && chain in CHAINS ? CHAINS[chain as keyof typeof CHAINS].name : '';
+        if (name) meta.append(h('em', '', name));
+        const w = featuredWindow(val('from'), days);
+        meta.append(h('em', '', w ? `${shortDay(w.from)} to ${shortDay(w.to)}` : `${days} days`));
+        pc.append(h('div', 'apr__favatar', letters), h('span', 'apr__fbadge', 'Featured'), h('b', '', title || 'Your title'), h('small', '', blurb || 'Your one line about the token.'), meta);
       };
       for (const n of ['title', 'blurb']) (form.elements.namedItem(n) as HTMLInputElement).addEventListener('input', drawPreview);
-      form.append(preview);
+      const price = h('div', 'apr__panel');
+      price.append(h('span', '', 'Price'), h('p', 'apr__safe', FEATURED_PRICE_NOTE));
+      aside.append(previewPanel, price);
+      drawDur();
+    } else {
+      const projSec = section(2, 'Your project');
+      projSec.append(field('project', 'Project link', { type: 'url', placeholder: 'https://', autocomplete: 'url', hint: 'Your website or page. We check that it matches the token.' }));
+      form.append(projSec);
     }
 
-    form.append(field('project', 'Project link', { type: 'url', placeholder: 'https://', autocomplete: 'url', hint: 'Your website or page.' }), field('contact', 'Your email', { type: 'email', max: REQUEST_LIMITS.contact, autocomplete: 'email', hint: 'We reply here.' }));
-    if (kind === 'featured') form.append(h('p', 'apr__price', FEATURED_PRICE_NOTE));
-    form.append(h('p', '', 'Never include a recovery phrase or private key. Aretia will never ask for one.'));
+    // The last step: where we reply.
+    const contactSec = section(kind === 'featured' ? 4 : 3, 'How we reply');
+    contactSec.append(field('contact', 'Your email', { type: 'email', max: REQUEST_LIMITS.contact, autocomplete: 'email', hint: 'We reply here, usually within a day or two.' }), h('p', 'apr__safe', 'Never include a recovery phrase or private key. Aretia will never ask for one.'));
+    form.append(contactSec);
 
+    const next = h('div', 'apr__panel');
+    const steps = h('ol', 'apr__steps');
+    for (const t of COPY[kind].next) steps.append(h('li', '', t));
+    next.append(h('span', '', 'What happens next'), steps);
+    aside.append(next);
+
+    // The send button stays in view at the bottom while the form scrolls.
     const status = h('p', 'apr__status');
     status.setAttribute('role', 'status');
     status.setAttribute('aria-live', 'polite');
-    const actions = h('div', 'apr__actions');
+    const actions = h('div', 'apr__actions apr__actions--sticky');
     const send = h('button', 'apr__send', COPY[kind].send);
     send.type = 'submit';
-    actions.append(send);
-    form.append(status, actions);
+    actions.append(status, send);
+    form.append(actions);
 
     drawNetworks();
     drawPreview();
@@ -368,7 +448,9 @@ export function openPromote(start: RequestKind = 'featured', prefill: Prefill = 
         send.disabled = false;
       }
     });
-    body.append(form);
+    const layout = h('div', 'apr__layout');
+    layout.append(form, aside);
+    body.append(layout);
   }
 
   function drawDone(): void {
@@ -395,6 +477,7 @@ export function openPromote(start: RequestKind = 'featured', prefill: Prefill = 
 
   function draw(): void {
     body.textContent = '';
+    dlg.classList.remove('apr--wide');
     if (step === 'choose') drawChoose();
     else if (step === 'form') drawForm();
     else drawDone();

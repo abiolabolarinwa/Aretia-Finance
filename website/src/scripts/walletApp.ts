@@ -885,8 +885,16 @@ export function initWalletApp(): void {
     body.textContent = '';
     if (!address) return;
     if (error) return void body.append(el('p', { class: 'wapp-error', text: `Couldn't load activity: ${error}` }));
-    if (activity === null) return void body.append(el('p', { class: 'wapp-sub', text: 'Loading activity…' }));
-    if (activity.length === 0) return void body.append(el('p', { class: 'wapp-sub', text: 'No transactions found for this address.' }));
+    if (activity === null) return void body.append(el('p', { class: 'wapp-sub', text: 'Reading this wallet’s transactions from Solana…' }));
+    if (activity.length === 0) {
+      return void body.append(
+        el('div', { class: 'wapp-empty' }, [
+          el('span', { class: 'wapp-empty__icon', text: '◷', attrs: { 'aria-hidden': 'true' } }),
+          el('strong', { text: 'No transactions on Solana yet' }),
+          el('span', { class: 'wapp-sub', text: `Nothing has been sent from or to ${shorten(address, 4)} on Solana so far. New activity shows here once it is confirmed; Refresh reads it again.` }),
+        ]),
+      );
+    }
     if (trades) return void renderTrades(body, trades);
     body.append(el('p', { class: 'wapp-sub', text: 'Reading what was bought and sold in these transactions…' }));
     const table = el('table', { class: 'wapp-table' });

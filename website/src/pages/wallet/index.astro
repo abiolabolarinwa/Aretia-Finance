@@ -3145,4 +3145,8 @@ const sendTips = [
     .wps-tips summary { font-weight: 650; cursor: pointer; }
     .wps-tips ul { margin: 8px 0 0; padding-left: 18px; color: var(--color-muted); }
   }
+  /* Search: "Recently viewed" when the box opens empty, with a Clear link under the list. */
+  .wapp-search__list.is-recent > .wapp-search__note:first-child { padding: 8px 12px 4px; font-size: 11px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; }
+  .wapp-search__foot { display: flex; justify-content: center; padding: 4px; }
+  .wapp-search__clear { padding: 6px 10px; font: inherit; font-size: 12px; font-weight: 600; color: var(--color-muted); background: none; border: 0; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
 </style>

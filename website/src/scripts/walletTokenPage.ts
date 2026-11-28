@@ -14,6 +14,7 @@ import { mountTrades, type TradesTable } from './walletTxTable';
 import { compactCount, compactUsd, formatAge, formatChange, formatPrice } from '../swings/market/types.js';
 import { cachedLogo } from '../swings/tokens/logos.js';
 import { tokenShare } from './tokenPageCore';
+import { rememberToken } from './walletRecentTokens';
 import { shareButton } from './walletShareButton';
 import { openInsight } from './walletInsights';
 
@@ -410,6 +411,8 @@ export function createTokenPage(finder = new DexScreenerPoolFinder()) {
     chainAt = 0;
     const parts = skeleton(o);
     root.hidden = false;
+    // Kept on this device so the search box can offer it again (walletRecentTokens.ts).
+    rememberToken({ chain: o.chain, address: o.address, symbol: o.symbol, name: o.name ?? '', icon: o.icon ?? null });
     try {
       const info = await finder.find(o.chain, o.address, ctl.signal);
       if (mine !== seq) return;

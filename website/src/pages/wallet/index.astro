@@ -2973,4 +2973,27 @@ const sendTips = [
     .wapp-dash__holdings .wapp-asset { gap: 12px; }
     .wapp-dash__holdings .wapp-asset strong { font-size: 15px; }
   }
+  /* Pay > Receive: networks as chips with their logos, the QR code on a white tile with the network's logo in it, the address, then
+     Copy and Share side by side, and the network warning as a quiet line. */
+  .wapp-rx { justify-items: stretch; }
+  .wapp-rx__nets { display: flex; flex-wrap: wrap; gap: 8px; }
+  .wapp-rx__net { display: inline-flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 14px 0 6px; font: inherit; font-size: 13px; font-weight: 650; color: var(--color-strong); background: var(--color-bg-alt); border: 1px solid var(--color-border); border-radius: 999px; cursor: pointer; transition: background 160ms ease, color 160ms ease; }
+  .wapp-rx__net[aria-pressed='true'] { color: #fff; background: var(--color-brand); border-color: var(--color-brand); box-shadow: 0 8px 20px -10px var(--color-brand); }
+  .wapp-rx__netlogo { width: 28px; height: 28px; border-radius: 50%; background: #fff; }
+  .wapp-rx__tile { position: relative; justify-self: center; display: grid; place-items: center; padding: 12px; background: #fff; border-radius: 22px; box-shadow: 0 16px 40px -18px rgba(0, 0, 0, 0.45); }
+  .wapp-rx .wapp-rx__qr { display: block; width: 220px; height: 220px; padding: 0; border: 0; border-radius: 0; }
+  .wapp-rx__qrlogo { position: absolute; top: 50%; left: 50%; width: 44px; height: 44px; padding: 3px; background: #fff; border-radius: 12px; transform: translate(-50%, -50%); }
+  .wapp-rx__addrlabel { justify-self: center; margin-top: 4px; }
+  .wapp-rx .wapp-rx__addr { justify-self: stretch; padding: 10px 12px; font-size: 13px; line-height: 1.45; text-align: center; }
+  .wapp-rx__acts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .wapp-rx__acts .wapp__btn { min-height: 46px; }
+  .wapp-rx .wapp-rx__note { padding-left: 22px; text-indent: -22px; }
+  .wapp-rx .wapp-rx__note::before { content: '⚠'; display: inline-block; width: 22px; text-indent: 0; color: #d99a00; }
+  @media (max-width: 720px) {
+    .wapp-rx.wapp__card { padding: 4px 0 0; background: none; border: 0; box-shadow: none; }
+    .wapp-rx > .wapp__h2, .wapp-rx__lead { display: none; }
+    .wapp-rx__nets { flex-wrap: nowrap; overflow-x: auto; margin: 0 -14px; padding: 2px 14px; scrollbar-width: none; }
+    .wapp-rx__net { flex: none; }
+    .wapp-rx__acts .wapp__btn { min-height: 50px; border-radius: 999px; }
+  }
 </style>

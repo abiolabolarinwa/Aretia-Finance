@@ -10,6 +10,36 @@ export interface ShareData {
 
 const DONE = 'Link copied';
 
+interface NativeShare {
+  share(o: { title?: string; text?: string; url?: string; dialogTitle?: string }): Promise<unknown>;
+}
+
+/**
+ * Opens the system share sheet. Inside the Android or iPhone app the web view has no share sheet of its own, so the app's native Share
+ * plugin is used (it lists Copy, WhatsApp and every other app that can take a link). Returns 'shared', 'cancelled' or 'unavailable'.
+ */
+export async function systemShare(data: { title: string; text: string; url?: string }): Promise<'shared' | 'cancelled' | 'unavailable'> {
+  const native = (window as unknown as { Capacitor?: { Plugins?: { Share?: NativeShare }; isNativePlatform?: () => boolean } }).Capacitor;
+  try {
+    if (native?.isNativePlatform?.() && native.Plugins?.Share) {
+      await native.Plugins.Share.share({ ...data, dialogTitle: data.title });
+      return 'shared';
+    }
+  } catch (e) {
+    // Closing the sheet rejects with "Share canceled".
+    if (String((e as Error)?.message ?? e).toLowerCase().includes('cancel')) return 'cancelled';
+  }
+  try {
+    if (typeof navigator.share === 'function') {
+      await navigator.share(data);
+      return 'shared';
+    }
+  } catch (e) {
+    if (e instanceof DOMException && e.name === 'AbortError') return 'cancelled';
+  }
+  return 'unavailable';
+}
+
 export function shareButton(data: ShareData, label = 'Share'): HTMLButtonElement {
   const b = document.createElement('button');
   b.type = 'button';
@@ -22,12 +52,8 @@ export function shareButton(data: ShareData, label = 'Share'): HTMLButtonElement
   text.textContent = label;
   b.append(text);
   b.addEventListener('click', async () => {
-    try {
-      if (typeof navigator.share === 'function') return void (await navigator.share(data));
-    } catch (e) {
-      // The person closed the share sheet: nothing to do.
-      if (e instanceof DOMException && e.name === 'AbortError') return;
-    }
+    // The phone's share sheet (or the browser's); closing it does nothing more.
+    if ((await systemShare(data)) !== 'unavailable') return;
     try {
       await navigator.clipboard.writeText(data.url);
       text.textContent = DONE;

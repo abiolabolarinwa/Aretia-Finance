@@ -280,6 +280,7 @@ const sendTips = [
                 Send a coin or token you hold on Solana, Ethereum, BNB Chain, Polygon, Base or Robinhood Chain. On Solana you can also pay a <b>.sns</b> name. You review the full transaction here, then approve it in your own wallet.
               </p>
               <form class="wapp__form" data-send-form>
+                <div class="wapp-pay__hero">
                 {evmSendOn && (
                   <>
                     <label for="send-network" class="wapp__eyebrow">Network</label>
@@ -291,12 +292,15 @@ const sendTips = [
                 )}
                 <label for="send-asset" class="wapp__eyebrow">Asset</label>
                 <select id="send-asset" class="wapp__input" data-send-asset disabled><option>Loading your tokens…</option></select>
-                <label for="send-to" class="wapp__eyebrow">Recipient address or .sns name</label>
-                <input id="send-to" class="wapp__input wapp-mono" data-send-to autocomplete="off" spellcheck="false" placeholder="Address or name.sns" />
                 <label for="send-amount" class="wapp__eyebrow">Amount</label>
                 <div class="wapp__amount">
                   <input id="send-amount" class="wapp__input" data-send-amount inputmode="decimal" autocomplete="off" placeholder="0.0" />
                   <button type="button" class="wapp__btn wapp__btn--ghost" data-send-max>Max</button>
+                </div>
+                </div>
+                <div class="wapp-pay__to">
+                <label for="send-to" class="wapp__eyebrow">Recipient address or .sns name</label>
+                <input id="send-to" class="wapp__input wapp-mono" data-send-to autocomplete="off" spellcheck="false" placeholder="Address or name.sns" />
                 </div>
                 <button type="submit" class="wapp__btn wapp__btn--primary">Review</button>
               </form>
@@ -2737,5 +2741,81 @@ const sendTips = [
     .wapp-pay [data-send-form] > label[for='send-network'], .wapp-pay [data-send-form] > [data-send-network] { grid-column: 1; }
     .wapp-pay [data-send-form]:has([data-send-network]) > label[for='send-asset'], .wapp-pay [data-send-form]:has([data-send-network]) > [data-send-asset] { grid-column: 2; }
     .wapp-pay [data-send-form] > .wapp__btn--primary { order: 4; margin-top: 10px; }
+  }
+  /* The send form's two groups (amount, recipient) are invisible on wider screens: the form lays out as before. */
+  .wapp-pay__hero, .wapp-pay__to { display: contents; }
+
+  /* Phones, compact pass: a lower site bar, smaller network buttons, list icons and bottom bar, so every page shows more. */
+  @media (max-width: 720px) {
+    :root { --nav-bar-height: 60px; }
+    .nav--wallet .theme-toggle { width: 38px; height: 38px; }
+    .wapp__netbtn { width: 38px; height: 38px; }
+    .wapp__netbtn img { width: 28px; height: 28px; }
+    .wapp:is([data-view='swings'], [data-view='swap']) .wapp__rail { gap: 6px; padding: 6px 12px; }
+    .wapp:is([data-view='swings'], [data-view='favourites']) > .wapp-island { margin-top: 6px; }
+    .wapp-mt__bar > .wapp__seg [data-kind] { width: 36px; min-width: 36px; height: 36px; }
+    .wapp-mt__bar > .wapp__seg [data-kind]::before { width: 18px; height: 18px; }
+    .wapp-mt__card > .wapp-ins .wapp__chip { padding: 6px 10px; font-size: 12px; }
+    .wapp__nav > button { min-height: 44px; }
+    .wapp__nav > button svg { width: 20px; height: 20px; }
+    .wapp-search-fab { width: 56px; height: 56px; }
+    .wapp__side { right: 78px; padding: 5px; }
+    .wapp__main { padding-bottom: calc(84px + env(safe-area-inset-bottom)); }
+
+    /* The wallet button in the site bar: once a wallet is connected, the icon alone, in green (no address). */
+    .nav--wallet .aw-connect-btn[data-connected='true'] { display: grid; place-items: center; width: 38px; min-width: 38px; height: 38px; padding: 0; color: #16a34a; border-color: #16a34a; border-radius: 50%; }
+    .nav--wallet .aw-connect-btn[data-connected='true'] .aw-label, .nav--wallet .aw-connect-btn[data-connected='true'] .aw-dot { display: none; }
+    .nav--wallet .aw-connect-btn[data-connected='true'] .aw-icon { display: block; width: 18px; height: 18px; }
+  }
+  /* Dark mode: the new-token island in indigo instead of black. */
+  html[data-theme='dark'] .wapp-island__body { background: #3730a3; }
+
+  /* Phones: Pay redesigned. The four choices as one segmented bar; the amount in an ink card (big figure, Max, and the asset and
+     network as chips inside it); who it goes to in its own card; Review full width. */
+  @media (max-width: 720px) {
+    .wapp-pay__hub { gap: 2px; padding: 4px; background: var(--color-bg-alt); border: 1px solid var(--color-border); border-radius: 18px; }
+    .wapp-pay__card { gap: 4px; padding: 6px 2px; border-radius: 14px; }
+    .wapp-pay .wapp-pay__icon { width: 30px; height: 30px; color: var(--color-muted); background: none; }
+    .wapp-pay__card[aria-selected='true'] { background: var(--color-bg); box-shadow: 0 1px 4px rgba(0, 0, 0, 0.18); }
+    .wapp-pay__card[aria-selected='true'] .wapp-pay__icon { color: #fff; background: var(--color-brand); }
+    .wapp-pay__text strong { font-size: 10.5px; }
+
+    .wapp-pay [data-send-form] { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; }
+    .wapp-pay [data-send-form] > * { order: 0; grid-column: 1 / -1; grid-area: auto; }
+    .wapp-pay .wapp-pay__hero { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; padding: 18px 16px 16px; color: #fff; background: linear-gradient(150deg, #22222a 0%, #0b0b0d 70%); border-radius: 22px; box-shadow: 0 16px 34px -18px rgba(0, 0, 0, 0.6); }
+    .wapp-pay .wapp-pay__hero > * { grid-column: 1 / -1; }
+    .wapp-pay .wapp-pay__hero > label[for='send-network'], .wapp-pay .wapp-pay__hero > label[for='send-asset'] { display: none; }
+    .wapp-pay .wapp-pay__hero > label[for='send-amount'] { order: 1; justify-self: center; margin: 0; color: rgba(255, 255, 255, 0.6); }
+    .wapp-pay .wapp-pay__hero > .wapp__amount { order: 2; grid-template-columns: minmax(0, 1fr); justify-items: center; gap: 8px; margin: 0; }
+    .wapp-pay .wapp-pay__hero [data-send-amount] { min-height: 60px; padding: 0; font-size: 46px; font-weight: 750; letter-spacing: -0.03em; text-align: center; color: #fff; background: none; border: 0; box-shadow: none; }
+    .wapp-pay .wapp-pay__hero [data-send-amount]::placeholder { color: rgba(255, 255, 255, 0.35); }
+    .wapp-pay .wapp-pay__hero [data-send-amount]:focus { outline: none; }
+    .wapp-pay .wapp-pay__hero .wapp__amount .wapp__btn { min-height: 30px; padding: 0 14px; font-size: 12.5px; color: #fff; background: rgba(255, 255, 255, 0.12); border: 1px solid rgba(255, 255, 255, 0.22); border-radius: 999px; }
+    .wapp-pay .wapp-pay__hero > select { order: 3; grid-column: auto; min-height: 40px; font-size: 13.5px; color: #fff; background-color: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.18); border-radius: 999px; }
+    .wapp-pay .wapp-pay__hero > select:only-of-type { grid-column: 1 / -1; }
+    .wapp-pay .wapp-pay__hero > select option { color: #111; }
+    .wapp-pay .wapp-pay__to { display: grid; gap: 8px; padding: 14px; background: var(--color-bg-alt); border: 1px solid var(--color-border); border-radius: 18px; }
+    .wapp-pay .wapp-pay__to > label { margin: 0; }
+    .wapp-pay [data-send-form] > .wapp__btn--primary { min-height: 54px; margin-top: 2px; font-size: 16px; border-radius: 999px; }
+  }
+  /* Phones: pull the page down to load it again (src/scripts/walletPullRefresh.ts): a round indicator, no words. */
+  .wapp-pull { display: none; }
+  @media (max-width: 720px) {
+    .wapp-pull { display: block; position: fixed; top: calc(var(--nav-height) + 4px); left: 50%; z-index: 120; width: 34px; height: 34px; box-sizing: border-box; background: var(--color-bg); border: 3px solid var(--color-border-strong); border-top-color: var(--color-brand); border-radius: 50%; box-shadow: 0 6px 18px -6px rgba(0, 0, 0, 0.35); opacity: 0; transform: translate(-50%, -48px); transition: opacity 160ms ease; pointer-events: none; }
+    .wapp-pull.is-ready { border-color: var(--color-brand); border-top-color: transparent; }
+    .wapp-pull.is-loading { opacity: 1; animation: wapp-pull-spin 700ms linear infinite; }
+  }
+  @keyframes wapp-pull-spin { to { transform: translate(-50%, 40px) rotate(360deg); } }
+
+  /* Phones: the lists flow on the page instead of sitting in boxes inside boxes: no frame around the Markets card, the board or
+     Launch Box's list; rows are parted by a hairline only. */
+  @media (max-width: 720px) {
+    .wapp__card.wapp-mt__card { padding: 2px 0 0; background: transparent; border: 0; box-shadow: none; border-radius: 0; }
+    .wapp-bd__col { background: transparent; border: 0; border-radius: 0; }
+    .wapp-bd__head { padding-inline: 4px; background: transparent; border-bottom: 1px solid var(--color-border); }
+    .wapp-bd__card { padding-inline: 8px 4px; background: transparent; }
+    .wapp-lb__table.wapp-mt { border: 0; }
+    .wapp-lb__table tbody { gap: 0; }
+    .wapp-lb__row { padding: 12px 4px; background: transparent; border: 0; border-bottom: 1px solid var(--color-border); border-radius: 0; }
   }
 </style>

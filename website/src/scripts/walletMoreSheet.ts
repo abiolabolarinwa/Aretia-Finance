@@ -8,6 +8,8 @@ export function initMoreSheet(root: HTMLElement | null = document.querySelector<
   const scrim = root?.querySelector<HTMLElement>('[data-more-scrim]');
   const label = more?.querySelector<HTMLElement>('[data-more-label]');
   if (!root || !more || !scrim) return;
+  // The dimmed backdrop belongs behind the sheet: inside the bar it was drawn over the sheet's own buttons and took their taps.
+  root.append(scrim);
   const set = (open: boolean): void => {
     if (open) root.setAttribute('data-more-open', '');
     else root.removeAttribute('data-more-open');

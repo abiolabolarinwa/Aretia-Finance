@@ -2973,6 +2973,7 @@ const sendTips = [
     .wapp-dash__holdings .wapp-asset { gap: 12px; }
     .wapp-dash__holdings .wapp-asset strong { font-size: 15px; }
   }
+<<<<<<< HEAD
   /* Pay > Receive: networks as chips with their logos, the QR code on a white tile with the network's logo in it, the address, then
      Copy and Share side by side, and the network warning as a quiet line. */
   .wapp-rx { justify-items: stretch; }
@@ -2996,4 +2997,12 @@ const sendTips = [
     .wapp-rx__net { flex: none; }
     .wapp-rx__acts .wapp__btn { min-height: 50px; border-radius: 999px; }
   }
+=======
+  /* Bottom sheets (Sell, Buy and the Markets figures): a grab bar instead of a Close button, a tight head, and the swap card without
+     its own frame inside the sheet. */
+  .wapp-ins-sheet__head { position: relative; padding: 18px 16px 6px; }
+  .wapp-ins-sheet__head::before { content: ''; position: absolute; top: 7px; left: 50%; width: 40px; height: 4px; background: var(--color-border-strong); border-radius: 2px; transform: translateX(-50%); }
+  .wapp-ins-sheet__body { padding-top: 2px; }
+  .wapp-ins-sheet__body .wapp__card { padding: 0; background: none; border: 0; box-shadow: none; }
+>>>>>>> 353d04db (Sell receives the network's coin, Buy pays with it; sheets without a Close button; pull to refresh stays on the same page)
 </style>

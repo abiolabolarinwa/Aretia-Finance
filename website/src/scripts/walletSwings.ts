@@ -3332,18 +3332,27 @@ export function initSwings(host: SwingsHost): { onShow(view: 'swings' | 'swap' |
     // Market rows often carry no decimals; pick() reads them from the chain, so the placeholder is never used.
     const chosen = pick('to', { mint: r.address, symbol: r.symbol, name: r.name, decimals: r.decimals ?? rec?.decimals ?? 0, icon: r.icon ?? rec?.logo ?? null, verified: null }, r.chain);
     // Selling: once the token is chosen, the two sides are switched as the card's own switch button does.
-    if (side === 'sell')
-      void chosen.then(() => {
-        if (s.to?.mint !== r.address) return;
-        const was = s.from;
+    // The other side is the network's coin (or its first stablecoin when the token is the coin itself), never a token left over from
+    // an earlier trade.
+    const base = (): TokenInfo => {
+      const { coin, stables } = essentialTokens(r.chain);
+      return coin.mint.toLowerCase() === r.address.toLowerCase() && stables[0] ? stables[0] : coin;
+    };
+    void chosen.then(() => {
+      if (s.to?.mint !== r.address) return;
+      const { coin, stables } = essentialTokens(r.chain);
+      const basic = (t: TokenInfo | null): boolean => !!t && [coin, ...stables].some((e) => e.mint.toLowerCase() === t.mint.toLowerCase());
+      if (side === 'sell') {
+        // Selling: the token pays, the coin is received.
         s.from = s.to;
-        s.to = was;
-        s.picker = null;
-        s.amount = '';
-        resetQuote();
-        render();
-      });
-    else void chosen;
+        s.to = base();
+      } else if (!basic(s.from) || s.from?.mint.toLowerCase() === r.address.toLowerCase()) s.from = base();
+      else return;
+      s.picker = null;
+      s.amount = '';
+      resetQuote();
+      render();
+    });
     render();
   }
   function openSwapDialog(): void {

@@ -4,6 +4,28 @@
  * is already scrolled to the top, and never for a sideways move (token cards swipe sideways).
  */
 export const PULL_AT = 80;
+const RETURN_KEY = 'aretia.pull-return';
+
+/** After a pull-to-refresh reload: back to the page (and token) that was open, if the reload landed anywhere else. */
+export function restorePullReturn(): void {
+  try {
+    const want = sessionStorage.getItem(RETURN_KEY);
+    if (!want) return;
+    sessionStorage.removeItem(RETURN_KEY);
+    if (want.startsWith('/wallet') && `${location.pathname}${location.hash}` !== want) history.replaceState(null, '', want);
+  } catch {
+    // Storage blocked: the page opens as it would.
+  }
+}
+
+function reloadHere(): void {
+  try {
+    sessionStorage.setItem(RETURN_KEY, `${location.pathname}${location.hash}`);
+  } catch {
+    // Storage blocked: reload anyway.
+  }
+  window.location.reload();
+}
 
 /** How far the indicator moves for a pull of `dy` pixels: it follows the finger, then slows down, like a rubber band. */
 export function pullDistance(dy: number): number {
@@ -19,7 +41,7 @@ function scrolledTop(start: EventTarget | null): boolean {
   return true;
 }
 
-export function initPullRefresh(reload: () => void = () => window.location.reload()): void {
+export function initPullRefresh(reload: () => void = reloadHere): void {
   if (!window.matchMedia('(max-width: 720px)').matches || document.querySelector('.wapp-pull')) return;
   const dot = document.createElement('div');
   dot.className = 'wapp-pull';

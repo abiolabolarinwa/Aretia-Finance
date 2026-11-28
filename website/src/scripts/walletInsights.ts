@@ -49,12 +49,8 @@ function ensureSheet(): NonNullable<typeof sheet> {
   const title = document.createElement('strong');
   title.id = 'wapp-ins-title';
   dialog.setAttribute('aria-labelledby', title.id);
-  const close = document.createElement('button');
-  close.type = 'button';
-  close.className = 'wapp__btn wapp__btn--ghost';
-  close.textContent = 'Close';
-  close.addEventListener('click', closeSheet);
-  head.append(title, close);
+  // No Close button: a tap outside the sheet or Escape closes it, and the space goes to what the sheet shows.
+  head.append(title);
   const body = document.createElement('div');
   body.className = 'wapp-ins-sheet__body';
   dialog.append(head, body);

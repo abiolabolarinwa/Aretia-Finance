@@ -21,7 +21,7 @@ import { initMoreSheet } from './walletMoreSheet';
 import { initLaunchSteps } from './launchSteps';
 import { initInsights, openInsight } from './walletInsights';
 import { initTopBar } from './walletTopBar';
-import { initPullRefresh } from './walletPullRefresh';
+import { initPullRefresh, restorePullReturn } from './walletPullRefresh';
 import { isNativeApp } from '../lib/nativeApp';
 import type { initReferrals } from './walletReferrals';
 import type { initShield } from './walletShield';
@@ -1462,6 +1462,7 @@ export function initWalletApp(): void {
   };
   initSidebar();
   // Opened with no page named: go back to the page this person was last on. The Android and iPhone apps always open on the dashboard.
+  restorePullReturn();
   const resume = isNativeApp() ? null : viewToResume(browserStorage(), location.pathname, location.hash);
   if (resume) history.replaceState(null, '', `/wallet#/${resume}`);
   onRoute();

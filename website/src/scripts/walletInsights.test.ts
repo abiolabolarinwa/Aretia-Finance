@@ -43,7 +43,7 @@ describe('the Markets overview on phones', () => {
     expect(sheet.hasAttribute('open')).toBe(true);
     expect(sheet.querySelector('.wapp-ins-sheet__body')!.firstElementChild).toBe(mood);
     expect(sheet.querySelector('strong')!.textContent).toBe('Market mood 62');
-    sheet.querySelector<HTMLButtonElement>('.wapp-ins-sheet__head button')!.click();
+    (sheet as HTMLElement).click(); // a tap outside the sheet (on its backdrop)
     expect(sheet.hasAttribute('open')).toBe(false);
     expect(card.querySelector('.wapp-ov__cards')!.firstElementChild).toBe(mood);
   });
@@ -53,7 +53,7 @@ describe('the Markets overview on phones', () => {
     const items = insightsOf(card);
     openInsight(items[1]!);
     card.querySelector('.wapp-ov')!.replaceWith(document.createElement('div'));
-    document.querySelector<HTMLButtonElement>('.wapp-ins-sheet__head button')!.click();
+    document.querySelector<HTMLDialogElement>('.wapp-ins-sheet')!.click();
     expect(items[1]!.el.isConnected).toBe(false);
   });
 });

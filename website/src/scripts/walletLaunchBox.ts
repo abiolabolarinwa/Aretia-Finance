@@ -6,6 +6,7 @@
  * the server's; a token with no pool shows "No market yet", and data that could not be refreshed is marked old.
  */
 import { CHAINS } from '../swings/core/types.js';
+import { chipSpots, slideChips } from './walletLaunchHub';
 import { cachedLogo, registerLogo } from '../swings/tokens/logos.js';
 import type { TokenMeta } from '../swings/launchmeta/core.js';
 import { fetchTokenMetas } from './walletLaunchMeta';
@@ -285,6 +286,8 @@ export function launchTable(rows: readonly LaunchView[], h: TableHandlers): HTML
   return wrap;
 }
 
+const LB_CHIP = '.wapp-lb__chains > [data-net]';
+
 export interface LaunchBoxOptions {
   fetchImpl?: typeof fetch;
   navigate?(href: string): void;
@@ -404,13 +407,19 @@ export function initLaunchBox(o: LaunchBoxOptions): { onShow(): void } {
         b.classList.add('wapp-lb__chainchip');
         b.title = CHAINS[c].name;
         b.setAttribute('aria-label', CHAINS[c].name);
-        b.append(img);
+        // The name shows beside the logo once the network is chosen (phones; see wallet/index.astro).
+        b.append(img, el('span', 'wapp-lb__chainname', CHAINS[c].name));
       }
+      b.dataset.net = c || 'all';
       b.type = 'button';
       b.setAttribute('aria-pressed', String(filter.chain === c));
       b.addEventListener('click', () => {
+        if (filter.chain === c) return;
+        const before = chipSpots(chains, LB_CHIP);
         filter.chain = c;
         render();
+        const now = root?.querySelector<HTMLElement>('.wapp-lb__chains');
+        if (now) slideChips(now, before, LB_CHIP, `${LB_CHIP}[aria-pressed='true']`);
       });
       chains.append(b);
     }
@@ -550,7 +559,8 @@ export function initLaunchBox(o: LaunchBoxOptions): { onShow(): void } {
           sort = { key, dir: cur.key === key ? (cur.dir === 'desc' ? 'asc' : 'desc') : 'desc' };
           renderList();
         },
-        open: (r) => choose(r),
+        // Phones: a token opens its full page in Markets (chart, Sell and Buy), as a token does there; wider screens draw its chart beside the list.
+        open: (r) => (window.matchMedia('(max-width: 720px)').matches ? void (location.hash = `#/swings/${r.chain}/${r.chain === 'solana' ? r.address : r.address.toLowerCase()}`) : choose(r)),
         selectedKey: chosenKey,
         isVerified: verified,
         meta: (r) => metas.get(`${r.chain}:${r.address}`),

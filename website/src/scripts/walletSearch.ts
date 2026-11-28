@@ -34,7 +34,7 @@ function logoFor(h: SearchHit): HTMLElement {
 export function mountTokenSearch(): void {
   if (document.querySelector('[data-wapp-search]')) return;
   const wrap = el('div', { class: 'wapp-search', attrs: { 'data-wapp-search': '' } });
-  const input = el('input', { class: 'wapp-search__input', attrs: { type: 'search', placeholder: 'Search any token', title: 'Search by name, symbol or contract address', autocomplete: 'off', spellcheck: 'false', role: 'combobox', 'aria-expanded': 'false', 'aria-controls': 'wapp-search-list', 'aria-label': 'Search tokens' } });
+  const input = el('input', { class: 'wapp-search__input', attrs: { type: 'search', placeholder: 'Search any token', title: 'Search by name, symbol or contract address', autocomplete: 'off', spellcheck: 'false', role: 'combobox', 'aria-expanded': 'false', 'aria-controls': 'wapp-search-list', 'aria-label': 'Search tokens', enterkeyhint: 'search' } });
   const icon = el('span', { class: 'wapp-search__icon', attrs: { 'aria-hidden': 'true' } });
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
   svg.setAttribute('viewBox', '0 0 24 24');
@@ -47,7 +47,10 @@ export function mountTokenSearch(): void {
   svg.append(ring, handle);
   icon.append(svg);
   const list = el('ul', { class: 'wapp-search__list', attrs: { id: 'wapp-search-list', role: 'listbox', hidden: '', 'data-lenis-prevent': '' } });
-  wrap.append(icon, input, list);
+  // Paste: puts a copied contract address in the box and searches it at once (shown while the box is empty).
+  const paste = el('button', { class: 'wapp-search__paste', attrs: { type: 'button', 'aria-label': 'Paste a token address' } });
+  paste.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><rect x="8" y="3" width="8" height="4" rx="1.2"/><path d="M8 5H6.5A1.5 1.5 0 0 0 5 6.5v13A1.5 1.5 0 0 0 6.5 21h11a1.5 1.5 0 0 0 1.5-1.5v-13A1.5 1.5 0 0 0 17.5 5H16"/></svg><span>Paste</span>';
+  wrap.append(icon, input, paste, list);
 
   // On a wide screen the box sits in the site bar next to the chips, and on a phone beside the logo; in between it sits at the top of the page.
   const place = (): void => {
@@ -67,6 +70,11 @@ export function mountTokenSearch(): void {
   let seq = 0;
   let timer: ReturnType<typeof setTimeout> | undefined;
   let controller: AbortController | null = null;
+  /** Enter (or Paste) was pressed before the results came in: open the first one as soon as they do. */
+  let openFirst = false;
+  const syncPaste = (): void => {
+    paste.hidden = input.value.trim() !== '';
+  };
 
   const close = (): void => {
     list.hidden = true;
@@ -77,6 +85,8 @@ export function mountTokenSearch(): void {
   const choose = (h: SearchHit): void => {
     close();
     input.value = '';
+    syncPaste();
+    openFirst = false;
     hits = [];
     // A picked token opens its details and chart on Markets (the Swap button is there); the swap itself is one click further.
     window.dispatchEvent(new CustomEvent(SHOW_MARKET_EVENT, { detail: { chain: h.chain, address: h.address, symbol: h.symbol, name: h.name, icon: h.icon, page: 'swings' } }));
@@ -114,6 +124,8 @@ export function mountTokenSearch(): void {
       if (mine !== seq) return;
       hits = found;
       active = hits.length > 0 ? 0 : -1;
+      if (openFirst && hits.length > 0) return choose(hits[0]!);
+      openFirst = false;
       paint(hits.length === 0 ? 'No tokens found. Names are not unique: paste the contract address to be sure.' : undefined);
     } catch {
       if (mine !== seq) return;
@@ -122,8 +134,38 @@ export function mountTokenSearch(): void {
     }
   }
 
+  /** Searches now, without the typing pause; with `open`, the first result opens as soon as it is found. */
+  const searchNow = (open: boolean): void => {
+    clearTimeout(timer);
+    const q = input.value.trim();
+    if (q.length < 2) return;
+    openFirst = open;
+    void run(q);
+  };
+  paste.addEventListener('mousedown', (e) => e.preventDefault());
+  paste.addEventListener('click', async () => {
+    let text = '';
+    try {
+      text = (await navigator.clipboard.readText()).trim();
+    } catch {
+      // The phone did not let the page read the clipboard: the box is focused so a long press offers its own Paste.
+    }
+    input.focus();
+    if (!text) {
+      hits = [];
+      paint('Nothing to paste was found. Press and hold in the box, then choose Paste.');
+      return;
+    }
+    input.value = text.slice(0, 200);
+    syncPaste();
+    // A full contract address opens its token straight away; anything else shows the results.
+    searchNow(/^(0x[0-9a-fA-F]{40}|[1-9A-HJ-NP-Za-km-z]{32,44})$/.test(input.value));
+  });
+
   input.addEventListener('input', () => {
     clearTimeout(timer);
+    syncPaste();
+    openFirst = false;
     const q = input.value.trim();
     if (q.length < 2) {
       seq++;
@@ -136,6 +178,12 @@ export function mountTokenSearch(): void {
   });
   input.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') return close();
+    // Enter searches at once (no waiting for the typing pause) and opens the first token found.
+    if (e.key === 'Enter' && (hits.length === 0 || list.querySelector('.wapp-search__note'))) {
+      e.preventDefault();
+      searchNow(true);
+      return;
+    }
     if (hits.length === 0) return;
     if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
       e.preventDefault();

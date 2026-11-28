@@ -3004,5 +3004,13 @@ const sendTips = [
   .wapp-ins-sheet__head::before { content: ''; position: absolute; top: 7px; left: 50%; width: 40px; height: 4px; background: var(--color-border-strong); border-radius: 2px; transform: translateX(-50%); }
   .wapp-ins-sheet__body { padding-top: 2px; }
   .wapp-ins-sheet__body .wapp__card { padding: 0; background: none; border: 0; box-shadow: none; }
+<<<<<<< HEAD
 >>>>>>> 353d04db (Sell receives the network's coin, Buy pays with it; sheets without a Close button; pull to refresh stays on the same page)
+=======
+  /* Search: a Paste button inside the box while it is empty (walletSearch.ts). */
+  .wapp-search__paste { position: absolute; top: 50%; right: 6px; display: inline-flex; align-items: center; gap: 5px; padding: 5px 10px; font: inherit; font-size: 12px; font-weight: 650; color: var(--color-brand); background: var(--color-brand-soft); border: 0; border-radius: 999px; transform: translateY(-50%); cursor: pointer; }
+  .wapp-search__paste[hidden] { display: none; }
+  .wapp-search__paste svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .wapp-search:has(.wapp-search__paste:not([hidden])) .wapp-search__input { padding-right: 86px; }
+>>>>>>> 2e7e187a (Search: a Paste button for token addresses, and Enter searches at once and opens the first token)
 </style>

@@ -43,7 +43,7 @@ describe('the Markets overview on phones', () => {
     expect(sheet.hasAttribute('open')).toBe(true);
     expect(sheet.querySelector('.wapp-ins-sheet__body')!.firstElementChild).toBe(mood);
     expect(sheet.querySelector('strong')!.textContent).toBe('Market mood 62');
-    sheet.click(); // a tap outside the sheet (on its backdrop)
+    (sheet as HTMLElement).click(); // a tap outside the sheet (on its backdrop)
     expect(sheet.hasAttribute('open')).toBe(false);
     expect(card.querySelector('.wapp-ov__cards')!.firstElementChild).toBe(mood);
   });

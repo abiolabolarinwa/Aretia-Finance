@@ -21,6 +21,7 @@ import { initMoreSheet } from './walletMoreSheet';
 import { initLaunchSteps } from './launchSteps';
 import { initInsights, openInsight } from './walletInsights';
 import { initTopBar } from './walletTopBar';
+import { initPullRefresh } from './walletPullRefresh';
 import { isNativeApp } from '../lib/nativeApp';
 import type { initReferrals } from './walletReferrals';
 import type { initShield } from './walletShield';
@@ -1419,6 +1420,7 @@ export function initWalletApp(): void {
   initLaunchSteps();
   initInsights();
   initTopBar();
+  initPullRefresh();
   // Phones: the "Before you send" tips open in a sheet from a link under the send form (the card is beside the form on wider screens).
   const tipsCard = document.querySelector<HTMLElement>('[data-pay-tips-card]');
   document.querySelector('[data-pay-tips]')?.addEventListener('click', () => {

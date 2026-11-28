@@ -2798,4 +2798,24 @@ const sendTips = [
     .wapp-pay .wapp-pay__to > label { margin: 0; }
     .wapp-pay [data-send-form] > .wapp__btn--primary { min-height: 54px; margin-top: 2px; font-size: 16px; border-radius: 999px; }
   }
+  /* Phones: pull the page down to load it again (src/scripts/walletPullRefresh.ts): a round indicator, no words. */
+  .wapp-pull { display: none; }
+  @media (max-width: 720px) {
+    .wapp-pull { display: block; position: fixed; top: calc(var(--nav-height) + 4px); left: 50%; z-index: 120; width: 34px; height: 34px; box-sizing: border-box; background: var(--color-bg); border: 3px solid var(--color-border-strong); border-top-color: var(--color-brand); border-radius: 50%; box-shadow: 0 6px 18px -6px rgba(0, 0, 0, 0.35); opacity: 0; transform: translate(-50%, -48px); transition: opacity 160ms ease; pointer-events: none; }
+    .wapp-pull.is-ready { border-color: var(--color-brand); border-top-color: transparent; }
+    .wapp-pull.is-loading { opacity: 1; animation: wapp-pull-spin 700ms linear infinite; }
+  }
+  @keyframes wapp-pull-spin { to { transform: translate(-50%, 40px) rotate(360deg); } }
+
+  /* Phones: the lists flow on the page instead of sitting in boxes inside boxes: no frame around the Markets card, the board or
+     Launch Box's list; rows are parted by a hairline only. */
+  @media (max-width: 720px) {
+    .wapp__card.wapp-mt__card { padding: 2px 0 0; background: transparent; border: 0; box-shadow: none; border-radius: 0; }
+    .wapp-bd__col { background: transparent; border: 0; border-radius: 0; }
+    .wapp-bd__head { padding-inline: 4px; background: transparent; border-bottom: 1px solid var(--color-border); }
+    .wapp-bd__card { padding-inline: 8px 4px; background: transparent; }
+    .wapp-lb__table.wapp-mt { border: 0; }
+    .wapp-lb__table tbody { gap: 0; }
+    .wapp-lb__row { padding: 12px 4px; background: transparent; border: 0; border-bottom: 1px solid var(--color-border); border-radius: 0; }
+  }
 </style>

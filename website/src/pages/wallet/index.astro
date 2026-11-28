@@ -3153,4 +3153,8 @@ const sendTips = [
   .wapp-search__list.is-recent > .wapp-search__note:first-child { padding: 8px 12px 4px; font-size: 11px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; }
   .wapp-search__foot { display: flex; justify-content: center; padding: 4px; }
   .wapp-search__clear { padding: 6px 10px; font: inherit; font-size: 12px; font-weight: 600; color: var(--color-muted); background: none; border: 0; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+  /* Phones: the search list opens just under the search box (a fixed list measured "100%" from the screen and sat below it). */
+  @media (max-width: 720px) {
+    .nav--wallet .nav__bar > .wapp-search .wapp-search__list { top: calc(var(--nav-height) + 56px); max-height: calc(100dvh - var(--nav-height) - 190px - env(safe-area-inset-bottom)); }
+  }
 </style>

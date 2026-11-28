@@ -3116,7 +3116,11 @@ const sendTips = [
     .wps-person--add .wps-person__dot { color: var(--color-muted); background: none; border: 1.5px dashed var(--color-border-strong); }
     .wps-person__name { max-width: 54px; overflow: hidden; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
     .wapp-pay .wps [data-send-to] { padding-right: 76px; }
-    .wps-paste { position: absolute; right: 22px; bottom: 50px; padding: 6px 12px; font: inherit; font-size: 12px; font-weight: 650; color: var(--color-brand); background: var(--color-brand-soft); border: 0; border-radius: 999px; cursor: pointer; }
+    .wps-people[hidden] { display: none; }
+    .wps-field { position: relative; }
+    .wps-save { justify-self: start; padding: 0; font: inherit; font-size: 12.5px; font-weight: 650; color: var(--color-brand); background: none; border: 0; cursor: pointer; }
+    .wps-save[hidden] { display: none; }
+    .wps-paste { position: absolute; top: 50%; right: 8px; transform: translateY(-50%); padding: 6px 12px; font: inherit; font-size: 12px; font-weight: 650; color: var(--color-brand); background: var(--color-brand-soft); border: 0; border-radius: 999px; cursor: pointer; }
     .wps-paste[hidden] { display: none; }
     .wps-check { min-height: 18px; margin: 0; font-size: 12px; color: var(--color-muted); }
     .wps-check[data-tone='ok'] { color: #16a34a; }

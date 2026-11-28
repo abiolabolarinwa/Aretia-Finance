@@ -226,7 +226,10 @@ export function initPaySend(store: StorageLike | null): void {
   const paste = el('button', 'wps-paste', 'Paste');
   paste.type = 'button';
   paste.setAttribute('aria-label', 'Paste an address');
-  to.after(paste);
+  // The box and its Paste button share a frame, so Paste sits inside the box.
+  const field = el('div', 'wps-field');
+  to.before(field);
+  field.append(to, paste);
   paste.addEventListener('click', async () => {
     try {
       const t = (await navigator.clipboard.readText()).trim();
@@ -251,6 +254,8 @@ export function initPaySend(store: StorageLike | null): void {
   const saved = (): SavedRecipient[] => suitsNetwork(loadBook(store), net());
   const drawPeople = (): void => {
     people.replaceChildren();
+    // No row at all until someone is saved; a new valid address offers Save under the box instead.
+    people.hidden = saved().length === 0;
     for (const r of saved().slice(0, 12)) {
       const b = el('button', 'wps-person');
       b.type = 'button';
@@ -269,6 +274,10 @@ export function initPaySend(store: StorageLike | null): void {
     add.addEventListener('click', () => toBox.querySelector<HTMLButtonElement>('.wapp-book > .wapp__btn')?.click());
     people.append(add);
   };
+  const saveLink = el('button', 'wps-save', 'Save this recipient');
+  saveLink.type = 'button';
+  saveLink.hidden = true;
+  saveLink.addEventListener('click', () => toBox.querySelector<HTMLButtonElement>('.wapp-book > .wapp__btn')?.click());
 
   // ---- 4. Review lights up when everything is right
   const submit = form.querySelector<HTMLButtonElement>('button[type="submit"]');
@@ -293,6 +302,8 @@ export function initPaySend(store: StorageLike | null): void {
     const c = checkRecipient(to.value, net(), own, saved().map((r) => r.address));
     check.textContent = c.text;
     check.dataset.tone = c.tone;
+    saveLink.hidden = c.tone !== 'warn';
+    if (!saveLink.isConnected) check.after(saveLink);
     paste.hidden = to.value.trim() !== '';
     people.querySelectorAll<HTMLButtonElement>('.wps-person:not(.wps-person--add)').forEach((b, i) => b.setAttribute('aria-pressed', String(saved()[i]?.address === to.value.trim())));
     const ready = !!o && a !== null && a > 0 && !over && (c.tone === 'ok' || c.tone === 'warn');

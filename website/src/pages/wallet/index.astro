@@ -73,7 +73,7 @@ const sendTips = [
   <!-- The Android and iPhone apps open on a short indigo celebration: swirling smoke, rising bubbles, the logo bursting in. Shown only
        inside the app (the website never sees it), once per launch, and not after a pull-to-refresh. -->
   <script slot="head" is:inline>(function () { try { const c = window.Capacitor; if (!c || !c.isNativePlatform || !c.isNativePlatform()) return; if (sessionStorage.getItem('aretia.intro')) return; sessionStorage.setItem('aretia.intro', '1'); const h = document.documentElement; h.classList.add('app-intro'); setTimeout(function () { h.classList.add('app-intro--out'); }, 2300); setTimeout(function () { h.classList.remove('app-intro', 'app-intro--out'); }, 2900); } catch { /* storage blocked: no opening */ } })();</script>
-  <div class="app-intro" aria-hidden="true">
+  <div class="app-opening" aria-hidden="true">
     <div class="app-intro__smoke app-intro__smoke--a"></div>
     <div class="app-intro__smoke app-intro__smoke--b"></div>
     <div class="app-intro__smoke app-intro__smoke--c"></div>
@@ -3040,9 +3040,9 @@ const sendTips = [
   }
   /* The app's opening (see the inline script at the top of the page): indigo smoke turning, bubbles rising, a burst of light and
      the logo popping in, then the whole thing fades into the wallet. Only inside the app; a still frame for reduced motion. */
-  .app-intro { display: none; }
-  html.app-intro .app-intro { position: fixed; inset: 0; z-index: 10000; display: grid; place-items: center; overflow: hidden; background: radial-gradient(120% 90% at 50% 45%, #4f46e5 0%, #3730a3 45%, #1e1b6b 100%); }
-  html.app-intro--out .app-intro { animation: app-intro-out 600ms ease forwards; }
+  .app-opening { display: none; }
+  html.app-intro .app-opening { position: fixed; inset: 0; z-index: 10000; display: grid; place-items: center; overflow: hidden; background: radial-gradient(120% 90% at 50% 45%, #4f46e5 0%, #3730a3 45%, #1e1b6b 100%); }
+  html.app-intro--out .app-opening { animation: app-intro-out 600ms ease forwards; }
   .app-intro__smoke { position: absolute; width: 150vmax; height: 150vmax; border-radius: 50%; filter: blur(42px); opacity: 0.75; mix-blend-mode: screen; }
   .app-intro__smoke--a { background: conic-gradient(from 0deg, transparent 0 15%, rgba(129, 140, 248, 0.55) 25%, transparent 40% 60%, rgba(99, 102, 241, 0.5) 72%, transparent 85%); animation: app-intro-swirl 5s linear infinite; }
   .app-intro__smoke--b { width: 110vmax; height: 110vmax; background: conic-gradient(from 120deg, transparent 0 20%, rgba(196, 181, 253, 0.45) 32%, transparent 48% 66%, rgba(165, 180, 252, 0.4) 80%, transparent 92%); animation: app-intro-swirl 3.6s linear infinite reverse; }

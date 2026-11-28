@@ -190,6 +190,10 @@ const sendTips = [
               <div class="wapp-dash__alloc-bar" data-alloc-bar role="img" aria-label="How the portfolio is split between tokens"></div>
               <ul class="wapp-dash__alloc-legend" data-alloc-legend></ul>
             </div>
+            <div class="wapp-dash__cta">
+              <button type="button" data-dash-deposit><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17 7L7 17M15 17H7V9" /></svg>Deposit</button>
+              <button type="button" data-dash-withdraw><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 17L17 7M9 7h8v8" /></svg>Withdraw</button>
+            </div>
             <div class="wapp-dash__actions" role="group" aria-label="Quick actions">
               <button type="button" class="wapp-dash__action" data-nav="send"><span aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16"><path d="M7 17L17 7M9 7h8v8" /></svg></span>Send</button>
               <button type="button" class="wapp-dash__action" data-receive><span aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20"><path d="M17 7L7 17M15 17H7V9" /></svg></span>Receive</button>
@@ -2923,4 +2927,50 @@ const sendTips = [
   }
   /* The Solana picture carries its own black margin: no extra padding, or the logo shrinks to a speck in the round chips. */
   .lh-chip__logo[src$='/solana.png'], .lh-token__netlogo[src$='/solana.png'] { padding: 0; }
+  /* Home (dashboard) Deposit and Withdraw: phones only (walletTopBar.ts wires them). */
+  .wapp-dash__cta { display: none; }
+
+  /* Phones: Home redesigned. An indigo top that runs up under the site bar (the bar turns indigo with it), the wallet's value large
+     and centred, Deposit and Withdraw as two white buttons, then the tokens on a sheet with rounded top corners: name on the left,
+     value and amount on the right. The value is not repeated in the site bar here. */
+  @media (max-width: 720px) {
+    html:has(.wapp[data-view='dashboard'][data-connected='true']) .nav--wallet { color: #fff; background: #3f37c9; border-bottom-color: transparent; }
+    html:has(.wapp[data-view='dashboard'][data-connected='true']) .nav--wallet .nav-balance { visibility: hidden; }
+    html:has(.wapp[data-view='dashboard'][data-connected='true']) .nav--wallet :is(.theme-toggle, .aw-connect-btn:not([data-connected='true'])) { color: #fff; background: rgba(255, 255, 255, 0.12); border-color: rgba(255, 255, 255, 0.28); }
+    html:has(.wapp[data-view='dashboard'][data-connected='true']) .nav--wallet .aw-connect-btn[data-connected='true'] { color: #4ade80; background: rgba(255, 255, 255, 0.12); border-color: #4ade80; }
+    .wapp[data-view='dashboard'][data-connected='true'] .wapp__top { display: none; }
+    .wapp[data-view='dashboard'][data-connected='true'] .wapp__main { padding-top: 0; }
+    .wapp[data-connected='true'] .wapp-dash, .wapp[data-connected='true'] .wapp-dash__main { gap: 0; }
+
+    .wapp-dash__hero { margin: 0 -14px; gap: 18px; padding: 18px 18px 46px; text-align: center; background: linear-gradient(180deg, #3f37c9 0%, #3730a3 100%); border-radius: 0; box-shadow: none; }
+    .wapp-dash__hero::before, .wapp-dash__hero::after { content: none; }
+    .wapp-dash__hero-top { justify-content: center; position: relative; }
+    .wapp-dash__hero-top { padding: 0 40px; }
+    .wapp-dash__hero-top > .wapp__icon { position: absolute; top: 4px; right: -4px; width: 32px; height: 32px; color: #fff; background: rgba(255, 255, 255, 0.12); border-color: rgba(255, 255, 255, 0.25); }
+    .wapp-dash__value { display: grid; justify-items: center; gap: 2px; }
+    .wapp-dash__value .wapp__eyebrow { order: 2; color: rgba(255, 255, 255, 0.75); font-size: 12px; font-weight: 600; letter-spacing: 0; text-transform: none; }
+    .wapp-dash__hero .wapp__total { order: 1; margin: 0; font-size: 2.6rem; font-weight: 750; letter-spacing: -0.03em; color: #fff; }
+    .wapp-dash__value .wapp__sub { order: 3; font-size: 11.5px; color: rgba(255, 255, 255, 0.6); }
+    .wapp-dash__hero .wapp-dash__alloc, .wapp-dash__hero .wapp-dash__actions { display: none; }
+    .wapp-dash__cta { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .wapp-dash__cta > button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 48px; font: inherit; font-size: 15px; font-weight: 650; color: #111; background: #fff; border: 0; border-radius: 12px; cursor: pointer; }
+    .wapp-dash__cta > button:active { transform: scale(0.98); }
+    .wapp-dash__cta svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+
+    .wapp-dash__holdings.wapp__card { position: relative; z-index: 1; margin: -26px -14px 0; padding: 18px 16px 8px; background: var(--color-bg); border: 0; border-radius: 24px 24px 0 0; box-shadow: none; }
+    .wapp-dash__holdings .wapp-dash__head { padding-bottom: 12px; border-bottom: 1px solid var(--color-border); }
+    .wapp-dash__holdings .wapp__h2 { font-size: 17px; }
+    .wapp-dash__holdings [data-holdings] { max-height: none; overflow: visible; }
+    .wapp-dash__holdings.wapp__card { min-height: calc(100dvh - var(--nav-height) - 250px); }
+    .wapp-dash__holdings .wapp-table thead { display: none; }
+    .wapp-dash__holdings .wapp-table, .wapp-dash__holdings .wapp-table tbody { display: block; width: 100%; }
+    .wapp-dash__holdings .wapp-table tr { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: 'asset value' 'asset amount'; align-items: center; column-gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--color-border); }
+    .wapp-dash__holdings .wapp-table td { display: none; padding: 0; border: 0; }
+    .wapp-dash__holdings .wapp-table td:nth-child(1) { display: block; grid-area: asset; min-width: 0; }
+    .wapp-dash__holdings .wapp-table td:nth-child(2) { display: block; grid-area: amount; font-size: 12px; color: var(--color-muted); text-align: right; }
+    .wapp-dash__holdings .wapp-table td:nth-child(4) { display: block; grid-area: value; font-size: 15px; font-weight: 700; color: var(--color-strong); text-align: right; }
+    .wapp-dash__holdings .wapp-table--suspect td:nth-child(3) { display: block; grid-area: value; }
+    .wapp-dash__holdings .wapp-asset { gap: 12px; }
+    .wapp-dash__holdings .wapp-asset strong { font-size: 15px; }
+  }
 </style>

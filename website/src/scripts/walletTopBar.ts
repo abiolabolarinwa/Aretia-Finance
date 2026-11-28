@@ -35,11 +35,15 @@ export function initTopBar(): void {
   deposit.setAttribute('aria-label', 'Deposit');
   deposit.type = 'button';
   deposit.title = 'Receive crypto, or top up with a card or bank transfer';
-  deposit.addEventListener('click', () => {
+  const openPay = (tab: 'receive' | 'ramp'): void => {
     location.hash = '#/send';
-    // Pay opens on Send; Deposit means its Receive choice.
-    window.setTimeout(() => document.querySelector<HTMLElement>('[data-pay-tab="receive"]')?.click(), 60);
-  });
+    // Pay opens on Send; Deposit means its Receive choice, Withdraw its Cash out choice.
+    window.setTimeout(() => document.querySelector<HTMLElement>(`[data-pay-tab="${tab}"]`)?.click(), 60);
+  };
+  deposit.addEventListener('click', () => openPay('receive'));
+  // Home's two buttons (phones).
+  document.querySelector('[data-dash-deposit]')?.addEventListener('click', () => openPay('receive'));
+  document.querySelector('[data-dash-withdraw]')?.addEventListener('click', () => openPay('ramp'));
   box.append(value, connect, deposit);
   const brand = bar.querySelector('.nav__brand');
   if (brand) brand.after(box);

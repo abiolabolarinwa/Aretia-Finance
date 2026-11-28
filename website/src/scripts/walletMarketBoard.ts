@@ -5,7 +5,7 @@
  * the token. The columns hold the same tokens the table would show, in the same order, split by network.
  */
 import type { ChainId } from '../swings/core/types.js';
-import { compactUsd, formatChange, formatPrice, type MarketRow } from '../swings/market/types.js';
+import { compactUsd, formatAge, formatChange, formatPrice, type MarketRow } from '../swings/market/types.js';
 import { marketLogo, tableRowKey } from './walletMarketTable.js';
 import { knownCap } from './walletMarketCap.js';
 
@@ -205,7 +205,22 @@ function card(r: MarketRow, o: BoardOptions): HTMLElement {
   const capEl = el('span', 'wapp-bd__cap', compactUsd(capNow));
   capEl.title = (r.capUsd !== null ? r.capIsFdv : earlier?.isFdv) ? 'Market cap (fully diluted: price times total supply)' : 'Market cap';
   subLine.append(el('span', 'wapp-bd__mc', 'MC '), capEl);
-  mid.append(top, subLine);
+  // Phones (wallet/index.astro): the token's name large with a NEW tag for a pool under a day old, then its ticker, its age (a
+  // sprout, greener the younger it is) and the market cap underneath. Wider screens keep the compact line above.
+  const fresh = r.ageMs !== null && r.ageMs < 86_400_000;
+  const ptitle = el('div', 'wapp-bd__ptitle');
+  ptitle.append(el('strong', '', r.name && r.name.toLowerCase() !== r.symbol.toLowerCase() ? r.name : r.symbol));
+  if (fresh) ptitle.append(el('span', 'wapp-bd__new', 'NEW'));
+  const psub = el('div', 'wapp-bd__psub');
+  psub.append(el('span', 'wapp-bd__ptick', r.symbol));
+  if (r.ageMs !== null) {
+    const age = el('span', `wapp-bd__age${r.ageMs < 3_600_000 ? ' is-hour' : fresh ? ' is-day' : ''}`, formatAge(r.ageMs));
+    age.title = 'Pool age';
+    psub.append(age);
+  }
+  const pcap = el('span', 'wapp-bd__pcap', `MC ${compactUsd(capNow)}`);
+  psub.append(pcap);
+  mid.append(top, subLine, ptitle, psub);
 
   const right = el('div', 'wapp-bd__right');
   const big = el('span', 'wapp-bd__big', formatPrice(r.priceUsd));
@@ -214,7 +229,13 @@ function card(r: MarketRow, o: BoardOptions): HTMLElement {
   chg.title = `Price change over ${pill.label === '1H' ? 'the last hour' : pill.label === '5M' ? 'the last 5 minutes' : pill.label === '6H' ? 'the last 6 hours' : 'the last 24 hours'}`;
   right.append(big, chg);
 
-  c.append(marketLogo(r), mid, right);
+  // The token's picture with its network's logo in the corner (the badge shows on phones).
+  const pic = el('span', 'wapp-bd__pic');
+  const badge = el('img', 'wapp-bd__netbadge');
+  badge.src = `/assets/chains/${r.chain}.png`;
+  badge.alt = '';
+  pic.append(marketLogo(r), badge);
+  c.append(pic, mid, right);
   addSwipe(c, r, o);
   if (o.favourites) {
     const fav = o.favourites;
@@ -336,6 +357,8 @@ export function updateBoardCards(board: ParentNode, rows: readonly MarketRow[], 
     const cap = c.querySelector('.wapp-bd__cap');
     const capNow = r.capUsd ?? knownCap(r)?.capUsd ?? null;
     if (cap && cap.textContent !== compactUsd(capNow)) cap.textContent = compactUsd(capNow);
+    const pcap = c.querySelector('.wapp-bd__pcap');
+    if (pcap && pcap.textContent !== `MC ${compactUsd(capNow)}`) pcap.textContent = `MC ${compactUsd(capNow)}`;
     if (capNow !== null) c.classList.remove('is-nocap');
     const chg = c.querySelector<HTMLElement>('.wapp-bd__chg');
     if (chg) {

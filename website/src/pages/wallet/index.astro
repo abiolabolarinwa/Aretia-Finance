@@ -3178,4 +3178,35 @@ const sendTips = [
     .wapp-mt__bar > .wapp-mt__win { display: none; }
     .wapp-bd__head .wapp-bd__count { display: none; }
   }
+  /* Market board: the phone-only parts of a card (see below) stay out of the wider layout. */
+  .wapp-bd__ptitle, .wapp-bd__psub, .wapp-bd__netbadge { display: none; }
+  .wapp-bd__pic { position: relative; display: block; }
+
+  /* Phones: each token as a roomy row, after the owner's reference. A large rounded picture with the network's logo in its corner;
+     the name large (NEW for a pool under a day old), then the ticker, the pool's age and the market cap; the price large on the right
+     over a squared change pill. No coloured edge or tint: rows are parted by a hairline. */
+  @media (max-width: 720px) {
+    .wapp-bd__card { grid-template-columns: 54px minmax(0, 1fr) auto; gap: 14px; padding: 13px 2px; background: none !important; border-bottom: 1px solid var(--color-border); contain-intrinsic-size: auto 80px; }
+    .wapp-bd__card::before { content: none; }
+    .wapp-bd__card .wapp-mt__logo { width: 54px; height: 54px; border-radius: 14px; font-size: 14px; }
+    .wapp-bd__netbadge { position: absolute; right: -4px; bottom: -4px; display: block; width: 20px; height: 20px; background: #fff; border: 2px solid var(--color-bg); border-radius: 50%; }
+    .wapp-bd__mid > :is(.wapp-bd__top, .wapp-bd__sub) { display: none; }
+    .wapp-bd__mid { gap: 3px; }
+    .wapp-bd__ptitle { display: flex; align-items: center; gap: 8px; min-width: 0; }
+    .wapp-bd__ptitle strong { overflow: hidden; font-size: 16px; font-weight: 750; letter-spacing: -0.01em; color: var(--color-strong); text-overflow: ellipsis; white-space: nowrap; }
+    .wapp-bd__new { flex: none; padding: 1px 6px; font-size: 10.5px; font-weight: 800; letter-spacing: 0.04em; color: #ef4444; border: 1.5px solid #ef4444; border-radius: 6px; }
+    .wapp-bd__psub { display: flex; align-items: center; gap: 10px; min-width: 0; font-size: 12.5px; color: var(--color-muted); white-space: nowrap; }
+    .wapp-bd__ptick { overflow: hidden; max-width: 40%; text-overflow: ellipsis; }
+    .wapp-bd__age { display: inline-flex; align-items: center; gap: 3px; font-weight: 600; }
+    .wapp-bd__age::before { content: ''; width: 13px; height: 13px; background: currentColor; -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 21v-8M12 13c0-4-3-6-8-6 0 4 3 6 8 6zM12 11c0-4 3-6 8-6 0 4-3 6-8 6z' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / contain no-repeat; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 21v-8M12 13c0-4-3-6-8-6 0 4 3 6 8 6zM12 11c0-4 3-6 8-6 0 4-3 6-8 6z' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / contain no-repeat; }
+    .wapp-bd__age.is-hour { color: #22c55e; }
+    .wapp-bd__age.is-day { color: #eab308; }
+    .wapp-bd__pcap { overflow: hidden; text-overflow: ellipsis; }
+    .wapp-bd__right { gap: 5px; }
+    .wapp-bd__big { font-size: 16.5px; font-weight: 800; }
+    .wapp-bd__chg { padding: 3px 8px; font-size: 12.5px; font-weight: 750; border-radius: 6px; }
+    .wapp-bd__star { top: 6px; right: 2px; }
+    .wapp-bd__head { padding-block: 10px; }
+    .wapp-bd__legend { display: none; }
+  }
 </style>
